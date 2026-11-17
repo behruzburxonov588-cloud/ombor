@@ -70,7 +70,7 @@ GitHub'ga har bir push'da Render saytni o'zi yangilaydi.
 
 ## Cloudflare'ga joylash
 
-Ilova Cloudflare Workers'da ham ishlaydi (`wrangler.jsonc`, `src/worker.js`). Sahifalar Cloudflare tarmog'idan beriladi, API Worker'da ishlaydi, bildirishnomalar har daqiqada Cron orqali tekshiriladi, mahsulot rasmlari bazada saqlanadi. Ma'lumotlar bazasi — PostgreSQL (masalan, bepul **Neon**).
+Ilova Cloudflare Workers'da ham ishlaydi (`wrangler.jsonc`, `src/worker.js`). Sahifalar Cloudflare tarmog'idan beriladi, API Worker'da ishlaydi, bildirishnomalar soatiga bir marta Cron orqali (ilova ochiq bo'lsa — har daqiqada) tekshiriladi, mahsulot rasmlari bazada saqlanadi. Ma'lumotlar bazasi — PostgreSQL (masalan, bepul **Neon**).
 
 1. **Baza:** [neon.tech](https://neon.tech) → *New project* (hudud: *Europe (Frankfurt)*) → *Connection string* ni nusxalang (`postgresql://...?sslmode=require`).
 2. **GitHub'ni ulash:** *Workers & Pages* → *Create* → *Import a repository* → `ombor`. *Project name*: `ombor-pro`. *Root directory* va *Build command* bo'sh qoladi, *Deploy command*: `npx wrangler deploy` (repozitoriya ildizidagi `wrangler.jsonc` kutubxonalarni o'zi o'rnatadi).

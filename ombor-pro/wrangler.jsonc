@@ -17,8 +17,9 @@
     "run_worker_first": ["/api/*", "/uploads/*"]
   },
 
-  // Bildirishnomalar va rejali xulosalar har daqiqada tekshiriladi
-  "triggers": { "crons": ["* * * * *"] },
+  // Bildirishnomalar va rejali xulosalar soatiga bir marta tekshiriladi (bepul bazaning
+  // "uyg'oq vaqt" limitini tejash uchun). Ilova ochiq bo'lsa, xabarlar har daqiqada yangilanadi.
+  "triggers": { "crons": ["0 * * * *"] },
 
   "vars": {
     "NODE_ENV": "production"

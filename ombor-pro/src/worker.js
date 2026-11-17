@@ -3,7 +3,7 @@
 //  - sahifalar, stillar va skriptlarni Cloudflare o'zi beradi (public/ papkasi, "assets");
 //  - /api/* va /uploads/* so'rovlari shu yerga keladi va Express'ga uzatiladi;
 //  - har bir so'rov bazaga o'z ulanishini oladi (Workers'da ulanishni so'rovlar orasida bo'lishib bo'lmaydi);
-//  - bildirishnomalar har daqiqada Cron orqali tekshiriladi.
+//  - bildirishnomalar soatiga bir marta Cron orqali tekshiriladi (ilova ochiq bo'lsa — tez-tez).
 import { handleAsNodeRequest } from 'cloudflare:node';
 import pg from 'pg';
 import { createApp } from './app.js';
