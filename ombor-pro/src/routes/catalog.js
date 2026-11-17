@@ -14,8 +14,9 @@ import { receiveStock } from '../services/inventory.js';
 
 const router = Router();
 
-// Rasm saqlash: oddiy serverda diskka, Cloudflare Workers'da (fayl tizimi yo'q) bazaga
-export const imagesInDb = () => process.env.OMBOR_RUNTIME === 'worker';
+// Rasm saqlash: oddiy serverda diskka; Cloudflare Workers yoki doimiy diski yo'q hostingda
+// (masalan, Render bepul rejasi: OMBOR_IMAGE_STORE=db) bazaga
+export const imagesInDb = () => process.env.OMBOR_RUNTIME === 'worker' || process.env.OMBOR_IMAGE_STORE === 'db';
 const IMAGE_LIMITS = { fileSize: 3 * 1024 * 1024 };
 const imageFilter = (req, file, cb) => {
   const ok = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);

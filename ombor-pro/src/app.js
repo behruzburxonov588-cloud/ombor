@@ -7,7 +7,7 @@ import { authenticate } from './auth.js';
 import { pool } from './db.js';
 import authRoutes from './routes/auth.js';
 import peopleRoutes from './routes/people.js';
-import catalogRoutes from './routes/catalog.js';
+import catalogRoutes, { imagesInDb } from './routes/catalog.js';
 import tradeRoutes from './routes/trade.js';
 import stockRoutes from './routes/stock.js';
 import financeRoutes from './routes/finance.js';
@@ -60,7 +60,7 @@ export function createApp() {
   const app = express();
   app.disable('x-powered-by');
   const worker = process.env.OMBOR_RUNTIME === 'worker';
-  if (!worker) fs.mkdirSync(config.uploadDir, { recursive: true });
+  if (!imagesInDb()) fs.mkdirSync(config.uploadDir, { recursive: true });
 
   app.use(express.json({ limit: '1mb' }));
 
@@ -77,8 +77,8 @@ export function createApp() {
   app.use('/api', peopleRoutes, catalogRoutes, tradeRoutes, stockRoutes, financeRoutes, analyticsRoutes, notificationRoutes);
   app.use('/api', (req, res) => res.status(404).json({ error: "So'rov topilmadi" }));
 
-  if (worker) {
-    // Cloudflare: sahifalar va fayllarni platforma beradi; rasmlar bazadan
+  if (imagesInDb()) {
+    // Rasmlar bazada (Cloudflare yoki doimiy diski yo'q hosting)
     app.get('/uploads/:name', async (req, res) => {
       const { rows } = await pool.query('SELECT content_type, data FROM product_images WHERE name = $1', [req.params.name]);
       if (!rows[0]) return res.status(404).end();
@@ -88,6 +88,9 @@ export function createApp() {
     });
   } else {
     app.use('/uploads', express.static(config.uploadDir, { maxAge: '1d', index: false, dotfiles: 'deny' }));
+  }
+  // Cloudflare'da sahifalar va fayllarni platformaning o'zi beradi
+  if (!worker) {
     app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html' }));
     app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
       res.sendFile(path.join(ROOT, 'public', 'index.html'));

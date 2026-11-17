@@ -40,11 +40,26 @@ npm start
 
 Brauzerda `http://localhost:3000` manzilini oching.
 
+## Bepul joylash: Render + Neon
+
+Ilova oddiy Node.js server sifatida o'zgarishsiz ishlaydi. Ikkalasining ham bepul rejasi bor.
+
+1. **Baza:** [neon.tech](https://neon.tech) → *New project* (hudud: *Europe (Frankfurt)*) → *Connection string* ni nusxalang (`postgresql://...?sslmode=require`).
+2. **Server:** [render.com](https://render.com) ga GitHub orqali kiring → *New* → **Blueprint** → `ombor` repozitoriyasini tanlang. Render repozitoriyadagi `render.yaml` faylini o'qiydi.
+3. So'ralganda **DATABASE_URL** ga Neon manzilini kiriting → *Apply*. `JWT_SECRET` avtomatik yaratiladi.
+4. Bir necha daqiqadan keyin `https://ombor-pro-....onrender.com` manzili ochiladi — birinchi sozlash oynasi chiqadi.
+
+Blueprint ishlamasa, qo'lda: *New → Web Service* → repozitoriya → *Root Directory*: `ombor-pro`, *Build Command*: `npm ci --omit=dev`, *Start Command*: `npm start`, *Instance Type*: Free; *Environment* da `NODE_ENV=production`, `OMBOR_IMAGE_STORE=db`, `JWT_SECRET` (uzun tasodifiy matn), `DATABASE_URL` (Neon manzili).
+
+Bepul rejaning cheklovi: 15 daqiqa hech kim kirmasa server "uxlaydi", keyingi ochilishda ~1 daqiqa kutiladi va uxlab turganda rejali Telegram xabarlari yuborilmaydi. Buni oldini olish uchun bepul [UptimeRobot](https://uptimerobot.com) da har 5 daqiqada `https://<manzil>/api/auth/status` ni tekshiradigan monitor qo'shing. Mahsulot rasmlari bazada saqlanadi (`OMBOR_IMAGE_STORE=db`), chunki bepul rejada disk vaqtinchalik.
+
+GitHub'ga har bir push'da Render saytni o'zi yangilaydi.
+
 ## Cloudflare'ga joylash
 
 Ilova Cloudflare Workers'da ham ishlaydi (`wrangler.jsonc`, `src/worker.js`). Sahifalar Cloudflare tarmog'idan beriladi, API Worker'da ishlaydi, bildirishnomalar har daqiqada Cron orqali tekshiriladi. Ma'lumotlar bazasi — PostgreSQL (masalan, bepul **Neon**). Mahsulot rasmlari Cloudflare'da bazada saqlanadi.
 
-Kerak bo'ladi: Cloudflare **Workers Paid** rejasi (oyiga $5 — parol tekshiruvi va PDF bepul rejaning 10 ms vaqt chegarasiga sig'maydi) va PostgreSQL baza.
+Kerak bo'ladi: Cloudflare **Workers Paid** rejasi (oyiga $5) va PostgreSQL baza. Bepul rejada ishlamaydi: unda har bir so'rovga 10 ms protsessor vaqti beriladi, o'lchovlar bo'yicha esa tizimga kirish ~390 ms, bosh sahifa ~16 ms, PDF ~36 ms oladi.
 
 1. **Baza:** [neon.tech](https://neon.tech) da ro'yxatdan o'ting → *New project* (hudud: *Europe (Frankfurt)*) → *Connection string* ni nusxalang (`postgresql://...?sslmode=require`).
 2. **Cloudflare rejasi:** *Workers & Pages* → *Plans* → **Workers Paid**.
@@ -74,6 +89,7 @@ Mahalliy sinash: `.dev.vars` faylida `DATABASE_URL` va `JWT_SECRET` ni yozing va
 | `PORT` | HTTP port | `3000` |
 | `UPLOAD_DIR` | Mahsulot rasmlari saqlanadigan papka | `./uploads` |
 | `OMBOR_TEST_DATABASE_URL` | Testlar uchun baza (nomi `ombor_test` bo'lishi shart) | `postgres://postgres:postgres@localhost:5432/ombor_test` |
+| `OMBOR_IMAGE_STORE` | `db` bo'lsa, mahsulot rasmlari diskka emas, bazaga saqlanadi (doimiy diski yo'q hosting uchun) | disk |
 | `OMBOR_DISABLE_SCHEDULER` | `1` bo'lsa, fon rejalashtiruvchisi (bildirishnomalar, rejali xulosalar) ishga tushmaydi. Bir nechta server bo'lsa ham yoqib qo'yish xavfsiz | — |
 
 Production uchun misol:

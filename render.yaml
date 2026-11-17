@@ -1,0 +1,25 @@
+# OMBOR PRO — Render (bepul) uchun sozlama.
+# Render → New → Blueprint → shu repozitoriyani tanlang. So'ralganda DATABASE_URL ga
+# Neon PostgreSQL manzilini kiriting. JWT_SECRET avtomatik yaratiladi.
+services:
+  - type: web
+    name: ombor-pro
+    runtime: node
+    plan: free
+    rootDir: ombor-pro
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/auth/status
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # Bepul rejada disk vaqtinchalik — mahsulot rasmlari bazada saqlanadi
+      - key: OMBOR_IMAGE_STORE
+        value: db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
