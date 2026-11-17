@@ -608,17 +608,18 @@ export async function runCycle(db, { now = new Date() } = {}) {
     const { rows: lock } = await client.query('SELECT pg_try_advisory_lock(515151) AS ok');
     if (!lock[0].ok) return { skipped: true, created: [] };
     try {
-      const { config: cfg, token } = await getNotifyConfig(client);
-      const settings = await getSettings(client);
+      // Qulf alohida ulanishda turadi; tekshiruvlar esa pool orqali (parallel so'rovlar uchun)
+      const { config: cfg, token } = await getNotifyConfig(db);
+      const settings = await getSettings(db);
       const clock = localClock(now);
       const created = [];
       const steps = [
-        () => (cfg.types.low_stock.enabled ? checkStock(client, cfg, clock.date) : []),
-        () => (cfg.types.debt_reminder.enabled ? checkDebts(client, cfg, settings, clock.date) : []),
-        () => checkInsights(client, cfg, clock.date),
-        () => (cfg.types.inventory_change.enabled ? checkInventoryChanges(client, cfg, clock.date) : []),
-        () => (cfg.types.business_event.enabled ? checkEvents(client, cfg) : []),
-        () => checkSummaries(client, cfg, clock),
+        () => (cfg.types.low_stock.enabled ? checkStock(db, cfg, clock.date) : []),
+        () => (cfg.types.debt_reminder.enabled ? checkDebts(db, cfg, settings, clock.date) : []),
+        () => checkInsights(db, cfg, clock.date),
+        () => (cfg.types.inventory_change.enabled ? checkInventoryChanges(db, cfg, clock.date) : []),
+        () => (cfg.types.business_event.enabled ? checkEvents(db, cfg) : []),
+        () => checkSummaries(db, cfg, clock),
       ];
       for (const step of steps) {
         try {
@@ -627,7 +628,7 @@ export async function runCycle(db, { now = new Date() } = {}) {
           console.error('Bildirishnoma tekshiruvida xato:', err.message);
         }
       }
-      const delivery = await deliverPending(client, cfg, token, settings.store_name).catch((err) => {
+      const delivery = await deliverPending(db, cfg, token, settings.store_name).catch((err) => {
         console.error('Telegramga yuborishda xato:', err.message);
         return { sent: 0, failed: 0 };
       });

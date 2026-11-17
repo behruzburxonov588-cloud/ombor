@@ -613,6 +613,7 @@ a.list-item:hover { text-decoration: none; }
   .content { padding: 24px 24px 48px; }
   .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .form-grid.two { grid-template-columns: 1fr 1fr; }
   .form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
   .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -644,6 +645,7 @@ a.list-item:hover { text-decoration: none; }
 @media (min-width: 1280px) {
   .stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .stats.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 719px) {

@@ -1,6 +1,6 @@
 # OMBOR PRO
 
-Do'konlar uchun ombor, sotuv, kirim va hisob-kitob tizimi. Interfeys o'zbek lotin alifbosida, telefon va planshetga moslashgan.
+Do'konlar uchun ombor, sotuv, kirim, hisob-kitob va biznes tahlili tizimi. Interfeys o'zbek lotin alifbosida, kompyuter, planshet va telefonga moslashgan.
 
 ## Imkoniyatlar
 
@@ -14,6 +14,12 @@ Do'konlar uchun ombor, sotuv, kirim va hisob-kitob tizimi. Interfeys o'zbek loti
 - **Hisobotlar**: kun, hafta, oy, yil bo'yicha foyda, marja, eng ko'p va kam sotiladigan mahsulotlar
 - **Amallar tarixi**: barcha o'zgarishlar yoziladi
 - **Rollar**: beshta rol va har bir xodim uchun alohida huquqlar
+- **Bosh sahifa (tahlil)**: tushum, sof foyda, xarajatlar, savdolar soni, ombor qiymati va mijozlar qarzi — oldingi davr bilan taqqoslash, o'zgarish foizi va kichik grafik bilan; savdo dinamikasi, foyda va zarar, mahsulotlar reytingi, 7 kunlik prognoz, ombor holati. Vidjetlarni yashirish va tartiblash mumkin
+- **Aqlli yordamchi**: haqiqiy ma'lumotdan kunlik xulosa, haftalik va oylik natijalar, diqqat talab qiladigan masalalar va tushunarli tavsiyalar (qayta buyurtma, sotilmayotgan tovar, savdosi pasaygan mahsulot, g'ayrioddiy xarajat, marja o'zgarishi, muddati o'tgan qarz)
+- **Hisobotlar**: foyda va zarar, savdo (kunlik, haftalik, oylik), mahsulotlar (saralash, filtr, sahifalash), sekin sotiladigan mahsulotlar, ombor tahlili, haftalik hisobot, prognoz. **Excel va PDF** eksport
+- **Bildirishnomalar markazi**: kam qolgan/tugagan mahsulot, qarz eslatmalari, g'ayrioddiy xarajat, savdo pasayishi, muhim ombor o'zgarishlari va voqealar; kunlik, haftalik va oylik xulosalar jadval bo'yicha. Ilovada, brauzerda va **Telegram** orqali. Takroriy xabarlar yuborilmaydi
+- **Xodimlar samaradorligi**: har bir xodimning savdosi, cheklari, o'rtacha cheki, chegirma va qaytarishlari, tendensiyasi va amallar tarixi
+- **Mijoz qarzlari**: muddati o'tgan qarzlar, qarz yoshi (0–30, 31–60, 60+ kun), so'nggi to'lovlar
 
 ## Talablar
 
@@ -44,6 +50,7 @@ Brauzerda `http://localhost:3000` manzilini oching.
 | `PORT` | HTTP port | `3000` |
 | `UPLOAD_DIR` | Mahsulot rasmlari saqlanadigan papka | `./uploads` |
 | `OMBOR_TEST_DATABASE_URL` | Testlar uchun baza (nomi `ombor_test` bo'lishi shart) | `postgres://postgres:postgres@localhost:5432/ombor_test` |
+| `OMBOR_DISABLE_SCHEDULER` | `1` bo'lsa, fon rejalashtiruvchisi (bildirishnomalar, rejali xulosalar) ishga tushmaydi. Bir nechta server bo'lsa ham yoqib qo'yish xavfsiz | — |
 
 Production uchun misol:
 
@@ -57,6 +64,44 @@ export PORT=3000
 ## Birinchi ishga tushirish
 
 Tizim hali sozlanmagan bo'lsa, brauzer do'kon nomi va egasi (owner) hisobini yaratish oynasini ko'rsatadi. Standart foydalanuvchi yoki standart parol yo'q: egasi parolni o'zi belgilaydi. Keyin **Xodimlar** bo'limidan kassir, ombor xodimi yoki buxgalter qo'shing.
+
+## Moliyaviy formulalar
+
+Barcha hisobotlar va bosh sahifa bir xil formulalardan foydalanadi:
+
+| Ko'rsatkich | Formula |
+|---|---|
+| Yalpi tushum | sotuvlar narxi chegirmagacha |
+| Sof tushum | yalpi tushum − chegirmalar − qaytarishlar |
+| Tannarx | sotilgan tovar tannarxi − qaytarilgan tovar tannarxi (FIFO yoki o'rtacha) |
+| Yalpi foyda | sof tushum − tannarx |
+| Ombor yo'qotishi | yaroqsiz tovar + inventarizatsiya kamomadi − inventarizatsiya ortiqchasi |
+| Sof foyda | yalpi foyda − operatsion xarajatlar − ombor yo'qotishi |
+
+- Nasiya savdo sotilgan kuni tushumga kiradi; mijozning keyinchalik qarzini to'lashi yangi savdo hisoblanmaydi (faqat pul oqimida ko'rinadi).
+- Qaytarish qaytarilgan kuni hisobga olinadi.
+- Taqqoslash: "Bugun" tanlansa, kechaning **shu vaqtigacha** bo'lgan natijasi bilan solishtiriladi.
+- Prognoz so'nggi 4 haftalik savdo va hafta kunlari bo'yicha hisoblangan taxmin; u haqiqiy natijalardan alohida, "Taxmin" belgisi bilan ko'rsatiladi.
+
+## Bildirishnomalar va Telegram
+
+Bildirishnomalar fonda har daqiqada tekshiriladi. Har bir xabarning noyob kaliti bor, shuning uchun bir hodisa haqida ikki marta xabar yaratilmaydi; kam qolgan mahsulot haqida qayta eslatma faqat belgilangan oraliqdan keyin keladi.
+
+**Bildirishnomalar → Do'kon sozlamalari** bo'limida (egasi yoki administrator):
+
+- har bir tur uchun yoqish/o'chirish va kanal (ilova, brauzer, Telegram);
+- kunlik, haftalik va oylik xulosalar vaqti;
+- ogohlantirish chegaralari (masalan, xarajat odatdagidan necha % ko'p bo'lsa);
+- tinch soatlar (bu vaqtda Telegram va brauzer xabarlari yuborilmaydi).
+
+Telegramni ulash:
+
+1. Telegramda **@BotFather** ga `/newbot` yozing va bot yarating.
+2. Bergan tokenni sozlamalarga kiriting (token hech qachon brauzerga qaytarilmaydi, faqat oxirgi 4 belgisi ko'rinadi).
+3. Botingizga `/start` yozing (yoki botni guruhga qo'shing) va **Chatlarni aniqlash** tugmasini bosing.
+4. **Sinov xabari** bilan tekshiring.
+
+Server `api.telegram.org` ga chiqa olishi kerak. Brauzer bildirishnomalari ilova ochiq turganda (boshqa oynada bo'lsa ham) ishlaydi; har bir xodim ularni **Mening sozlamalarim** bo'limida yoqadi.
 
 ## Rollar
 
@@ -78,12 +123,17 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public` sxemasi o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 43 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar.
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public` sxemasi o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 60 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport.
 
 ## Loyiha tuzilishi
 
 - `src/`: Express server, biznes qoidalari (`services/`), API yo'nalishlari (`routes/`)
-- `public/`: brauzer interfeysi (vanilla JavaScript modullari)
+  - `services/analytics.js`: KPI, foyda va zarar, mahsulotlar, ombor, prognoz, qarzlar, xodimlar
+  - `services/insights.js`: aqlli yordamchi xulosalari va tavsiyalari
+  - `services/notify.js`, `services/scheduler.js`: bildirishnomalar, jadval va Telegram
+  - `services/xlsx.js`, `services/pdf.js`, `services/reportdocs.js`: Excel va PDF hisobotlar
+- `public/`: brauzer interfeysi (vanilla JavaScript modullari, `charts.js` — grafiklar)
+- `assets/fonts/`, `public/fonts/`: Inter shrifti (SIL Open Font License)
 - `migrations/`: ma'lumotlar bazasi sxemasi
 - `test/`: avtomatik testlar
 
@@ -98,10 +148,10 @@ npm test
 
 Quyidagilar joriy versiyaga kiritilmagan va keyingi bosqichda qo'shiladi:
 
-- Excel va PDF eksport. Hisobotlarda faqat chop etish bor. Buxgalter roliga `reports.export` huquqi berilgan, lekin eksport funksiyasi hali yo'q.
 - Shtrix-kod etiketkalarini chop etish
 - Excel fayldan mahsulotlarni import qilish
 - Ko'p ombor va ko'p filial
 - Band qilingan (rezerv) qoldiq
 - Ma'lumotlar bazasi zaxirasi (backup) va tiklash interfeysi. `BACKUP_DIR` o'zgaruvchisi hali ishlatilmaydi.
-- Bildirishnomalar: hozircha faqat bosh sahifadagi ogohlantirishlar (kam qoldiq va qarz ogohlantirishlari)
+- Brauzer yopiq bo'lganda ham keladigan push-bildirishnomalar (Web Push). Hozir brauzer xabarlari ilova ochiq turganda ishlaydi; telefonga doimiy xabar uchun Telegram tavsiya etiladi
+- Mahsulot yaroqlilik muddatini kiritish (hozircha uzoq turib qolgan partiyalar kuzatiladi)

@@ -100,10 +100,25 @@ async function load(host, range, ctx, first = false) {
     inventory: () => inv && inventoryCard(inv, d),
     recent: () => recentCard(d),
   };
-  const body = widgets.map((id) => {
-    const html = sections[id]?.();
-    return html ? `<div class="${WIDGET_SIZE[id]}" data-widget="${id}">${html}</div>` : '';
-  }).join('');
+  // Ko'rinadigan vidjetlar; qo'shnisi yashirilsa (rol yoki sozlama tufayli) bo'sh joy qolmasligi uchun kengaytiriladi
+  const rendered = widgets.map((id) => ({ id, html: sections[id]?.(), size: WIDGET_SIZE[id] })).filter((w) => w.html);
+  rendered.forEach((w, i) => {
+    const next = rendered[i + 1];
+    const prev = rendered[i - 1];
+    if (w.size === 'w-wide' && next?.size !== 'w-narrow') w.size = 'w-full';
+    if (w.size === 'w-narrow' && prev?.size !== 'w-wide') w.size = 'w-half';
+  });
+  let run = [];
+  const flush = () => {
+    if (run.length % 2 === 1) run[run.length - 1].size = 'w-full';
+    run = [];
+  };
+  for (const w of rendered) {
+    if (w.size === 'w-half') run.push(w);
+    else flush();
+  }
+  flush();
+  const body = rendered.map((w) => `<div class="${w.size}" data-widget="${w.id}">${w.html}</div>`).join('');
 
   const canSell = can('sales.create');
   const canBuy = can('purchases.create');
@@ -236,7 +251,7 @@ function kpiCards(d, range) {
       note: 'jami nasiya', hint: "Mijozlarning to'lanmagan nasiya qarzi",
     }));
   }
-  return `<div class="stats ${cards.length <= 4 ? 'four' : ''}">${cards.join('')}</div>`;
+  return `<div class="stats ${cards.length <= 3 ? 'three' : cards.length === 4 ? 'four' : ''}">${cards.join('')}</div>`;
 }
 
 // ---------- Savdo grafigi ----------
