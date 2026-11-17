@@ -83,6 +83,7 @@ async function renderDetail(root, id, ctx) {
   const canManage = ctx.can('products.manage');
   const unit = esc(p.base_unit_name);
   const profitTone = p.profit >= 0 ? 'good' : 'bad';
+  const showCost = !p.cost_hidden;
 
   root.innerHTML = `
     <div class="page-head">
@@ -109,7 +110,7 @@ async function renderDetail(root, id, ctx) {
       <div class="kpi neutral"><div class="label">Hozirgi qoldiq</div><div class="value">${num(p.stock_qty, 3)} ${unit}</div><div class="hint">minimal: ${num(p.min_stock, 3)}</div></div>
       <div class="kpi neutral"><div class="label">Sotilgan</div><div class="value">${num(p.sold_qty, 3)} ${unit}</div><div class="hint">qaytarishlar ayirilgan</div></div>
       <div class="kpi neutral"><div class="label">Sotuv summasi</div><div class="value">${money(p.sold_revenue)}</div><div class="hint">sof tushum</div></div>
-      <div class="kpi ${profitTone}"><div class="label">Foyda</div><div class="value">${money(p.profit)}</div><div class="hint">tannarx ${money(p.sold_cost)}</div></div>
+      ${showCost ? `<div class="kpi ${profitTone}"><div class="label">Foyda</div><div class="value">${money(p.profit)}</div><div class="hint">tannarx ${money(p.sold_cost)}</div></div>` : ''}
     </div>
 
     <div class="form-grid two" style="margin-top:14px;gap:14px">
@@ -117,9 +118,9 @@ async function renderDetail(root, id, ctx) {
         <div class="card-head"><h2>Narxlar</h2></div>
         <div class="list">
           <div class="list-item"><div class="meta"><div class="name">Sotuv narxi</div><div class="sub">1 ${unit} uchun</div></div><div class="end num"><b>${money(p.selling_price)}</b></div></div>
-          <div class="list-item"><div class="meta"><div class="name">Kirim narxi</div><div class="sub">standart</div></div><div class="end num">${money(p.purchase_price)}</div></div>
+          ${showCost ? `<div class="list-item"><div class="meta"><div class="name">Kirim narxi</div><div class="sub">standart</div></div><div class="end num">${money(p.purchase_price)}</div></div>
           <div class="list-item"><div class="meta"><div class="name">Joriy tannarx</div><div class="sub">o'rtacha, 1 ${unit} uchun</div></div><div class="end num">${money(p.avg_cost)}</div></div>
-          <div class="list-item"><div class="meta"><div class="name">Ombor qiymati</div><div class="sub">qoldiq × tannarx</div></div><div class="end num">${money(p.stock_value)}</div></div>
+          <div class="list-item"><div class="meta"><div class="name">Ombor qiymati</div><div class="sub">qoldiq × tannarx</div></div><div class="end num">${money(p.stock_value)}</div></div>` : ''}
         </div>
       </div>
       <div class="card">
@@ -137,19 +138,19 @@ async function renderDetail(root, id, ctx) {
     <div class="card" style="margin-top:14px">
       <div class="card-head"><h2>Partiyalar (FIFO)</h2><span class="small muted">eski partiyadan avval chiqadi</span></div>
       <div class="table-wrap cards"><table>
-        <thead><tr><th>Kelgan sana</th><th>Manba</th><th class="right">Qoldiq</th><th class="right">Tannarx</th></tr></thead>
+        <thead><tr><th>Kelgan sana</th><th>Manba</th><th class="right">Qoldiq</th>${showCost ? '<th class="right">Tannarx</th>' : ''}</tr></thead>
         <tbody>${batches.map((b) => `<tr>
           <td data-label="Sana">${dateTime(b.received_at)}</td>
           <td data-label="Manba">${esc(sourceLabel(b.source_type))}</td>
           <td data-label="Qoldiq" class="right num">${num(b.qty_remaining, 4)} / ${num(b.qty_initial, 4)} ${unit}</td>
-          <td data-label="Tannarx" class="right num">${money(b.unit_cost)}</td>
+          ${showCost ? `<td data-label="Tannarx" class="right num">${money(b.unit_cost)}</td>` : ''}
         </tr>`).join('')}</tbody></table></div>
     </div>` : ''}
 
     <div class="card" style="margin-top:14px">
       <div class="seg" id="htabs" style="margin-bottom:12px">
         <button type="button" class="active" data-t="mv">Ombor harakatlari</button>
-        <button type="button" data-t="pu">Kirimlar</button>
+        ${showCost ? '<button type="button" data-t="pu">Kirimlar</button>' : ''}
         <button type="button" data-t="sa">Sotuvlar</button>
       </div>
       <div id="hbody"></div>
@@ -160,13 +161,13 @@ async function renderDetail(root, id, ctx) {
     const body = root.querySelector('#hbody');
     if (t === 'mv') {
       body.innerHTML = hist.movements.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Vaqt</th><th>Turi</th><th class="right">Miqdor</th><th class="right">Qoldiq</th><th class="right">Qiymat</th><th>Izoh</th></tr></thead>
+        <thead><tr><th>Vaqt</th><th>Turi</th><th class="right">Miqdor</th><th class="right">Qoldiq</th>${showCost ? '<th class="right">Qiymat</th>' : ''}<th>Izoh</th></tr></thead>
         <tbody>${hist.movements.map((m) => `<tr>
           <td data-label="Vaqt">${dateTime(m.created_at)}</td>
           <td data-label="Turi">${esc(movementLabel(m.movement_type))}</td>
           <td data-label="Miqdor" class="right num ${m.quantity < 0 ? 'red' : 'green'}">${m.quantity > 0 ? '+' : ''}${num(m.quantity, 4)}</td>
           <td data-label="Qoldiq" class="right num">${num(m.balance_after, 4)}</td>
-          <td data-label="Qiymat" class="right num">${money(m.value)}</td>
+          ${showCost ? `<td data-label="Qiymat" class="right num">${money(m.value)}</td>` : ''}
           <td data-label="Izoh" class="small">${esc(m.note || '')} <span class="muted">${esc(m.user_name || '')}</span></td>
         </tr>`).join('')}</tbody></table></div>` : emptyState('Harakatlar yo\'q', 'clock');
     } else if (t === 'pu') {
@@ -182,13 +183,13 @@ async function renderDetail(root, id, ctx) {
       body.querySelectorAll('[data-pu]').forEach((tr) => tr.addEventListener('click', () => ctx.go(`#/purchases/${tr.dataset.pu}`)));
     } else {
       body.innerHTML = hist.sales.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Vaqt</th><th>Chek</th><th class="right">Miqdor</th><th class="right">Summa</th><th class="right">Foyda</th></tr></thead>
+        <thead><tr><th>Vaqt</th><th>Chek</th><th class="right">Miqdor</th><th class="right">Summa</th>${showCost ? '<th class="right">Foyda</th>' : ''}</tr></thead>
         <tbody>${hist.sales.map((x) => `<tr class="clickable" data-sa="${x.id}">
           <td data-label="Vaqt">${dateTime(x.created_at)}</td>
           <td data-label="Chek">${esc(x.receipt_no)}</td>
           <td data-label="Miqdor" class="right num">${num(x.quantity, 4)} ${esc(x.unit_name)}</td>
           <td data-label="Summa" class="right num">${money(x.line_total)}</td>
-          <td data-label="Foyda" class="right num ${x.line_total - x.cost_total >= 0 ? 'green' : 'red'}">${money(x.line_total - x.cost_total)}</td>
+          ${showCost ? `<td data-label="Foyda" class="right num ${x.line_total - x.cost_total >= 0 ? 'green' : 'red'}">${money(x.line_total - x.cost_total)}</td>` : ''}
         </tr>`).join('')}</tbody></table></div>` : emptyState('Sotuvlar yo\'q', 'cart');
       body.querySelectorAll('[data-sa]').forEach((tr) => tr.addEventListener('click', () => ctx.go(`#/sales/${tr.dataset.sa}`)));
     }

@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import { pool, withTransaction } from '../db.js';
-import { requirePerm } from '../auth.js';
+import { requirePerm, can } from '../auth.js';
 import { config } from '../config.js';
 import { HttpError, num, str, round2, round4, paging } from '../util.js';
 import { audit } from '../audit.js';
@@ -78,6 +78,19 @@ const PRODUCT_SELECT = `
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN suppliers s ON s.id = p.supplier_id`;
 
+// Tannarx, kirim narxi va foyda faqat ombor/kirim/hisobot huquqi borlarga ko'rinadi (kassirga emas)
+export function seesCost(user) {
+  return ['products.manage', 'reports.view', 'purchases.view', 'stock.view'].some((k) => can(user, k));
+}
+
+const COST_FIELDS = ['purchase_price', 'avg_cost', 'stock_value', 'sold_cost', 'profit'];
+function hideCost(product, user) {
+  if (seesCost(user)) return product;
+  for (const f of COST_FIELDS) delete product[f];
+  product.cost_hidden = true;
+  return product;
+}
+
 function shapeProduct(row, conversions = []) {
   const stock = Number(row.stock_qty);
   const minStock = Number(row.min_stock);
@@ -136,7 +149,7 @@ router.get('/products', requirePerm('products.view', 'sales.create', 'purchases.
     `${PRODUCT_SELECT} WHERE ${where.join(' AND ')} ORDER BY p.name LIMIT ${limit} OFFSET ${offset}`,
     params,
   );
-  res.json({ products: rows.map((r) => shapeProduct(r)) });
+  res.json({ products: rows.map((r) => hideCost(shapeProduct(r), req.user)) });
 });
 
 router.get('/products/barcode/:code', requirePerm('sales.create', 'products.view', 'stock.view', 'purchases.create'), async (req, res) => {
@@ -145,7 +158,7 @@ router.get('/products/barcode/:code', requirePerm('sales.create', 'products.view
   if (!rows[0]) throw new HttpError(404, "Bu shtrix-kod bo'yicha mahsulot topilmadi");
   if (rows[0].is_archived) throw new HttpError(400, 'Bu mahsulot arxivlangan');
   const conv = await productUnits(pool, rows[0].id);
-  res.json({ product: shapeProduct(rows[0], conv) });
+  res.json({ product: hideCost(shapeProduct(rows[0], conv), req.user) });
 });
 
 router.get('/products/:id', requirePerm('products.view', 'stock.view'), async (req, res) => {
@@ -158,7 +171,10 @@ router.get('/products/:id', requirePerm('products.view', 'stock.view'), async (r
        FROM stock_batches WHERE product_id = $1 AND qty_remaining > 0 ORDER BY received_at, id`,
     [id],
   );
-  res.json({ product: shapeProduct(rows[0], conv), batches });
+  res.json({
+    product: hideCost(shapeProduct(rows[0], conv), req.user),
+    batches: seesCost(req.user) ? batches : batches.map(({ unit_cost: _c, ...b }) => b),
+  });
 });
 
 async function validateProductBody(client, body, existingId = null) {
@@ -330,6 +346,14 @@ router.get('/products/:id/history', requirePerm('products.view', 'history.view')
       WHERE pi.product_id = $1 ORDER BY p.purchase_date DESC, p.id DESC LIMIT 100`,
     [id],
   );
+  if (!seesCost(req.user)) {
+    return res.json({
+      movements: movements.map(({ value: _v, ...m }) => m),
+      sales: sales.map(({ cost_total: _c, ...x }) => x),
+      purchases: [],
+      cost_hidden: true,
+    });
+  }
   res.json({ movements, sales, purchases });
 });
 

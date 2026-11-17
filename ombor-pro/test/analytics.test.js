@@ -162,6 +162,21 @@ test('kassir: foyda, tannarx va xarajatlarni ko\'rmaydi', async () => {
   const brief = await cashier.get('/api/analytics/assistant');
   assert.equal(brief.status, 200);
   assert.equal(brief.body.today.net_profit, undefined);
+  // Mahsulot sahifasi: kassir kirim narxi, tannarx va foydani ko'rmaydi; egasi ko'radi
+  const cp = await cashier.get(`/api/products/${ids.choy}`);
+  assert.equal(cp.body.product.purchase_price, undefined);
+  assert.equal(cp.body.product.profit, undefined);
+  assert.equal(cp.body.product.cost_hidden, true);
+  assert.ok(cp.body.batches.every((b) => b.unit_cost === undefined));
+  assert.equal(cp.body.product.selling_price, 15000);
+  const list = await cashier.get('/api/products');
+  assert.ok(list.body.products.every((p) => p.avg_cost === undefined && p.stock_value === undefined));
+  const hist = await cashier.get(`/api/products/${ids.choy}/history`);
+  assert.equal(hist.body.purchases.length, 0);
+  assert.ok(hist.body.movements.every((m) => m.value === undefined));
+  const op = await owner.get(`/api/products/${ids.choy}`);
+  assert.equal(op.body.product.purchase_price, 10000);
+  assert.ok(op.body.product.profit !== undefined);
 });
 
 test('mahsulotlar tahlili: TOP ro\'yxatlar, saralash, filtr va sahifalash', async () => {
