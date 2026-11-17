@@ -40,6 +40,19 @@ npm start
 
 Brauzerda `http://localhost:3000` manzilini oching.
 
+## Ma'lumotlarni saqlash va yangi serverga ko'chirish
+
+Barcha ma'lumotlar PostgreSQL bazasida turadi, serverda emas. Shuning uchun server almashganda ma'lumot yo'qolmaydi:
+
+- **Baza o'sha joyda qolsa** (masalan, Neon): yangi serverda `DATABASE_URL` ga o'sha manzilni yozing — hamma narsa avvalgidek ochiladi, hech narsa ko'chirilmaydi.
+- **Bazani ham ko'chirmoqchi bo'lsangiz:**
+  1. Eski tizimda egasi sifatida kiring → **Sozlamalar** → **Zaxira nusxasini yuklab olish (.sql)**. Faylda hamma narsa bor: mahsulotlar, savdolar, qarzlar, kassa, xodimlar (parollari bilan), sozlamalar, bildirishnomalar.
+  2. Yangi serverda bo'sh PostgreSQL baza yarating va loyihani o'rnating (`npm install`).
+  3. `DATABASE_URL=postgres://... npm run restore -- ombor-zaxira-....sql`
+  4. `npm start` — xodimlar eski login va parollari bilan kiradi, chek raqamlari davom etadi.
+
+Tiklash faqat **bo'sh** bazaga qilinadi: bazada ma'lumot bo'lsa, hech narsa o'zgartirilmaydi. Zaxira faylida hamma ma'lumot (parol xeshlari ham) bor, shuning uchun uni faqat do'kon egasi yuklab oladi — faylni xavfsiz joyda saqlang. Muntazam (masalan, haftada bir) zaxira olib turish tavsiya etiladi.
+
 ## Bepul joylash: Render + Neon
 
 Ilova oddiy Node.js server sifatida o'zgarishsiz ishlaydi. Ikkalasining ham bepul rejasi bor.
@@ -163,7 +176,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public` sxemasi o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 60 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport.
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public` sxemasi o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 63 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash.
 
 ## Loyiha tuzilishi
 
@@ -192,6 +205,6 @@ Quyidagilar joriy versiyaga kiritilmagan va keyingi bosqichda qo'shiladi:
 - Excel fayldan mahsulotlarni import qilish
 - Ko'p ombor va ko'p filial
 - Band qilingan (rezerv) qoldiq
-- Ma'lumotlar bazasi zaxirasi (backup) va tiklash interfeysi. `BACKUP_DIR` o'zgaruvchisi hali ishlatilmaydi.
+- Zaxirani ilova ichidan tiklash (hozir tiklash buyruq orqali: `npm run restore`) va avtomatik muntazam zaxira
 - Brauzer yopiq bo'lganda ham keladigan push-bildirishnomalar (Web Push). Hozir brauzer xabarlari ilova ochiq turganda ishlaydi; telefonga doimiy xabar uchun Telegram tavsiya etiladi
 - Mahsulot yaroqlilik muddatini kiritish (hozircha uzoq turib qolgan partiyalar kuzatiladi)

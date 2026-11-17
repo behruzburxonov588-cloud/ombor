@@ -13,7 +13,8 @@
     "migrate": "node src/migrate.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "cf:dev": "wrangler dev",
-    "cf:deploy": "wrangler deploy"
+    "cf:deploy": "wrangler deploy",
+    "restore": "node src/restore.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -1,7 +1,7 @@
 // Amallar tarixi, xodimlar (ruxsatlar bilan) va sozlamalar
 import {
   get, post, put, icon, esc, num, money, dateTime, readForm, toast, errorToast, openModal, withBusy,
-  emptyState, todayStr, monthStartStr,
+  emptyState, todayStr, monthStartStr, download,
 } from '../ui.js';
 
 const ACTION_LABELS = {
@@ -279,7 +279,15 @@ async function renderSettings(root, ctx) {
       </div>
       <div id="pwerr"></div>
       <button class="btn btn-outline" type="submit">${icon('check', 'ico-sm')} Parolni o'zgartirish</button>
-    </form>`;
+    </form>
+
+    ${ctx.user.role === 'owner' ? `
+    <div class="card stack" style="margin-top:14px">
+      <div class="card-head"><div><h2>Zaxira nusxa</h2><div class="card-sub">Butun bazani bitta faylga yuklab olish</div></div></div>
+      <p class="small muted">Faylda barcha ma'lumotlar bor: mahsulotlar, savdolar, qarzlar, kassa, xodimlar va sozlamalar. Uni xavfsiz joyda saqlang va hech kimga bermang.
+        Yangi serverga o'tganda: <code>npm run restore -- fayl.sql</code> (faqat bo'sh bazaga tiklanadi, mavjud ma'lumot ustidan yozilmaydi).</p>
+      <div><button class="btn btn-light" type="button" id="backup">${icon('download', 'ico-sm')} Zaxira nusxasini yuklab olish (.sql)</button></div>
+    </div>` : ''}`;
 
   root.querySelector('#sf')?.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -312,6 +320,14 @@ async function renderSettings(root, ctx) {
     });
   });
 
+  root.querySelector('#backup')?.addEventListener('click', (e) => withBusy(e.currentTarget, async () => {
+    try {
+      await download('/admin/backup', 'ombor-zaxira.sql');
+      toast('Zaxira nusxasi yuklab olindi', 'ok');
+    } catch (err) {
+      errorToast(err);
+    }
+  }));
   root.querySelector('#pwf').addEventListener('submit', (e) => {
     e.preventDefault();
     const form = e.currentTarget;

@@ -7,6 +7,7 @@ import { recordCash, balances, currentShiftId } from '../services/cash.js';
 import { getSettings, saveSettings } from '../services/settings.js';
 import { financeSummary, dailySeries, periodSeries, productProfitability } from '../services/reports.js';
 import { audit } from '../audit.js';
+import { createBackup } from '../services/backup.js';
 
 const router = Router();
 const EXPENSE_CATEGORIES = ['rent', 'salaries', 'utilities', 'delivery', 'transport', 'repairs', 'other'];
@@ -366,6 +367,23 @@ router.get('/search', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ---------- Zaxira nusxa ----------
+// Butun bazani .sql fayl sifatida yuklab olish. Faylda hamma narsa (xodimlar parol xeshlari ham) bor,
+// shuning uchun faqat do'kon egasiga ruxsat.
+router.get('/admin/backup', async (req, res) => {
+  if (req.user.role !== 'owner') throw new HttpError(403, "Zaxira nusxasini faqat do'kon egasi yuklab oladi");
+  await audit(pool, req.user.id, 'backup.download', 'store', null, null);
+  const stamp = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date()).replace(', ', '_').replace(':', '-');
+  res.setHeader('Content-Type', 'application/sql; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="ombor-zaxira-${stamp}.sql"`);
+  res.setHeader('Cache-Control', 'no-store');
+  const chunks = [];
+  await createBackup(pool, (s) => chunks.push(s), { appliedBy: req.user.full_name });
+  res.send(chunks.join(''));
 });
 
 // ---------- Sozlamalar ----------
