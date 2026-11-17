@@ -603,40 +603,39 @@ async function checkSummaries(db, cfg, clock) {
 
 // Bitta to'liq tekshiruv sikli. Bir nechta server bo'lsa ham bir vaqtda faqat bittasi bajaradi.
 export async function runCycle(db, { now = new Date() } = {}) {
+  // Tranzaksiya qulfi: bir nechta server (yoki Cloudflare nusxasi) bo'lsa ham bir vaqtda faqat bittasi bajaradi.
+  // Sessiya qulfidan farqli o'laroq, ulanishlar puli (Neon, Hyperdrive) orqali ham to'g'ri ishlaydi.
   const client = await db.connect();
   try {
-    const { rows: lock } = await client.query('SELECT pg_try_advisory_lock(515151) AS ok');
+    await client.query('BEGIN');
+    const { rows: lock } = await client.query('SELECT pg_try_advisory_xact_lock(515151) AS ok');
     if (!lock[0].ok) return { skipped: true, created: [] };
-    try {
-      // Qulf alohida ulanishda turadi; tekshiruvlar esa pool orqali (parallel so'rovlar uchun)
-      const { config: cfg, token } = await getNotifyConfig(db);
-      const settings = await getSettings(db);
-      const clock = localClock(now);
-      const created = [];
-      const steps = [
-        () => (cfg.types.low_stock.enabled ? checkStock(db, cfg, clock.date) : []),
-        () => (cfg.types.debt_reminder.enabled ? checkDebts(db, cfg, settings, clock.date) : []),
-        () => checkInsights(db, cfg, clock.date),
-        () => (cfg.types.inventory_change.enabled ? checkInventoryChanges(db, cfg, clock.date) : []),
-        () => (cfg.types.business_event.enabled ? checkEvents(db, cfg) : []),
-        () => checkSummaries(db, cfg, clock),
-      ];
-      for (const step of steps) {
-        try {
-          created.push(...await step());
-        } catch (err) {
-          console.error('Bildirishnoma tekshiruvida xato:', err.message);
-        }
+    const { config: cfg, token } = await getNotifyConfig(db);
+    const settings = await getSettings(db);
+    const clock = localClock(now);
+    const created = [];
+    const steps = [
+      () => (cfg.types.low_stock.enabled ? checkStock(db, cfg, clock.date) : []),
+      () => (cfg.types.debt_reminder.enabled ? checkDebts(db, cfg, settings, clock.date) : []),
+      () => checkInsights(db, cfg, clock.date),
+      () => (cfg.types.inventory_change.enabled ? checkInventoryChanges(db, cfg, clock.date) : []),
+      () => (cfg.types.business_event.enabled ? checkEvents(db, cfg) : []),
+      () => checkSummaries(db, cfg, clock),
+    ];
+    for (const step of steps) {
+      try {
+        created.push(...await step());
+      } catch (err) {
+        console.error('Bildirishnoma tekshiruvida xato:', err.message);
       }
-      const delivery = await deliverPending(db, cfg, token, settings.store_name).catch((err) => {
-        console.error('Telegramga yuborishda xato:', err.message);
-        return { sent: 0, failed: 0 };
-      });
-      return { skipped: false, created, delivery };
-    } finally {
-      await client.query('SELECT pg_advisory_unlock(515151)');
     }
+    const delivery = await deliverPending(db, cfg, token, settings.store_name).catch((err) => {
+      console.error('Telegramga yuborishda xato:', err.message);
+      return { sent: 0, failed: 0 };
+    });
+    return { skipped: false, created, delivery };
   } finally {
+    await client.query('COMMIT').catch(() => {});
     client.release();
   }
 }

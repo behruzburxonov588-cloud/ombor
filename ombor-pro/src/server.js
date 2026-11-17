@@ -1,9 +1,10 @@
 import { createApp } from './app.js';
-import { config } from './config.js';
+import { config, assertConfig } from './config.js';
 import { migrate } from './migrate.js';
 import { pool } from './db.js';
 import { startScheduler, stopScheduler } from './services/scheduler.js';
 
+assertConfig();
 await migrate();
 const app = createApp();
 const server = app.listen(config.port, () => {

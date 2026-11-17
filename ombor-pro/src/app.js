@@ -4,6 +4,7 @@ import path from 'node:path';
 import { ROOT, config } from './config.js';
 import { HttpError } from './util.js';
 import { authenticate } from './auth.js';
+import { pool } from './db.js';
 import authRoutes from './routes/auth.js';
 import peopleRoutes from './routes/people.js';
 import catalogRoutes from './routes/catalog.js';
@@ -58,7 +59,8 @@ function errorHandler(err, req, res, next) {
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  fs.mkdirSync(config.uploadDir, { recursive: true });
+  const worker = process.env.OMBOR_RUNTIME === 'worker';
+  if (!worker) fs.mkdirSync(config.uploadDir, { recursive: true });
 
   app.use(express.json({ limit: '1mb' }));
 
@@ -75,11 +77,22 @@ export function createApp() {
   app.use('/api', peopleRoutes, catalogRoutes, tradeRoutes, stockRoutes, financeRoutes, analyticsRoutes, notificationRoutes);
   app.use('/api', (req, res) => res.status(404).json({ error: "So'rov topilmadi" }));
 
-  app.use('/uploads', express.static(config.uploadDir, { maxAge: '1d', index: false, dotfiles: 'deny' }));
-  app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html' }));
-  app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
-    res.sendFile(path.join(ROOT, 'public', 'index.html'));
-  });
+  if (worker) {
+    // Cloudflare: sahifalar va fayllarni platforma beradi; rasmlar bazadan
+    app.get('/uploads/:name', async (req, res) => {
+      const { rows } = await pool.query('SELECT content_type, data FROM product_images WHERE name = $1', [req.params.name]);
+      if (!rows[0]) return res.status(404).end();
+      res.set('Content-Type', rows[0].content_type);
+      res.set('Cache-Control', 'public, max-age=86400, immutable');
+      return res.send(rows[0].data);
+    });
+  } else {
+    app.use('/uploads', express.static(config.uploadDir, { maxAge: '1d', index: false, dotfiles: 'deny' }));
+    app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html' }));
+    app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
+      res.sendFile(path.join(ROOT, 'public', 'index.html'));
+    });
+  }
 
   app.use(errorHandler);
   return app;

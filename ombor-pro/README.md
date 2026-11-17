@@ -40,6 +40,30 @@ npm start
 
 Brauzerda `http://localhost:3000` manzilini oching.
 
+## Cloudflare'ga joylash
+
+Ilova Cloudflare Workers'da ham ishlaydi (`wrangler.jsonc`, `src/worker.js`). Sahifalar Cloudflare tarmog'idan beriladi, API Worker'da ishlaydi, bildirishnomalar har daqiqada Cron orqali tekshiriladi. Ma'lumotlar bazasi — PostgreSQL (masalan, bepul **Neon**). Mahsulot rasmlari Cloudflare'da bazada saqlanadi.
+
+Kerak bo'ladi: Cloudflare **Workers Paid** rejasi (oyiga $5 — parol tekshiruvi va PDF bepul rejaning 10 ms vaqt chegarasiga sig'maydi) va PostgreSQL baza.
+
+1. **Baza:** [neon.tech](https://neon.tech) da ro'yxatdan o'ting → *New project* (hudud: *Europe (Frankfurt)*) → *Connection string* ni nusxalang (`postgresql://...?sslmode=require`).
+2. **Cloudflare rejasi:** *Workers & Pages* → *Plans* → **Workers Paid**.
+3. **GitHub'ni ulash:** *Workers & Pages* → *Create* → *Import a repository* → GitHub → `ombor` repozitoriyasi.
+   - *Project name*: `ombor-pro`
+   - *Root directory*: `ombor-pro`
+   - *Build command*: `npm ci`
+   - *Deploy command*: `npx wrangler deploy`
+4. **Maxfiy qiymatlar:** Worker → *Settings* → *Variables and Secrets* → *Add* (turi: **Secret**):
+   - `DATABASE_URL` — Neon manzili;
+   - `JWT_SECRET` — uzun tasodifiy matn (masalan, `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` natijasi).
+5. Sayt manzilini oching (`https://ombor-pro.<sizning-nomingiz>.workers.dev`) — birinchi marta sozlash oynasi chiqadi. Jadvallar birinchi so'rovda avtomatik yaratiladi.
+
+Shundan keyin GitHub'ga har bir push'da Cloudflare saytni o'zi yangilaydi.
+
+Ixtiyoriy (tezroq ishlashi uchun): Cloudflare'da *Hyperdrive* yarating (Neon manzilini kiriting) va `wrangler.jsonc` dagi `hyperdrive` qatorini yoqib, ID ni yozing.
+
+Mahalliy sinash: `.dev.vars` faylida `DATABASE_URL` va `JWT_SECRET` ni yozing va `npm run cf:dev` ni ishga tushiring.
+
 ## Muhit o'zgaruvchilari
 
 | O'zgaruvchi | Tavsif | Standart qiymat |

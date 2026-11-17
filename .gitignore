@@ -4,3 +4,7 @@ backups/
 .env
 .env.*
 *.log
+
+# Cloudflare (mahalliy)
+.wrangler/
+.dev.vars

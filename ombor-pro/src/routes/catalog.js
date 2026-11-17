@@ -14,20 +14,33 @@ import { receiveStock } from '../services/inventory.js';
 
 const router = Router();
 
-const imageUpload = multer({
-  storage: multer.diskStorage({
-    destination: config.uploadDir,
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `${crypto.randomUUID()}${ext}`);
-    },
-  }),
-  limits: { fileSize: 3 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ok = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
-    cb(ok ? null : new HttpError(400, "Faqat JPG, PNG yoki WEBP rasm yuklash mumkin"), ok);
-  },
-});
+// Rasm saqlash: oddiy serverda diskka, Cloudflare Workers'da (fayl tizimi yo'q) bazaga
+export const imagesInDb = () => process.env.OMBOR_RUNTIME === 'worker';
+const IMAGE_LIMITS = { fileSize: 3 * 1024 * 1024 };
+const imageFilter = (req, file, cb) => {
+  const ok = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
+  cb(ok ? null : new HttpError(400, "Faqat JPG, PNG yoki WEBP rasm yuklash mumkin"), ok);
+};
+let diskUpload = null;
+let memoryUpload = null;
+function imageUpload() {
+  if (imagesInDb()) {
+    memoryUpload ||= multer({ storage: multer.memoryStorage(), limits: IMAGE_LIMITS, fileFilter: imageFilter });
+    return memoryUpload;
+  }
+  diskUpload ||= multer({
+    storage: multer.diskStorage({
+      destination: config.uploadDir,
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `${crypto.randomUUID()}${ext}`);
+      },
+    }),
+    limits: IMAGE_LIMITS,
+    fileFilter: imageFilter,
+  });
+  return diskUpload;
+}
 
 // ---------- Birliklar va kategoriyalar ----------
 
@@ -301,7 +314,7 @@ router.post('/products/:id/restore', requirePerm('products.manage'), async (req,
 });
 
 router.post('/products/:id/image', requirePerm('products.manage'), (req, res, next) => {
-  imageUpload.single('image')(req, res, async (err) => {
+  imageUpload().single('image')(req, res, async (err) => {
     try {
       if (err) throw err.code === 'LIMIT_FILE_SIZE'
         ? new HttpError(413, "Rasm hajmi 3 MB dan oshmasligi kerak")
@@ -310,13 +323,21 @@ router.post('/products/:id/image', requirePerm('products.manage'), (req, res, ne
       const id = Number(req.params.id);
       const { rows } = await pool.query('SELECT image_path FROM products WHERE id = $1', [id]);
       if (!rows[0]) {
-        await fs.unlink(req.file.path).catch(() => {});
+        if (req.file.path) await fs.unlink(req.file.path).catch(() => {});
         throw new HttpError(404, 'Mahsulot topilmadi');
       }
-      const imagePath = `/uploads/${req.file.filename}`;
+      const old = rows[0].image_path && rows[0].image_path.startsWith('/uploads/') ? path.basename(rows[0].image_path) : null;
+      let name = req.file.filename;
+      if (imagesInDb()) {
+        const ext = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' }[req.file.mimetype];
+        name = `${crypto.randomUUID()}${ext}`;
+        await pool.query('INSERT INTO product_images (name, content_type, data) VALUES ($1, $2, $3)', [name, req.file.mimetype, req.file.buffer]);
+      }
+      const imagePath = `/uploads/${name}`;
       await pool.query('UPDATE products SET image_path = $2, updated_at = now() WHERE id = $1', [id, imagePath]);
-      if (rows[0].image_path && rows[0].image_path.startsWith('/uploads/')) {
-        await fs.unlink(path.join(config.uploadDir, path.basename(rows[0].image_path))).catch(() => {});
+      if (old) {
+        if (imagesInDb()) await pool.query('DELETE FROM product_images WHERE name = $1', [old]).catch(() => {});
+        else await fs.unlink(path.join(config.uploadDir, old)).catch(() => {});
       }
       res.json({ image_path: imagePath });
     } catch (e) {

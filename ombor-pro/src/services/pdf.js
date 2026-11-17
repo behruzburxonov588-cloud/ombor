@@ -102,6 +102,13 @@ class TtfFont {
 }
 
 let FONTS = null;
+// Cloudflare Workers'da shriftlar fayl tizimidan emas, to'plamdan beriladi
+export function registerFonts(regular, semibold) {
+  FONTS = {
+    R: new TtfFont(Buffer.from(regular), 'Inter-Regular'),
+    B: new TtfFont(Buffer.from(semibold), 'Inter-SemiBold'),
+  };
+}
 function fonts() {
   if (!FONTS) {
     const dir = path.join(ROOT, 'assets', 'fonts');

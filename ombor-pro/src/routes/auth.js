@@ -87,7 +87,8 @@ router.post('/setup', async (req, res) => {
 router.post('/auth/login', async (req, res) => {
   const username = String(req.body?.username || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
-  const key = `${username}|${req.ip}`;
+  // Cloudflare orqali kelganda haqiqiy IP shu sarlavhada bo'ladi
+  const key = `${username}|${req.headers['cf-connecting-ip'] || req.ip}`;
   if (checkLocked(key)) {
     throw new HttpError(429, "Juda ko'p noto'g'ri urinish. 15 daqiqadan keyin qayta urinib ko'ring");
   }

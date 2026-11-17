@@ -1,42 +1,49 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { pool } from './db.js';
 import { ROOT } from './config.js';
 
-// Migratsiya fayllarini tartib bilan bir marta qo'llaydi
-export async function migrate(log = console.log) {
+async function readMigrationFiles() {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const dir = path.join(ROOT, 'migrations');
+  const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
+  return Promise.all(files.map(async (name) => ({ name, sql: await fs.readFile(path.join(dir, name), 'utf8') })));
+}
+
+// Migratsiyalarni tartib bilan bir marta qo'llaydi.
+// Hammasi bitta tranzaksiyada va tranzaksiya qulfi bilan bajariladi: bir vaqtda bir nechta server
+// (yoki Cloudflare nusxasi) ishga tushsa ham, ulanishlar puli (Neon, Hyperdrive) orqali ham xavfsiz.
+// sources: [{ name, sql }] — berilmasa migrations/ papkasidan o'qiladi.
+export async function migrate(log = console.log, sources = null) {
+  const list = sources || await readMigrationFiles();
   const client = await pool.connect();
   try {
-    await client.query('SELECT pg_advisory_lock(424242)');
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(424242)');
     await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
       name TEXT PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-    const dir = path.join(ROOT, 'migrations');
-    const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
     const { rows } = await client.query('SELECT name FROM schema_migrations');
     const done = new Set(rows.map((r) => r.name));
-    for (const file of files) {
-      if (done.has(file)) continue;
-      const sql = await fs.readFile(path.join(dir, file), 'utf8');
-      await client.query('BEGIN');
-      try {
-        await client.query(sql);
-        await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [file]);
-        await client.query('COMMIT');
-        log(`Migratsiya qo'llandi: ${file}`);
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-      }
+    const applied = [];
+    for (const m of [...list].sort((a, b) => a.name.localeCompare(b.name))) {
+      if (done.has(m.name)) continue;
+      await client.query(m.sql);
+      await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [m.name]);
+      applied.push(m.name);
     }
-    await client.query('SELECT pg_advisory_unlock(424242)');
+    await client.query('COMMIT');
+    for (const name of applied) log(`Migratsiya qo'llandi: ${name}`);
+    return applied;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
   } finally {
     client.release();
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv?.[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   migrate()
     .then(() => pool.end())
     .catch((err) => {

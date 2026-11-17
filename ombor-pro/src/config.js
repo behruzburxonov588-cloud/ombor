@@ -1,21 +1,35 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+function rootDir() {
+  try {
+    return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  } catch {
+    // Cloudflare Workers: fayl tizimi yo'q, yo'l faqat Node.js rejimida kerak
+    return '/';
+  }
+}
 
+export const ROOT = rootDir();
+const DEV_SECRET = 'dev-only-secret-change-me';
+
+// Qiymatlar har safar muhit o'zgaruvchilaridan o'qiladi (Cloudflare'da ular ishga tushgandan keyin beriladi)
 export const config = {
-  port: Number(process.env.PORT || 3000),
-  databaseUrl: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/ombor_dev',
-  jwtSecret: process.env.JWT_SECRET || '',
-  isProd: process.env.NODE_ENV === 'production',
-  uploadDir: process.env.UPLOAD_DIR || path.join(ROOT, 'uploads'),
-  backupDir: process.env.BACKUP_DIR || path.join(ROOT, 'backups'),
+  get port() { return Number(process.env.PORT || 3000); },
+  get databaseUrl() { return process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/ombor_dev'; },
+  get isProd() { return process.env.NODE_ENV === 'production'; },
+  get jwtSecret() {
+    const s = process.env.JWT_SECRET || '';
+    if (s) return s;
+    if (this.isProd) throw new Error("JWT_SECRET muhit o'zgaruvchisi production rejimida majburiy");
+    return DEV_SECRET;
+  },
+  get uploadDir() { return process.env.UPLOAD_DIR || path.join(ROOT, 'uploads'); },
+  get backupDir() { return process.env.BACKUP_DIR || path.join(ROOT, 'backups'); },
   sessionHours: 12,
 };
 
-if (!config.jwtSecret) {
-  if (config.isProd) {
-    throw new Error("JWT_SECRET muhit o'zgaruvchisi production rejimida majburiy");
-  }
-  config.jwtSecret = 'dev-only-secret-change-me';
+// Ishga tushishda tekshirish: production rejimida maxfiy kalit bo'lishi shart
+export function assertConfig() {
+  return config.jwtSecret;
 }
