@@ -1,0 +1,336 @@
+// Mahsulotlar, birliklar, kategoriyalar, rasmlar va shtrix-kodlar
+import { Router } from 'express';
+import multer from 'multer';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import { pool, withTransaction } from '../db.js';
+import { requirePerm } from '../auth.js';
+import { config } from '../config.js';
+import { HttpError, num, str, round2, round4, paging } from '../util.js';
+import { audit } from '../audit.js';
+import { productUnits } from '../services/catalog.js';
+import { receiveStock } from '../services/inventory.js';
+
+const router = Router();
+
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: config.uploadDir,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${crypto.randomUUID()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 3 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
+    cb(ok ? null : new HttpError(400, "Faqat JPG, PNG yoki WEBP rasm yuklash mumkin"), ok);
+  },
+});
+
+// ---------- Birliklar va kategoriyalar ----------
+
+router.get('/units', requirePerm('products.view', 'sales.create', 'purchases.view'), async (req, res) => {
+  const { rows } = await pool.query('SELECT id, code, name, is_custom FROM units ORDER BY is_custom, id');
+  res.json({ units: rows });
+});
+
+router.post('/units', requirePerm('products.manage'), async (req, res) => {
+  const name = str(req.body?.name, 'Birlik nomi', { required: true, max: 40 });
+  const { rows: dup } = await pool.query('SELECT 1 FROM units WHERE lower(name) = lower($1)', [name]);
+  if (dup[0]) throw new HttpError(409, 'Bunday birlik allaqachon mavjud');
+  const { rows } = await withTransaction(async (client) => {
+    const r = await client.query(
+      'INSERT INTO units (name, is_custom) VALUES ($1, TRUE) RETURNING id, code, name, is_custom',
+      [name],
+    );
+    await audit(client, req.user.id, 'unit.create', 'unit', r.rows[0].id, { name });
+    return r;
+  });
+  res.status(201).json({ unit: rows[0] });
+});
+
+router.get('/categories', requirePerm('products.view', 'sales.create', 'purchases.view'), async (req, res) => {
+  const { rows } = await pool.query('SELECT id, name FROM categories ORDER BY name');
+  res.json({ categories: rows });
+});
+
+router.post('/categories', requirePerm('products.manage'), async (req, res) => {
+  const name = str(req.body?.name, 'Kategoriya nomi', { required: true, max: 60 });
+  const { rows } = await pool.query(
+    'INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id, name',
+    [name],
+  );
+  res.status(201).json({ category: rows[0] });
+});
+
+// ---------- Mahsulotlar ----------
+
+const PRODUCT_SELECT = `
+  SELECT p.*, u.name AS base_unit_name, c.name AS category_name, s.name AS supplier_name,
+         COALESCE((SELECT SUM(si.base_quantity - si.returned_base_qty) FROM sale_items si WHERE si.product_id = p.id), 0) AS sold_qty,
+         COALESCE((SELECT SUM(si.line_total - si.returned_amount) FROM sale_items si WHERE si.product_id = p.id), 0) AS sold_revenue,
+         COALESCE((SELECT SUM(si.cost_total - si.returned_cost) FROM sale_items si WHERE si.product_id = p.id), 0) AS sold_cost,
+         COALESCE((SELECT SUM(b.qty_remaining * b.unit_cost) FROM stock_batches b WHERE b.product_id = p.id), 0) AS batch_value
+    FROM products p
+    JOIN units u ON u.id = p.base_unit_id
+    LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN suppliers s ON s.id = p.supplier_id`;
+
+function shapeProduct(row, conversions = []) {
+  const stock = Number(row.stock_qty);
+  const minStock = Number(row.min_stock);
+  let status = 'ok';
+  if (stock <= 0) status = 'out';
+  else if (minStock > 0 && stock <= minStock) status = 'low';
+  const revenue = round2(row.sold_revenue);
+  const cost = round2(row.sold_cost);
+  return {
+    id: row.id,
+    name: row.name,
+    barcode: row.barcode,
+    category_id: row.category_id,
+    category_name: row.category_name,
+    supplier_id: row.supplier_id,
+    supplier_name: row.supplier_name,
+    base_unit_id: row.base_unit_id,
+    base_unit_name: row.base_unit_name,
+    purchase_price: Number(row.purchase_price),
+    selling_price: Number(row.selling_price),
+    min_stock: minStock,
+    stock_qty: stock,
+    avg_cost: Number(row.avg_cost),
+    stock_value: round2(stock * Number(row.avg_cost)),
+    sold_qty: Number(row.sold_qty),
+    remaining_qty: stock,
+    sold_revenue: revenue,
+    sold_cost: cost,
+    profit: round2(revenue - cost),
+    image_path: row.image_path,
+    is_archived: row.is_archived,
+    status,
+    conversions,
+  };
+}
+
+router.get('/products', requirePerm('products.view', 'sales.create', 'purchases.view', 'stock.view'), async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  const where = [];
+  const params = [];
+  const archived = req.query.archived === '1';
+  params.push(archived);
+  where.push(`p.is_archived = $${params.length}`);
+  if (q) {
+    params.push(q);
+    where.push(`(p.name ILIKE '%' || $${params.length} || '%' OR p.barcode = $${params.length})`);
+  }
+  if (req.query.category_id) {
+    params.push(Number(req.query.category_id));
+    where.push(`p.category_id = $${params.length}`);
+  }
+  if (req.query.stock === 'low') where.push('p.min_stock > 0 AND p.stock_qty > 0 AND p.stock_qty <= p.min_stock');
+  if (req.query.stock === 'out') where.push('p.stock_qty <= 0');
+  const { limit, offset } = paging(req.query, { limit: 200, max: 1000 });
+  const { rows } = await pool.query(
+    `${PRODUCT_SELECT} WHERE ${where.join(' AND ')} ORDER BY p.name LIMIT ${limit} OFFSET ${offset}`,
+    params,
+  );
+  res.json({ products: rows.map((r) => shapeProduct(r)) });
+});
+
+router.get('/products/barcode/:code', requirePerm('sales.create', 'products.view', 'stock.view', 'purchases.create'), async (req, res) => {
+  const code = String(req.params.code || '').trim();
+  const { rows } = await pool.query(`${PRODUCT_SELECT} WHERE p.barcode = $1`, [code]);
+  if (!rows[0]) throw new HttpError(404, "Bu shtrix-kod bo'yicha mahsulot topilmadi");
+  if (rows[0].is_archived) throw new HttpError(400, 'Bu mahsulot arxivlangan');
+  const conv = await productUnits(pool, rows[0].id);
+  res.json({ product: shapeProduct(rows[0], conv) });
+});
+
+router.get('/products/:id', requirePerm('products.view', 'stock.view'), async (req, res) => {
+  const id = Number(req.params.id);
+  const { rows } = await pool.query(`${PRODUCT_SELECT} WHERE p.id = $1`, [id]);
+  if (!rows[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+  const conv = await productUnits(pool, id);
+  const { rows: batches } = await pool.query(
+    `SELECT id, received_at, qty_initial, qty_remaining, unit_cost, source_type
+       FROM stock_batches WHERE product_id = $1 AND qty_remaining > 0 ORDER BY received_at, id`,
+    [id],
+  );
+  res.json({ product: shapeProduct(rows[0], conv), batches });
+});
+
+async function validateProductBody(client, body, existingId = null) {
+  const name = str(body.name, 'Mahsulot nomi', { required: true, max: 150 });
+  const barcode = str(body.barcode, 'Shtrix-kod', { max: 64 });
+  const baseUnitId = num(body.base_unit_id, "Asosiy o'lchov birligi", { positive: true });
+  const { rows: unit } = await client.query('SELECT id FROM units WHERE id = $1', [baseUnitId]);
+  if (!unit[0]) throw new HttpError(400, "Asosiy birlik topilmadi");
+  if (barcode) {
+    const { rows: dup } = await client.query(
+      'SELECT id, name FROM products WHERE barcode = $1 AND ($2::int IS NULL OR id <> $2)',
+      [barcode, existingId],
+    );
+    if (dup[0]) throw new HttpError(409, `Bu shtrix-kod "${dup[0].name}" mahsulotida allaqachon bor`);
+  }
+  const conversions = Array.isArray(body.conversions) ? body.conversions : [];
+  const seen = new Set();
+  const cleanConv = conversions.map((c) => {
+    const unitId = num(c.unit_id, 'Birlik', { positive: true });
+    if (unitId === baseUnitId) throw new HttpError(400, "Asosiy birlikni qo'shimcha birlik sifatida qo'shib bo'lmaydi");
+    if (seen.has(unitId)) throw new HttpError(400, 'Bir birlik ikki marta kiritilgan');
+    seen.add(unitId);
+    return { unitId, factor: round4(num(c.factor, 'Konvertatsiya koeffitsienti', { positive: true })) };
+  });
+  return {
+    name,
+    barcode,
+    categoryId: body.category_id ? num(body.category_id, 'Kategoriya', { positive: true }) : null,
+    supplierId: body.supplier_id ? num(body.supplier_id, 'Yetkazib beruvchi', { positive: true }) : null,
+    baseUnitId,
+    purchasePrice: round2(num(body.purchase_price, 'Kirim narxi', { min: 0, optional: true })),
+    sellingPrice: round2(num(body.selling_price, 'Sotuv narxi', { min: 0, optional: true })),
+    minStock: round4(num(body.min_stock, 'Minimal qoldiq', { min: 0, optional: true })),
+    conversions: cleanConv,
+  };
+}
+
+async function saveConversions(client, productId, conversions) {
+  await client.query('DELETE FROM product_units WHERE product_id = $1', [productId]);
+  for (const c of conversions) {
+    await client.query(
+      'INSERT INTO product_units (product_id, unit_id, factor) VALUES ($1, $2, $3)',
+      [productId, c.unitId, c.factor],
+    );
+  }
+}
+
+router.post('/products', requirePerm('products.manage'), async (req, res) => {
+  const body = req.body || {};
+  const result = await withTransaction(async (client) => {
+    const v = await validateProductBody(client, body);
+    const opening = round4(num(body.opening_qty, 'Boshlang\'ich qoldiq', { min: 0, optional: true }));
+    const { rows } = await client.query(
+      `INSERT INTO products
+         (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock],
+    );
+    const id = rows[0].id;
+    await saveConversions(client, id, v.conversions);
+    if (opening > 0) {
+      const { rows: p } = await client.query(
+        'SELECT p.*, u.name AS base_unit_name FROM products p JOIN units u ON u.id = p.base_unit_id WHERE p.id = $1 FOR UPDATE',
+        [id],
+      );
+      await receiveStock(client, p[0], opening, v.purchasePrice, {
+        type: 'opening', refType: 'product', refId: id, userId: req.user.id, note: 'Boshlang\'ich qoldiq',
+      });
+    }
+    await audit(client, req.user.id, 'product.create', 'product', id, { name: v.name, barcode: v.barcode, opening });
+    return id;
+  });
+  res.status(201).json({ id: result });
+});
+
+router.put('/products/:id', requirePerm('products.manage'), async (req, res) => {
+  const id = Number(req.params.id);
+  const body = req.body || {};
+  await withTransaction(async (client) => {
+    const { rows: cur } = await client.query('SELECT * FROM products WHERE id = $1 FOR UPDATE', [id]);
+    if (!cur[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+    const v = await validateProductBody(client, body, id);
+    if (v.baseUnitId !== cur[0].base_unit_id && Number(cur[0].stock_qty) > 0) {
+      throw new HttpError(400, "Qoldig'i bor mahsulotning asosiy birligini o'zgartirib bo'lmaydi");
+    }
+    await client.query(
+      `UPDATE products SET name = $2, barcode = $3, category_id = $4, supplier_id = $5,
+              base_unit_id = $6, purchase_price = $7, selling_price = $8, min_stock = $9, updated_at = now()
+        WHERE id = $1`,
+      [id, v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock],
+    );
+    await saveConversions(client, id, v.conversions);
+    await audit(client, req.user.id, 'product.update', 'product', id, {
+      name: v.name, selling_price: v.sellingPrice, purchase_price: v.purchasePrice, min_stock: v.minStock,
+    });
+  });
+  res.json({ ok: true });
+});
+
+router.post('/products/:id/archive', requirePerm('products.manage'), async (req, res) => {
+  const id = Number(req.params.id);
+  await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      'UPDATE products SET is_archived = TRUE, updated_at = now() WHERE id = $1 RETURNING name',
+      [id],
+    );
+    if (!rows[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+    await audit(client, req.user.id, 'product.archive', 'product', id, { name: rows[0].name });
+  });
+  res.json({ ok: true });
+});
+
+router.post('/products/:id/restore', requirePerm('products.manage'), async (req, res) => {
+  const id = Number(req.params.id);
+  await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      'UPDATE products SET is_archived = FALSE, updated_at = now() WHERE id = $1 RETURNING name',
+      [id],
+    );
+    if (!rows[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+    await audit(client, req.user.id, 'product.restore', 'product', id, { name: rows[0].name });
+  });
+  res.json({ ok: true });
+});
+
+router.post('/products/:id/image', requirePerm('products.manage'), (req, res, next) => {
+  imageUpload.single('image')(req, res, async (err) => {
+    try {
+      if (err) throw err.code === 'LIMIT_FILE_SIZE'
+        ? new HttpError(413, "Rasm hajmi 3 MB dan oshmasligi kerak")
+        : err;
+      if (!req.file) throw new HttpError(400, 'Rasm tanlanmagan');
+      const id = Number(req.params.id);
+      const { rows } = await pool.query('SELECT image_path FROM products WHERE id = $1', [id]);
+      if (!rows[0]) {
+        await fs.unlink(req.file.path).catch(() => {});
+        throw new HttpError(404, 'Mahsulot topilmadi');
+      }
+      const imagePath = `/uploads/${req.file.filename}`;
+      await pool.query('UPDATE products SET image_path = $2, updated_at = now() WHERE id = $1', [id, imagePath]);
+      if (rows[0].image_path && rows[0].image_path.startsWith('/uploads/')) {
+        await fs.unlink(path.join(config.uploadDir, path.basename(rows[0].image_path))).catch(() => {});
+      }
+      res.json({ image_path: imagePath });
+    } catch (e) {
+      next(e);
+    }
+  });
+});
+
+router.get('/products/:id/history', requirePerm('products.view', 'history.view'), async (req, res) => {
+  const id = Number(req.params.id);
+  const { rows: movements } = await pool.query(
+    `SELECT m.id, m.movement_type, m.quantity, m.balance_after, m.value, m.reference_type, m.reference_id,
+            m.note, m.created_at, u.full_name AS user_name
+       FROM stock_movements m LEFT JOIN users u ON u.id = m.created_by
+      WHERE m.product_id = $1 ORDER BY m.created_at DESC, m.id DESC LIMIT 300`,
+    [id],
+  );
+  const { rows: sales } = await pool.query(
+    `SELECT s.id, s.receipt_no, s.created_at, si.quantity, si.line_total, si.cost_total, un.name AS unit_name
+       FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN units un ON un.id = si.unit_id
+      WHERE si.product_id = $1 ORDER BY s.created_at DESC LIMIT 100`,
+    [id],
+  );
+  const { rows: purchases } = await pool.query(
+    `SELECT p.id, p.purchase_no, p.purchase_date, pi.quantity, pi.unit_price, pi.unit_cost, un.name AS unit_name
+       FROM purchase_items pi JOIN purchases p ON p.id = pi.purchase_id JOIN units un ON un.id = pi.unit_id
+      WHERE pi.product_id = $1 ORDER BY p.purchase_date DESC, p.id DESC LIMIT 100`,
+    [id],
+  );
+  res.json({ movements, sales, purchases });
+});
+
+export default router;

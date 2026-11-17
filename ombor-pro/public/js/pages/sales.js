@@ -1,0 +1,715 @@
+// Sotuv (POS): qidirish, shtrix-kod, savatcha, to'lov, chek, savdolar tarixi va qaytarish
+import {
+  get, post, icon, esc, num, money, dateTime, dateOnly, readForm, toast, errorToast,
+  openModal, closeModal, withBusy, productThumb, emptyState, confirmBox, todayStr,
+} from '../ui.js';
+import { openBarcodeScanner } from '../scanner.js';
+
+const LS_KEY = 'ombor-pos-v2';
+const METHODS = [
+  { key: 'cash', label: 'Naqd', ico: 'money' },
+  { key: 'card', label: 'Karta', ico: 'card' },
+  { key: 'transfer', label: "O'tkazma", ico: 'transfer' },
+  { key: 'credit', label: 'Nasiya', ico: 'credit' },
+  { key: 'mixed', label: 'Aralash', ico: 'split' },
+];
+
+const newKey = () => `pos-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && s.key && Array.isArray(s.cart)) return s;
+    }
+  } catch {
+    // buzilgan saqlangan ma'lumot e'tiborga olinmaydi
+  }
+  return { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey() };
+}
+
+let S = loadState();
+let C = null; // joriy kontekst
+let products = [];
+const detailCache = new Map();
+let cartModal = null; // mobil uchun savatcha oynasi (modal)
+
+function save() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(S));
+  } catch {
+    // saqlash imkoni bo'lmasa ham sotuv ishlaydi
+  }
+}
+
+function factorOf(line) {
+  if (line.unit_id === line.base_unit_id) return 1;
+  const c = line.conv.find((x) => x.unit_id === line.unit_id);
+  return c ? Number(c.factor) : 1;
+}
+
+function calc(line) {
+  const f = factorOf(line);
+  const base = Math.round(Number(line.qty || 0) * f * 10000) / 10000;
+  const gross = Math.round(base * Number(line.price) * 100) / 100;
+  const discount = Math.min(Number(line.discount || 0), gross);
+  const total = Math.round((gross - discount) * 100) / 100;
+  return { f, base, gross, discount, total, over: base > Number(line.stock) + 1e-9 };
+}
+
+function totals() {
+  let gross = 0;
+  let discount = 0;
+  let total = 0;
+  let problem = null;
+  for (const l of S.cart) {
+    const c = calc(l);
+    gross += c.gross;
+    discount += c.discount;
+    total += c.total;
+    if (c.over && !problem) problem = `"${l.name}" qoldig'i yetarli emas (mavjud: ${num(l.stock, 4)} ${l.base_unit_name})`;
+    if (!(Number(l.qty) > 0) && !problem) problem = `"${l.name}" miqdorini kiriting`;
+  }
+  return { gross: round(gross), discount: round(discount), total: round(total), problem };
+}
+
+const round = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+function mixedSum() {
+  const m = S.mixed;
+  return round(Number(m.cash || 0) + Number(m.card || 0) + Number(m.transfer || 0) + Number(m.credit || 0));
+}
+
+function payValidity(t) {
+  if (S.cart.length === 0) return 'Savatcha bo\'sh';
+  if (t.problem) return t.problem;
+  if (S.method === 'credit' && !S.customer) return 'Nasiyaga sotish uchun mijozni tanlang';
+  if (S.method === 'mixed') {
+    if (Math.abs(mixedSum() - t.total) > 0.005) return `Aralash to'lov jami summaga teng bo'lishi kerak (qolgan: ${num(round(t.total - mixedSum()))})`;
+    if (Number(S.mixed.credit || 0) > 0 && !S.customer) return 'Nasiya qismi uchun mijozni tanlang';
+  }
+  return null;
+}
+
+async function productDetail(id) {
+  if (!detailCache.has(id)) {
+    const r = await get(`/products/${id}`);
+    detailCache.set(id, r.product);
+  }
+  return detailCache.get(id);
+}
+
+async function addProduct(p, qtyDelta = 1) {
+  const d = await productDetail(p.id);
+  if (Number(d.stock_qty) <= 0) throw new Error(`"${d.name}" tugagan`);
+  let line = S.cart.find((l) => l.pid === d.id && l.unit_id === d.base_unit_id);
+  if (!line) {
+    line = {
+      pid: d.id, name: d.name, base_unit_id: d.base_unit_id, base_unit_name: d.base_unit_name,
+      unit_id: d.base_unit_id, unit_name: d.base_unit_name, conv: d.conversions || [],
+      qty: 0, price: Number(d.selling_price), discount: 0, stock: Number(d.stock_qty), image_path: d.image_path,
+    };
+    S.cart.push(line);
+  }
+  line.qty = round4(Number(line.qty) + qtyDelta);
+  line.stock = Number(d.stock_qty);
+  line.price = Number(d.selling_price);
+  if (calc(line).over) {
+    line.qty = round4(line.qty - qtyDelta);
+    throw new Error(`"${d.name}" qoldig'i yetarli emas`);
+  }
+  save();
+  refreshAll();
+  return line;
+}
+
+const round4 = (n) => Math.round((Number(n) + Number.EPSILON) * 10000) / 10000;
+
+function setMethod(m) {
+  S.method = m;
+  if (m !== 'mixed') S.mixed = { cash: '', card: '', transfer: '', credit: '' };
+  save();
+  refreshAll();
+}
+
+// ---------- Savatcha ko'rinishi ----------
+
+function cartHtml(ctx) {
+  const t = totals();
+  const canDiscount = ctx.can('sales.discount');
+  const lines = S.cart.length
+    ? S.cart.map((l, i) => {
+      const c = calc(l);
+      const unitOptions = [{ unit_id: l.base_unit_id, name: l.base_unit_name, factor: 1 }, ...l.conv]
+        .map((u) => `<option value="${u.unit_id}" ${u.unit_id === l.unit_id ? 'selected' : ''}>${esc(u.name)}</option>`).join('');
+      return `
+        <div class="cart-line" data-line="${i}">
+          <div class="top">
+            <div class="grow"><div class="name">${esc(l.name)}</div>
+              <div class="small muted">${num(c.f * Number(l.price), 2)} so'm / ${esc(l.unit_name)} · qoldiq ${num(l.stock, 4)} ${esc(l.base_unit_name)}</div></div>
+            <button class="icon-btn icon-btn-light" style="width:40px;height:40px" type="button" data-remove="${i}" aria-label="O'chirish">${icon('minus', 'ico-sm')}</button>
+          </div>
+          <div class="row" style="justify-content:space-between">
+            <div class="qty-ctrl" aria-label="Miqdor">
+              <button type="button" data-step="${i}" data-d="-1" aria-label="Kamaytirish">−</button>
+              <input type="text" inputmode="decimal" value="${num(l.qty, 4)}" data-qty="${i}" aria-label="Miqdor">
+              <button type="button" data-step="${i}" data-d="1" aria-label="Ko'paytirish">+</button>
+            </div>
+            <select class="input" style="width:auto;min-width:130px;min-height:48px" data-unit="${i}" aria-label="Birlik">${unitOptions}</select>
+          </div>
+          ${canDiscount ? `<div class="row small"><label class="grow" style="display:flex;gap:8px;align-items:center">Chegirma (so'm)
+              <input class="input" style="min-height:42px;max-width:150px" type="text" inputmode="decimal" value="${l.discount ? num(l.discount, 2) : ''}" placeholder="0" data-disc="${i}"></label></div>` : ''}
+          <div class="between"><span class="small muted">${num(c.base, 4)} ${esc(l.base_unit_name)}${c.discount ? ` · chegirma −${num(c.discount)}` : ''}</span>
+            <span class="num" style="font-weight:800">${money(c.total)}</span></div>
+          ${c.over ? '<div class="small red" style="font-weight:700">Qoldiq yetarli emas</div>' : ''}
+        </div>`;
+    }).join('')
+    : emptyState('Savatcha bo\'sh. Mahsulotni bosing yoki shtrix-kodni o\'qiting', 'cart');
+
+  const cust = S.customer
+    ? `<div class="alert alert-info" style="align-items:center"><div class="grow"><b>${esc(S.customer.name)}</b>
+         <div class="small">Joriy qarz: ${money(S.customer.debt)}</div></div>
+         <button class="btn btn-sm btn-outline" type="button" data-cust>O'zgartirish</button>
+         <button class="btn btn-sm btn-ghost" type="button" data-cust-clear aria-label="Mijozni olib tashlash">${icon('minus', 'ico-sm')}</button></div>`
+    : `<button class="btn btn-outline btn-block" type="button" data-cust>${icon('users', 'ico-sm')} Mijoz tanlash (ixtiyoriy)</button>`;
+
+  const pay = S.method === 'mixed'
+    ? `<div class="form-grid two" style="gap:8px">
+        ${['cash', 'card', 'transfer', 'credit'].map((k) => `
+          <label class="field"><span>${{ cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya' }[k]}</span>
+            <input class="input" type="text" inputmode="decimal" data-mixed="${k}" value="${S.mixed[k] ?? ''}" placeholder="0"></label>`).join('')}
+        <div class="small" data-mixed-left style="grid-column:1/-1;font-weight:700">${mixedLeftText(t.total)}</div>
+      </div>`
+    : '';
+
+  const dueRow = S.method === 'credit' || (S.method === 'mixed' && Number(S.mixed.credit || 0) > 0)
+    ? `<label class="field"><span>To'lov muddati (ixtiyoriy)</span><input class="input" type="date" data-due value="${esc(S.dueDate)}"></label>`
+    : '';
+
+  const reason = payValidity(t);
+  return `
+    <div class="card-head"><h2>Savatcha</h2><span class="badge badge-info">${S.cart.length} ta qator</span></div>
+    <div class="stack" style="max-height:none">${lines}</div>
+    ${S.cart.length ? `
+      <div style="margin-top:12px">${cust}</div>
+      <div class="cart-totals" style="margin-top:12px">
+        <div class="between"><span class="muted">Yalpi summa</span><span class="num">${money(t.gross)}</span></div>
+        ${t.discount ? `<div class="between"><span class="muted">Chegirma</span><span class="num red">−${money(t.discount)}</span></div>` : ''}
+        <div class="between"><span style="font-weight:700">Jami to'lov</span><span class="big num">${money(t.total)}</span></div>
+      </div>
+      <div style="margin-top:12px"><div class="small" style="font-weight:700;margin-bottom:6px">To'lov usuli</div>
+        <div class="pay-grid">${METHODS.map((m) => `<button type="button" data-method="${m.key}" class="${S.method === m.key ? 'active' : ''}">${icon(m.ico)}<span>${m.label}</span></button>`).join('')}</div>
+      </div>
+      <div class="stack" style="margin-top:12px">${pay}${dueRow}</div>
+      ${reason ? `<div class="alert alert-warn" style="margin-top:12px">${esc(reason)}</div>` : ''}
+      <button class="btn btn-success btn-lg btn-block" type="button" data-checkout style="margin-top:14px" ${reason ? 'disabled' : ''}>
+        ${icon('check')} Sotuvni yakunlash · ${money(t.total)}
+      </button>
+      <button class="btn btn-ghost btn-block" type="button" data-clear style="margin-top:6px">Savatchani tozalash</button>
+    ` : ''}`;
+}
+
+function mixedLeftText(total) {
+  const left = round(total - mixedSum());
+  if (Math.abs(left) < 0.005) return '<span class="green">To\'liq taqsimlandi</span>';
+  return left > 0 ? `<span class="amber">Qolgan: ${num(left)} so'm</span>` : `<span class="red">Ortiqcha: ${num(-left)} so'm</span>`;
+}
+
+function mountCart(el, ctx) {
+  el.innerHTML = cartHtml(ctx);
+  el.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => {
+    const i = Number(b.dataset.step);
+    const l = S.cart[i];
+    const next = round4(Number(l.qty) + Number(b.dataset.d));
+    if (next <= 0) return;
+    l.qty = next;
+    if (calc(l).over) { toast(`"${l.name}" qoldig'i yetarli emas`, 'warn'); return; }
+    save();
+    refreshAll();
+  }));
+  el.querySelectorAll('[data-qty]').forEach((inp) => inp.addEventListener('change', () => {
+    const i = Number(inp.dataset.qty);
+    const l = S.cart[i];
+    const v = Number(String(inp.value).replace(',', '.'));
+    if (!(v > 0)) { toast('Miqdor noldan katta bo\'lishi kerak', 'warn'); refreshAll(); return; }
+    l.qty = round4(v);
+    if (calc(l).over) toast(`"${l.name}" qoldig'i yetarli emas`, 'warn');
+    save();
+    refreshAll();
+  }));
+  el.querySelectorAll('[data-unit]').forEach((sel) => sel.addEventListener('change', () => {
+    const l = S.cart[Number(sel.dataset.unit)];
+    l.unit_id = Number(sel.value);
+    l.unit_name = sel.options[sel.selectedIndex].text;
+    save();
+    refreshAll();
+  }));
+  el.querySelectorAll('[data-disc]').forEach((inp) => inp.addEventListener('change', () => {
+    const l = S.cart[Number(inp.dataset.disc)];
+    const v = Number(String(inp.value || '0').replace(',', '.'));
+    if (!(v >= 0)) { toast("Chegirma noto'g'ri", 'warn'); refreshAll(); return; }
+    l.discount = v;
+    if (calc(l).discount < v) toast('Chegirma summadan katta bo\'lishi mumkin emas', 'warn');
+    save();
+    refreshAll();
+  }));
+  el.querySelectorAll('[data-remove]').forEach((b) => b.addEventListener('click', () => {
+    S.cart.splice(Number(b.dataset.remove), 1);
+    save();
+    refreshAll();
+  }));
+  el.querySelectorAll('[data-method]').forEach((b) => b.addEventListener('click', () => setMethod(b.dataset.method)));
+  el.querySelectorAll('[data-mixed]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      S.mixed[inp.dataset.mixed] = inp.value;
+      save();
+      const left = el.querySelector('[data-mixed-left]');
+      if (left) left.innerHTML = mixedLeftText(totals().total);
+      const btn = el.querySelector('[data-checkout]');
+      if (btn) btn.disabled = Boolean(payValidity(totals()));
+    });
+    inp.addEventListener('change', () => refreshAll());
+  });
+  el.querySelector('[data-due]')?.addEventListener('change', (e) => {
+    S.dueDate = e.target.value;
+    save();
+  });
+  el.querySelectorAll('[data-cust]').forEach((b) => b.addEventListener('click', () => pickCustomer(ctx)));
+  el.querySelector('[data-cust-clear]')?.addEventListener('click', () => {
+    S.customer = null;
+    save();
+    refreshAll();
+  });
+  el.querySelector('[data-clear]')?.addEventListener('click', async () => {
+    if (await confirmBox('Savatchadagi hamma mahsulotlar o\'chirilsinmi?', { okText: 'Ha, tozalash', danger: true })) {
+      S = { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey() };
+      save();
+      refreshAll();
+    }
+  });
+  el.querySelector('[data-checkout]')?.addEventListener('click', (e) => checkout(e.currentTarget, ctx));
+}
+
+function refreshAll() {
+  const aside = document.getElementById('cart-panel');
+  if (aside && C) mountCart(aside, C.ctx);
+  if (cartModal && cartModal.isConnected) mountCart(cartModal, C.ctx);
+  const bar = document.getElementById('cartbar');
+  if (bar) {
+    const t = totals();
+    bar.hidden = S.cart.length === 0 || window.matchMedia('(min-width: 720px)').matches;
+    bar.querySelector('[data-count]').textContent = S.cart.length;
+    bar.querySelector('[data-total]').textContent = money(t.total);
+  }
+  const badge = document.getElementById('grid-selected');
+  if (badge) badge.textContent = `${S.cart.length} ta qator`;
+}
+
+// ---------- Mijoz tanlash ----------
+
+function pickCustomer(ctx) {
+  let timer = null;
+  const { close, el } = openModal({
+    title: 'Mijozni tanlash',
+    body: `<input class="input" id="cq" type="search" placeholder="Ism yoki telefon" autofocus>
+           <div id="cres" style="margin-top:12px"></div>`,
+    foot: `<button class="btn btn-light" type="button" id="cnew">${icon('plus', 'ico-sm')} Yangi mijoz</button>`,
+  });
+  const res = el.querySelector('#cres');
+  const load = async (q) => {
+    const r = await get(`/customers?q=${encodeURIComponent(q)}`);
+    res.innerHTML = r.customers.length
+      ? `<div class="list">${r.customers.map((c) => `
+          <div class="list-item" data-pick="${c.id}">
+            <div class="meta"><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.phone || '')}</div></div>
+            <div class="end"><div class="small muted">Qarz</div><div class="num ${Number(c.debt) > 0 ? 'amber' : ''}">${money(c.debt)}</div></div>
+          </div>`).join('')}</div>`
+      : '<div class="empty">Mijoz topilmadi</div>';
+    res.querySelectorAll('[data-pick]').forEach((row) => row.addEventListener('click', () => {
+      const c = r2(r.customers, row.dataset.pick);
+      S.customer = { id: c.id, name: c.name, debt: Number(c.debt) };
+      save();
+      close();
+      refreshAll();
+    }));
+  };
+  const r2 = (list, id) => list.find((x) => String(x.id) === String(id));
+  el.querySelector('#cq').addEventListener('input', (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => load(e.target.value.trim()).catch(errorToast), 200);
+  });
+  load('').catch(errorToast);
+  el.querySelector('#cnew').addEventListener('click', () => {
+    const { close: c2, el: e2 } = openModal({
+      title: 'Yangi mijoz',
+      body: `<form id="nc" class="form-grid">
+        <label class="field"><span>Ism familiya</span><input class="input" name="name" required maxlength="150"></label>
+        <label class="field"><span>Telefon</span><input class="input" name="phone" inputmode="tel" maxlength="30" placeholder="+998 90 123 45 67"></label>
+        </form>`,
+      foot: `<button class="btn btn-outline" type="button" data-no>Bekor</button><button class="btn" type="submit" form="nc" data-yes>Saqlash</button>`,
+    });
+    e2.querySelector('[data-no]').addEventListener('click', () => c2());
+    e2.querySelector('#nc').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      try {
+        const r = await post('/customers', readForm(ev.currentTarget));
+        S.customer = { id: r.customer.id, name: r.customer.name, debt: 0 };
+        save();
+        c2();
+        close();
+        refreshAll();
+        toast('Mijoz qo\'shildi', 'ok');
+      } catch (err) {
+        errorToast(err);
+      }
+    });
+  });
+}
+
+// ---------- Sotuvni yakunlash ----------
+
+async function checkout(btn, ctx) {
+  const t = totals();
+  const reason = payValidity(t);
+  if (reason) { toast(reason, 'warn'); return; }
+  const items = S.cart.map((l) => ({
+    product_id: l.pid,
+    unit_id: l.unit_id,
+    quantity: Number(l.qty),
+    discount: Number(l.discount || 0) || 0,
+  }));
+  const payment = { method: S.method };
+  if (S.method === 'mixed') {
+    payment.cash = Number(S.mixed.cash || 0);
+    payment.card = Number(S.mixed.card || 0);
+    payment.transfer = Number(S.mixed.transfer || 0);
+    payment.credit = Number(S.mixed.credit || 0);
+  }
+  const body = {
+    items,
+    payment,
+    customer_id: S.customer?.id ?? null,
+    due_date: S.dueDate || null,
+    idempotency_key: S.key,
+  };
+  await withBusy(btn, async () => {
+    try {
+      const r = await post('/sales', body);
+      const sale = r.sale;
+      const shown = { ...S };
+      S = { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey() };
+      save();
+      detailCache.clear();
+      if (cartModal && cartModal.isConnected) closeModal();
+      refreshAll();
+      loadProducts(C.query);
+      showReceipt(sale, ctx, { fresh: true, shown });
+    } catch (err) {
+      if (err.status === 409 || err.status === 400 || err.status === 403) {
+        toast(err.message, 'bad');
+        detailCache.clear();
+        refreshAll();
+      } else {
+        errorToast(err);
+      }
+    }
+  });
+}
+
+// ---------- Chek ----------
+
+function receiptText(sale, storeName) {
+  const lines = [
+    storeName,
+    `Chek: ${sale.receipt_no}`,
+    dateTime(sale.created_at),
+    sale.customer_name ? `Mijoz: ${sale.customer_name}` : 'Naqd mijoz',
+    '------------------------',
+    ...sale.items.map((i) => `${i.product_name}\n  ${num(i.quantity, 4)} ${i.unit_name} x ${num(i.unit_price)} = ${num(i.line_total)}${Number(i.discount) ? ` (chegirma -${num(i.discount)})` : ''}`),
+    '------------------------',
+    `Jami: ${num(sale.total)} so'm`,
+    Number(sale.discount_total) ? `Chegirma: -${num(sale.discount_total)} so'm` : null,
+    Number(sale.paid_cash) ? `Naqd: ${num(sale.paid_cash)} so'm` : null,
+    Number(sale.paid_card) ? `Karta: ${num(sale.paid_card)} so'm` : null,
+    Number(sale.paid_transfer) ? `O'tkazma: ${num(sale.paid_transfer)} so'm` : null,
+    Number(sale.balance_due) ? `Nasiya (qarz): ${num(sale.balance_due)} so'm` : null,
+  ].filter((x) => x !== null);
+  return lines.join('\n');
+}
+
+function receiptHtml(sale, storeName, footer, storeInfo = {}) {
+  const rows = sale.items.map((i) => `
+    <div class="i">${esc(i.product_name)}
+      <div class="r"><span>${num(i.quantity, 4)} ${esc(i.unit_name)} x ${num(i.unit_price)}${Number(i.discount) ? ` (-${num(i.discount)})` : ''}</span><span>${num(i.line_total)}</span></div>
+    </div>`).join('');
+  const line = (label, value) => `<div class="r"><span>${label}</span><span>${value}</span></div>`;
+  return `
+    <div class="receipt">
+      <h2>${esc(storeName)}</h2>
+      ${storeInfo.address ? `<div class="c">${esc(storeInfo.address)}</div>` : ''}
+      ${storeInfo.phone ? `<div class="c">${esc(storeInfo.phone)}</div>` : ''}
+      <hr>
+      ${line('Chek', esc(sale.receipt_no))}
+      ${line('Sana', esc(dateTime(sale.created_at)))}
+      ${line('Kassir', esc(sale.cashier_name || ''))}
+      ${line('Mijoz', esc(sale.customer_name || 'Naqd mijoz'))}
+      <hr>
+      ${rows}
+      <hr>
+      ${Number(sale.discount_total) ? line('Yalpi', num(sale.gross_total)) : ''}
+      ${Number(sale.discount_total) ? line('Chegirma', `-${num(sale.discount_total)}`) : ''}
+      <div class="r b"><span>JAMI</span><span>${num(sale.total)} so'm</span></div>
+      ${Number(sale.paid_cash) ? line('Naqd', num(sale.paid_cash)) : ''}
+      ${Number(sale.paid_card) ? line('Karta', num(sale.paid_card)) : ''}
+      ${Number(sale.paid_transfer) ? line("O'tkazma", num(sale.paid_transfer)) : ''}
+      ${Number(sale.balance_due) ? line('Nasiya (qarz)', num(sale.balance_due)) : ''}
+      ${sale.due_date ? line("To'lov muddati", dateOnly(sale.due_date)) : ''}
+      <hr>
+      <div class="c">${esc(footer || '')}</div>
+    </div>`;
+}
+
+async function showReceipt(sale, ctx, opts = {}) {
+  const s = await get('/settings').then((r) => r.settings).catch(() => ctx.settings);
+  const full = sale.items ? sale : (await get(`/sales/${sale.id}`)).sale;
+  const storeInfo = { phone: s.store_phone, address: s.store_address };
+  const html = receiptHtml(full, s.store_name, s.receipt_footer, storeInfo);
+  const { close, el } = openModal({
+    title: opts.fresh ? 'Sotuv yakunlandi' : `Chek ${full.receipt_no}`,
+    body: `<div class="alert alert-info" style="margin-bottom:12px">${icon('check', 'ico-sm')}<div>Chek: <b>${esc(full.receipt_no)}</b> · jami <b>${money(full.total)}</b>${Number(full.balance_due) ? ` · qarz <b>${money(full.balance_due)}</b>` : ''}</div></div>
+           <div id="print-area">${html}</div>`,
+    foot: `<button class="btn btn-outline" type="button" data-print>${icon('print', 'ico-sm')} Chop etish</button>
+           <button class="btn btn-light" type="button" data-share>${icon('share', 'ico-sm')} Ulashish</button>
+           <button class="btn" type="button" data-done>${opts.fresh ? 'Yangi savdo' : 'Yopish'}</button>`,
+  });
+  el.querySelector('[data-print]').addEventListener('click', () => window.print());
+  el.querySelector('[data-share]').addEventListener('click', async () => {
+    const text = receiptText(full, s.store_name);
+    try {
+      if (navigator.share) await navigator.share({ title: `Chek ${full.receipt_no}`, text });
+      else {
+        await navigator.clipboard.writeText(text);
+        toast('Chek matni nusxalandi', 'ok');
+      }
+    } catch {
+      // foydalanuvchi ulashishni bekor qildi
+    }
+  });
+  el.querySelector('[data-done]').addEventListener('click', () => {
+    close();
+    if (opts.fresh) refreshAll();
+  });
+}
+
+// ---------- Mahsulotlar ro'yxati ----------
+
+function gridHtml(list) {
+  if (!list.length) return emptyState('Mahsulot topilmadi', 'box');
+  return list.map((p) => {
+    const inCart = S.cart.filter((l) => l.pid === p.id).reduce((s, l) => s + Number(l.qty), 0);
+    const out = Number(p.stock_qty) <= 0;
+    return `
+      <button class="pcard" type="button" data-pid="${p.id}" ${out ? 'disabled' : ''} aria-label="${esc(p.name)} qo'shish">
+        ${inCart > 0 ? `<span class="qty-badge">${num(inCart, 2)}</span>` : ''}
+        ${productThumb({ name: p.name, image_path: p.image_path })}
+        <div class="pname">${esc(p.name)}</div>
+        <div class="pprice">${num(p.selling_price)} <span class="small muted">so'm/${esc(p.base_unit_name)}</span></div>
+        <div class="pstock">${out ? '<span class="red" style="font-weight:700">Tugagan</span>' : `Qoldiq: ${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}`}</div>
+      </button>`;
+  }).join('');
+}
+
+function bindGrid() {
+  document.querySelectorAll('[data-pid]').forEach((b) => b.addEventListener('click', async () => {
+    const p = products.find((x) => String(x.id) === b.dataset.pid);
+    if (!p) return;
+    try {
+      await addProduct(p, 1);
+      toast(`${p.name} savatga qo'shildi`, 'ok');
+    } catch (err) {
+      errorToast(err);
+    }
+  }));
+}
+
+async function loadProducts(q = '') {
+  const r = await get(`/products?q=${encodeURIComponent(q)}`);
+  products = r.products;
+  const grid = document.getElementById('grid');
+  if (grid) {
+    grid.innerHTML = gridHtml(products);
+    bindGrid();
+  }
+}
+
+async function addByBarcode(code) {
+  const r = await get(`/products/barcode/${encodeURIComponent(code)}`);
+  const p = r.product;
+  await addProduct({ id: p.id }, 1);
+  toast(`${p.name} savatga qo'shildi`, 'ok');
+}
+
+// ---------- Kamera orqali shtrix-kod ----------
+
+function openScanner() {
+  openBarcodeScanner((code) => {
+    addByBarcode(code).catch(errorToast);
+  });
+}
+
+// ---------- Savdolar tarixi va qaytarish ----------
+
+async function renderHistory(root, ctx) {
+  const day = todayStr();
+  const r = await get(`/sales?from=${day}&to=${day}`);
+  const rows = r.sales;
+  root.innerHTML = `
+    <div class="page-head">
+      <div><h1>Bugungi savdolar</h1><p class="muted">${dateOnly(day)} · ${rows.length} ta savdo</p></div>
+      <div class="row"><a class="btn btn-light" href="#/sales">${icon('cart', 'ico-sm')} Sotuvga qaytish</a></div>
+    </div>
+    <div class="card">
+      ${rows.length ? `<div class="table-wrap cards"><table>
+        <thead><tr><th>Chek</th><th>Vaqt</th><th>Mijoz</th><th>To'lov</th><th class="right">Summa</th><th>Holat</th><th></th></tr></thead>
+        <tbody>${rows.map((s) => `
+          <tr>
+            <td data-label="Chek"><b>${esc(s.receipt_no)}</b></td>
+            <td data-label="Vaqt">${dateTime(s.created_at)}</td>
+            <td data-label="Mijoz">${esc(s.customer_name || 'Naqd mijoz')}</td>
+            <td data-label="To'lov">${esc(payLabel(s.payment_method))}</td>
+            <td data-label="Summa" class="right num"><b>${money(s.total)}</b>${Number(s.balance_due) ? `<div class="small amber">qarz ${num(s.balance_due)}</div>` : ''}</td>
+            <td data-label="Holat">${s.status === 'completed' ? '<span class="badge badge-ok">Yakunlangan</span>' : s.status === 'returned' ? '<span class="badge badge-muted">Qaytarilgan</span>' : '<span class="badge badge-low">Qisman qaytarilgan</span>'}</td>
+            <td class="no-label" style="text-align:right;white-space:nowrap">
+              <button class="btn btn-sm btn-light" data-view="${s.id}">Chek</button>
+              ${ctx.can('sales.return') && s.status !== 'returned' ? `<button class="btn btn-sm btn-outline" data-return="${s.id}">Qaytarish</button>` : ''}
+            </td>
+          </tr>`).join('')}
+        </tbody></table></div>` : emptyState('Bugun hali savdo bo\'lmagan', 'cart')}
+    </div>`;
+  root.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => showReceipt({ id: b.dataset.view }, ctx)));
+  root.querySelectorAll('[data-return]').forEach((b) => b.addEventListener('click', () => openReturn(Number(b.dataset.return), ctx, () => renderHistory(root, ctx))));
+}
+
+function payLabel(m) {
+  return { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya', mixed: 'Aralash' }[m] || m;
+}
+
+async function openReturn(saleId, ctx, done) {
+  const { sale } = await get(`/sales/${saleId}`);
+  const rows = sale.items.map((i) => {
+    const remaining = round4(Number(i.base_quantity) - Number(i.returned_base_qty)) / Number(i.factor);
+    return { ...i, remainingUnits: round4(remaining) };
+  }).filter((i) => i.remainingUnits > 0);
+  if (!rows.length) { toast('Bu savdodagi mahsulotlar allaqachon qaytarilgan', 'warn'); return; }
+  const { close, el } = openModal({
+    title: `Qaytarish · ${sale.receipt_no}`,
+    body: `
+      <p class="small muted" style="margin-bottom:10px">Qaytariladigan miqdorni kiriting. Nasiya qarz avval kamayadi, qolgani pul sifatida qaytariladi.</p>
+      <div class="stack">${rows.map((i) => `
+        <div class="card" style="padding:12px;box-shadow:none;border:1px solid var(--line)">
+          <div class="between"><b>${esc(i.product_name)}</b><span class="small muted">qolgan: ${num(i.remainingUnits, 4)} ${esc(i.unit_name)}</span></div>
+          <label class="field" style="margin-top:8px"><span>Qaytarish miqdori (${esc(i.unit_name)})</span>
+            <input class="input" type="text" inputmode="decimal" data-ret="${i.id}" value="0"></label>
+        </div>`).join('')}
+      </div>
+      <label class="field" style="margin-top:12px"><span>Pul qaytarish usuli</span>
+        <select class="input" name="refund"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
+      <div id="ret-err" style="margin-top:10px"></div>`,
+    foot: `<button class="btn btn-outline" type="button" data-no>Bekor</button><button class="btn btn-danger" type="button" data-yes>Qaytarishni tasdiqlash</button>`,
+  });
+  el.querySelector('[data-no]').addEventListener('click', close);
+  el.querySelector('[data-yes]').addEventListener('click', async (e) => {
+    const items = [...el.querySelectorAll('[data-ret]')]
+      .map((inp) => ({ sale_item_id: Number(inp.dataset.ret), quantity: Number(String(inp.value).replace(',', '.')) }))
+      .filter((x) => x.quantity > 0);
+    if (!items.length) { el.querySelector('#ret-err').innerHTML = '<div class="alert alert-warn">Qaytariladigan miqdorni kiriting</div>'; return; }
+    await withBusy(e.currentTarget, async () => {
+      try {
+        const r = await post(`/sales/${saleId}/return`, { items, refund_method: el.querySelector('[name=refund]').value });
+        close();
+        toast(`Qaytarildi: ${money(r.amount)}${r.refund ? `, qaytarilgan pul ${money(r.refund)}` : ''}`, 'ok');
+        done?.();
+      } catch (err) {
+        el.querySelector('#ret-err').innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`;
+      }
+    });
+  });
+}
+
+// ---------- Sahifa ----------
+
+export async function render(root, params, ctx) {
+  // #/sales/history: router "history" ni id sifatida beradi
+  if (params.id === 'history') {
+    return renderHistory(root, ctx);
+  }
+  if (params.id && !params.sub) {
+    // Chek ko'rinishi (eski savdo)
+    const { sale } = await get(`/sales/${params.id}`);
+    root.innerHTML = `<div class="page-head"><h1>Chek ${esc(sale.receipt_no)}</h1><a class="btn btn-light" href="#/sales/history">Savdolar</a></div>`;
+    return showReceipt(sale, ctx);
+  }
+  C = { ctx, query: '' };
+  const isDesktop = window.matchMedia('(min-width: 720px)').matches;
+  root.innerHTML = `
+    <div class="pos">
+      <div class="pos-main-col">
+        <div class="pos-search">
+          <div class="input-group">
+            <input class="input" id="q" type="search" placeholder="Mahsulot nomini yozing..." autocomplete="off" aria-label="Mahsulot qidirish">
+            <button class="btn btn-light" type="button" id="btn-scan" aria-label="Kamera bilan shtrix-kod" style="min-width:56px">${icon('camera')}</button>
+          </div>
+          <div class="input-group" style="margin-top:8px">
+            <input class="input" id="barcode" type="text" inputmode="numeric" placeholder="Shtrix-kod (skaner bilan o'qing yoki yozing)" autocomplete="off" aria-label="Shtrix-kod">
+            <button class="btn btn-outline" type="button" id="btn-bc" style="min-width:56px">${icon('scan')}</button>
+          </div>
+          <div class="between" style="margin-top:10px"><span class="small muted" id="grid-selected">${S.cart.length} ta qator</span>
+            <a class="small" href="#/sales/history">Bugungi savdolar &rsaquo;</a></div>
+        </div>
+        <div class="product-grid" id="grid"><div class="empty">Yuklanmoqda...</div></div>
+      </div>
+      <aside class="pos-cart card" id="cart-panel" ${isDesktop ? '' : 'hidden'}></aside>
+    </div>
+    <button class="mobile-cartbar" id="cartbar" type="button" hidden>
+      <span class="count" data-count>0</span><span>Savatcha</span><span class="total" data-total>0 so'm</span>
+    </button>`;
+
+  const q = root.querySelector('#q');
+  let timer = null;
+  q.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      C.query = q.value.trim();
+      loadProducts(C.query).catch(errorToast);
+    }, 220);
+  });
+  const bc = root.querySelector('#barcode');
+  const doBarcode = async () => {
+    const code = bc.value.trim();
+    if (!code) return;
+    try {
+      await addByBarcode(code);
+      bc.value = '';
+    } catch (err) {
+      errorToast(err);
+      bc.select();
+    }
+  };
+  bc.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doBarcode(); } });
+  root.querySelector('#btn-bc').addEventListener('click', doBarcode);
+  root.querySelector('#btn-scan').addEventListener('click', openScanner);
+  root.querySelector('#cartbar').addEventListener('click', () => {
+    const r = openModal({ title: 'Savatcha', body: '<div id="cart-m"></div>', wide: true });
+    cartModal = r.el.querySelector('#cart-m');
+    cartModal.classList.add('stack');
+    mountCart(cartModal, ctx);
+    r.el.querySelector('[data-close]').addEventListener('click', () => { cartModal = null; });
+    r.el.querySelector('[data-backdrop]')?.addEventListener('click', () => { cartModal = null; });
+  });
+  refreshAll();
+  // Qoldiq ma'lumoti yangi bo'lishi uchun keshni tozalaymiz
+  detailCache.clear();
+  await loadProducts('');
+  refreshAll();
+}
