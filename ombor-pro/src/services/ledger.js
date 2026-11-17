@@ -22,7 +22,32 @@ export async function supplierDebt(db, supplierId) {
   return round2(rows[0].debt);
 }
 
+// Takroriy so'rov: shu kalit bilan to'lov allaqachon yozilgan bo'lsa, o'shani qaytaradi
+function idemKey(body) {
+  return body.idempotency_key ? String(body.idempotency_key).slice(0, 100) : null;
+}
+
+async function existingPayment(client, table, allocTable, docColumn, key, debtFn, partyColumn) {
+  if (!key) return null;
+  const { rows } = await client.query(`SELECT * FROM ${table} WHERE idempotency_key = $1`, [key]);
+  if (!rows[0]) return null;
+  const { rows: alloc } = await client.query(
+    `SELECT ${docColumn}, amount FROM ${allocTable} WHERE payment_id = $1 ORDER BY id`,
+    [rows[0].id],
+  );
+  return {
+    payment_id: rows[0].id,
+    amount: Number(rows[0].amount),
+    allocations: alloc.map((a) => ({ [docColumn]: a[docColumn], amount: Number(a.amount) })),
+    remaining_debt: await debtFn(client, rows[0][partyColumn]),
+    duplicate: true,
+  };
+}
+
 export async function receiveCustomerPayment(client, user, customerId, body) {
+  const key = idemKey(body);
+  const dup = await existingPayment(client, 'customer_payments', 'customer_payment_allocations', 'sale_id', key, customerDebt, 'customer_id');
+  if (dup) return dup;
   const { rows: cust } = await client.query('SELECT id, name FROM customers WHERE id = $1', [customerId]);
   if (!cust[0]) throw new HttpError(404, 'Mijoz topilmadi');
   const amount = round2(num(body.amount, "To'lov summasi", { positive: true }));
@@ -42,9 +67,9 @@ export async function receiveCustomerPayment(client, user, customerId, body) {
   }
 
   const { rows: pay } = await client.query(
-    `INSERT INTO customer_payments (customer_id, amount, method, note, created_by)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [customerId, amount, method, body.note ? String(body.note).slice(0, 200) : null, user.id],
+    `INSERT INTO customer_payments (customer_id, amount, method, note, created_by, idempotency_key)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [customerId, amount, method, body.note ? String(body.note).slice(0, 200) : null, user.id, key],
   );
   const paymentId = pay[0].id;
 
@@ -76,6 +101,9 @@ export async function receiveCustomerPayment(client, user, customerId, body) {
 }
 
 export async function paySupplier(client, user, supplierId, body) {
+  const key = idemKey(body);
+  const dup = await existingPayment(client, 'supplier_payments', 'supplier_payment_allocations', 'purchase_id', key, supplierDebt, 'supplier_id');
+  if (dup) return dup;
   const { rows: sup } = await client.query('SELECT id, name FROM suppliers WHERE id = $1', [supplierId]);
   if (!sup[0]) throw new HttpError(404, 'Yetkazib beruvchi topilmadi');
   const amount = round2(num(body.amount, "To'lov summasi", { positive: true }));
@@ -96,9 +124,9 @@ export async function paySupplier(client, user, supplierId, body) {
   }
 
   const { rows: pay } = await client.query(
-    `INSERT INTO supplier_payments (supplier_id, amount, method, note, created_by)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [supplierId, amount, method, body.note ? String(body.note).slice(0, 200) : null, user.id],
+    `INSERT INTO supplier_payments (supplier_id, amount, method, note, created_by, idempotency_key)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [supplierId, amount, method, body.note ? String(body.note).slice(0, 200) : null, user.id, key],
   );
   const paymentId = pay[0].id;
 

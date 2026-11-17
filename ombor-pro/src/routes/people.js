@@ -170,7 +170,7 @@ router.get('/suppliers/:id', requirePerm('suppliers.view', 'purchases.view'), as
 router.post('/suppliers/:id/payments', requirePerm('suppliers.manage', 'payments.create'), async (req, res) => {
   const result = await withTransaction((client) =>
     paySupplier(client, req.user, Number(req.params.id), req.body || {}));
-  res.status(201).json(result);
+  res.status(result.duplicate ? 200 : 201).json(result);
 });
 
 // ---------- Mijozlar ----------
@@ -244,7 +244,7 @@ router.get('/customers/:id', requirePerm('customers.view', 'sales.create'), asyn
 router.post('/customers/:id/payments', requirePerm('payments.create', 'customers.manage'), async (req, res) => {
   const result = await withTransaction((client) =>
     receiveCustomerPayment(client, req.user, Number(req.params.id), req.body || {}));
-  res.status(201).json(result);
+  res.status(result.duplicate ? 200 : 201).json(result);
 });
 
 export default router;

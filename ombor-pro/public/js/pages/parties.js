@@ -1,7 +1,7 @@
 // Mijozlar va yetkazib beruvchilar: ro'yxat, tafsilot, qarz to'lovlari, yaratish va tahrirlash
 import {
   get, post, put, icon, esc, money, dateTime, dateOnly, readForm, toast, errorToast,
-  openModal, withBusy, emptyState,
+  openModal, withBusy, emptyState, newKey,
 } from '../ui.js';
 
 const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
@@ -209,6 +209,8 @@ async function renderDetail(root, cfg, id, ctx) {
 // ---------- Qarz to'lovi ----------
 
 function openPayment(cfg, id, debt, onDone) {
+  // Bitta oyna uchun bitta kalit: tugma ikki marta bosilsa ham to'lov bir marta yoziladi
+  const key = newKey('pay');
   const { close, el } = openModal({
     title: cfg.payTitle,
     body: `<p class="small muted">Joriy qarz: <b>${money(debt)}</b></p>
@@ -230,7 +232,7 @@ function openPayment(cfg, id, debt, onDone) {
         return;
       }
       try {
-        await post(cfg.payPath(id), { amount, method: el.querySelector('#pm').value });
+        await post(cfg.payPath(id), { amount, method: el.querySelector('#pm').value, idempotency_key: key });
         close();
         toast("To'lov qabul qilindi", 'ok');
         onDone();

@@ -250,6 +250,14 @@ export function productThumb(p, big = false) {
   return `<div class="${cls}" aria-hidden="true">${letter}</div>`;
 }
 
+// Takroriy yuborishdan himoya uchun noyob kalit (server bir xil kalitni ikkinchi marta yozmaydi)
+export function newKey(prefix = 'op') {
+  const rand = globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `${prefix}-${rand}`;
+}
+
 export function emptyState(text, iconName = 'box') {
   return `<div class="empty">${icon(iconName)}<div>${esc(text)}</div></div>`;
 }

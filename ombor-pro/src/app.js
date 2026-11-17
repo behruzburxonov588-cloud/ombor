@@ -10,6 +10,8 @@ import catalogRoutes from './routes/catalog.js';
 import tradeRoutes from './routes/trade.js';
 import stockRoutes from './routes/stock.js';
 import financeRoutes from './routes/finance.js';
+import analyticsRoutes from './routes/analytics.js';
+import notificationRoutes from './routes/notifications.js';
 
 const PG_MESSAGES = {
   '23503': "Bog'liq ma'lumot topilmadi yoki o'chirib bo'lmaydi",
@@ -70,7 +72,7 @@ export function createApp() {
 
   app.use('/api', authRoutes);
   app.use('/api', authenticate);
-  app.use('/api', peopleRoutes, catalogRoutes, tradeRoutes, stockRoutes, financeRoutes);
+  app.use('/api', peopleRoutes, catalogRoutes, tradeRoutes, stockRoutes, financeRoutes, analyticsRoutes, notificationRoutes);
   app.use('/api', (req, res) => res.status(404).json({ error: "So'rov topilmadi" }));
 
   app.use('/uploads', express.static(config.uploadDir, { maxAge: '1d', index: false, dotfiles: 'deny' }));

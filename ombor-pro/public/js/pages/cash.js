@@ -1,7 +1,7 @@
 // Kassa: balanslar, smena, kirim-chiqim, kassa harakatlari va xarajatlar
 import {
   get, post, icon, esc, num, money, dateTime, dateOnly, toast, errorToast, openModal, withBusy,
-  emptyState, todayStr, monthStartStr,
+  emptyState, todayStr, monthStartStr, newKey,
 } from '../ui.js';
 
 const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
@@ -311,6 +311,7 @@ async function tabExpenses(body, q, ctx, refresh) {
   body.querySelector('[data-from]').addEventListener('change', apply);
   body.querySelector('[data-to]').addEventListener('change', apply);
 
+  const expenseKey = newKey('exp');
   body.querySelector('#ef')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -329,6 +330,7 @@ async function tabExpenses(body, q, ctx, refresh) {
           method: form.querySelector('[name=method]').value,
           expense_date: form.expense_date.value,
           description: form.description.value.trim() || null,
+          idempotency_key: expenseKey,
         });
         toast('Xarajat saqlandi', 'ok');
         refresh();

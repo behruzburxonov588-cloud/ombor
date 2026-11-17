@@ -1,7 +1,7 @@
 // Kassa, xarajatlar, bosh sahifa, hisobotlar, tarix, qidiruv va sozlamalar
 import { Router } from 'express';
 import { pool, withTransaction } from '../db.js';
-import { requirePerm } from '../auth.js';
+import { requirePerm, can } from '../auth.js';
 import { HttpError, num, round2, str, todayLocal, addDays, periodBounds, dateStr, paging } from '../util.js';
 import { recordCash, balances, currentShiftId } from '../services/cash.js';
 import { getSettings, saveSettings } from '../services/settings.js';
@@ -159,11 +159,20 @@ router.post('/expenses', requirePerm('expenses.manage'), async (req, res) => {
   const amount = round2(num(body.amount, 'Summa', { positive: true }));
   const date = dateStr(body.expense_date || todayLocal(), 'Sana');
   const description = str(body.description, 'Izoh', { max: 200 });
+  const key = body.idempotency_key ? String(body.idempotency_key).slice(0, 100) : null;
+  let duplicate = false;
   const expense = await withTransaction(async (client) => {
+    if (key) {
+      const { rows: prev } = await client.query('SELECT * FROM expenses WHERE idempotency_key = $1', [key]);
+      if (prev[0]) {
+        duplicate = true;
+        return prev[0];
+      }
+    }
     const { rows } = await client.query(
-      `INSERT INTO expenses (category, amount, method, expense_date, description, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [body.category, amount, method, date, description, req.user.id],
+      `INSERT INTO expenses (category, amount, method, expense_date, description, created_by, idempotency_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [body.category, amount, method, date, description, req.user.id, key],
     );
     await recordCash(client, {
       direction: 'out', method, category: 'expense', amount,
@@ -172,7 +181,7 @@ router.post('/expenses', requirePerm('expenses.manage'), async (req, res) => {
     await audit(client, req.user.id, 'expense.create', 'expense', rows[0].id, { category: body.category, amount });
     return rows[0];
   });
-  res.status(201).json({ expense });
+  res.status(duplicate ? 200 : 201).json({ expense, duplicate });
 });
 
 // ---------- Bosh sahifa ----------
@@ -230,15 +239,21 @@ router.get('/dashboard', requirePerm('dashboard.view'), async (req, res) => {
   ]);
 
   const c = counts.rows[0];
+  // Tannarx, foyda va xarajatlar faqat hisobot huquqi borlarga ko'rinadi
+  const financial = can(req.user, 'reports.view');
+  const hide = (o, keys) => (financial ? o : Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k))));
+  const secret = ['cogs', 'gross_profit', 'margin_percent', 'expenses', 'losses', 'net_profit', 'purchases_total', 'supplier_payments'];
   res.json({
-    today: { date: today, ...todayFin },
-    month: { from: month.fromDate, expenses: monthFin.expenses, net_profit: monthFin.net_profit, gross_profit: monthFin.gross_profit },
+    today: { date: today, ...hide(todayFin, secret) },
+    month: financial
+      ? { from: month.fromDate, expenses: monthFin.expenses, net_profit: monthFin.net_profit, gross_profit: monthFin.gross_profit }
+      : { from: month.fromDate },
     totals: {
       products: c.products,
       inventory_value: round2(valueRow.rows[0].v),
       cash: { ...bal, total: round2(bal.cash + bal.card + bal.transfer) },
       customer_debt: round2(c.customer_debt),
-      supplier_debt: round2(c.supplier_debt),
+      supplier_debt: financial ? round2(c.supplier_debt) : null,
     },
     stock: {
       low: c.low,
