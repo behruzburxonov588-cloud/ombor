@@ -7,8 +7,30 @@ import { effectivePermissions } from './permissions.js';
 
 export const COOKIE_NAME = 'ombor_session';
 
-export const hashPassword = (password) => bcrypt.hash(password, 12);
-export const verifyPassword = (password, hash) => bcrypt.compare(password, hash);
+// Parol xeshi (bcrypt, 12). Cloudflare Workers'da protsessor vaqti cheklangan (bepul rejada 10 ms),
+// bcrypt esa ~400 ms oladi — shuning uchun u yerda xesh bazada (pgcrypto) hisoblanadi.
+// Ikkala usul bir xil bcrypt formatini ishlatadi: parollar har ikki muhitda ishlaydi.
+const hashInDb = () => process.env.OMBOR_RUNTIME === 'worker';
+const BCRYPT_RE = /^\$2[abxy]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+export async function hashPassword(password) {
+  if (hashInDb()) {
+    const { rows } = await query("SELECT crypt($1, gen_salt('bf', 12)) AS h", [password]);
+    return rows[0].h;
+  }
+  return bcrypt.hash(password, 12);
+}
+
+export async function verifyPassword(password, hash) {
+  if (!hash || !BCRYPT_RE.test(hash)) return false;
+  if (hashInDb()) {
+    // $2b$ va $2a$ 72 belgigacha parollar uchun bir xil; pgcrypto $2a$ ni qabul qiladi
+    const norm = `$2a$${hash.slice(4)}`;
+    const { rows } = await query('SELECT crypt($1, $2) = $2 AS ok', [password, norm]);
+    return rows[0].ok === true;
+  }
+  return bcrypt.compare(password, hash);
+}
 
 export function publicUser(row) {
   return {

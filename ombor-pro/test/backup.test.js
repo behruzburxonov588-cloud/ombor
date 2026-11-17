@@ -81,3 +81,21 @@ test("ma'lumoti bor bazaga tiklash rad etiladi va hech narsa o'zgarmaydi", async
   assert.equal(after.rows[0].n, before.rows[0].n);
   await assert.rejects(() => runWithPool(target, () => restoreBackup('SELECT 1', { log: () => {} })), /zaxira nusxasi emas/);
 });
+
+test('parol: bazadagi (Cloudflare) va ilovadagi bcrypt bir-biriga mos', async () => {
+  const { hashPassword, verifyPassword } = await import('../src/auth.js');
+  const appHash = await hashPassword("Parol'123 — o'zbekcha");
+  process.env.OMBOR_RUNTIME = 'worker';
+  try {
+    assert.equal(await verifyPassword("Parol'123 — o'zbekcha", appHash), true, 'ilova xeshi bazada tekshiriladi');
+    assert.equal(await verifyPassword("noto'g'ri", appHash), false);
+    const dbHash = await hashPassword('yangi-parol-77');
+    assert.match(dbHash, /^\$2a\$12\$/);
+    process.env.OMBOR_RUNTIME = '';
+    assert.equal(await verifyPassword('yangi-parol-77', dbHash), true, 'baza xeshi ilovada tekshiriladi');
+    assert.equal(await verifyPassword('yangi-parol-78', dbHash), false);
+    assert.equal(await verifyPassword('x', 'buzilgan-xesh'), false);
+  } finally {
+    process.env.OMBOR_RUNTIME = '';
+  }
+});

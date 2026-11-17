@@ -70,27 +70,22 @@ GitHub'ga har bir push'da Render saytni o'zi yangilaydi.
 
 ## Cloudflare'ga joylash
 
-Ilova Cloudflare Workers'da ham ishlaydi (`wrangler.jsonc`, `src/worker.js`). Sahifalar Cloudflare tarmog'idan beriladi, API Worker'da ishlaydi, bildirishnomalar har daqiqada Cron orqali tekshiriladi. Ma'lumotlar bazasi — PostgreSQL (masalan, bepul **Neon**). Mahsulot rasmlari Cloudflare'da bazada saqlanadi.
+Ilova Cloudflare Workers'da ham ishlaydi (`wrangler.jsonc`, `src/worker.js`). Sahifalar Cloudflare tarmog'idan beriladi, API Worker'da ishlaydi, bildirishnomalar har daqiqada Cron orqali tekshiriladi, mahsulot rasmlari bazada saqlanadi. Ma'lumotlar bazasi — PostgreSQL (masalan, bepul **Neon**).
 
-Kerak bo'ladi: Cloudflare **Workers Paid** rejasi (oyiga $5) va PostgreSQL baza. Bepul rejada ishlamaydi: unda har bir so'rovga 10 ms protsessor vaqti beriladi, o'lchovlar bo'yicha esa tizimga kirish ~390 ms, bosh sahifa ~16 ms, PDF ~36 ms oladi.
-
-1. **Baza:** [neon.tech](https://neon.tech) da ro'yxatdan o'ting → *New project* (hudud: *Europe (Frankfurt)*) → *Connection string* ni nusxalang (`postgresql://...?sslmode=require`).
-2. **Cloudflare rejasi:** *Workers & Pages* → *Plans* → **Workers Paid**.
-3. **GitHub'ni ulash:** *Workers & Pages* → *Create* → *Import a repository* → GitHub → `ombor` repozitoriyasi.
-   - *Project name*: `ombor-pro`
-   - *Root directory*: `ombor-pro`
-   - *Build command*: `npm ci`
-   - *Deploy command*: `npx wrangler deploy`
-4. **Maxfiy qiymatlar:** Worker → *Settings* → *Variables and Secrets* → *Add* (turi: **Secret**):
+1. **Baza:** [neon.tech](https://neon.tech) → *New project* (hudud: *Europe (Frankfurt)*) → *Connection string* ni nusxalang (`postgresql://...?sslmode=require`).
+2. **GitHub'ni ulash:** *Workers & Pages* → *Create* → *Import a repository* → `ombor`. *Project name*: `ombor-pro`. *Root directory* va *Build command* bo'sh qoladi, *Deploy command*: `npx wrangler deploy` (repozitoriya ildizidagi `wrangler.jsonc` kutubxonalarni o'zi o'rnatadi).
+3. **Maxfiy qiymatlar:** Worker → *Settings* → *Variables and Secrets* → *Add* (turi: **Secret**):
    - `DATABASE_URL` — Neon manzili;
    - `JWT_SECRET` — uzun tasodifiy matn (masalan, `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` natijasi).
-5. Sayt manzilini oching (`https://ombor-pro.<sizning-nomingiz>.workers.dev`) — birinchi marta sozlash oynasi chiqadi. Jadvallar birinchi so'rovda avtomatik yaratiladi.
+4. Sayt manzilini oching (`https://ombor-pro.<sizning-nomingiz>.workers.dev`) — birinchi sozlash oynasi chiqadi. Jadvallar birinchi so'rovda avtomatik yaratiladi.
 
-Shundan keyin GitHub'ga har bir push'da Cloudflare saytni o'zi yangilaydi.
+GitHub'ga har bir push'da Cloudflare saytni o'zi yangilaydi.
 
-Ixtiyoriy (tezroq ishlashi uchun): Cloudflare'da *Hyperdrive* yarating (Neon manzilini kiriting) va `wrangler.jsonc` dagi `hyperdrive` qatorini yoqib, ID ni yozing.
+**Bepul reja haqida.** Bepul rejada har bir so'rovga 10 ms protsessor vaqti beriladi. Cloudflare'da parol tekshiruvi bazada bajariladi (tizimga kirish ~15 ms), oddiy amallar (sotuv, mahsulotlar) 10–25 ms, bosh sahifa va katta hisobotlar 30–60 ms oladi. Shuning uchun bepul rejada og'ir sahifalar ba'zan "1102" xatosini berishi mumkin; barqaror ishlash uchun **Workers Paid** (oyiga $5) yoki Render tavsiya etiladi.
 
-Mahalliy sinash: `.dev.vars` faylida `DATABASE_URL` va `JWT_SECRET` ni yozing va `npm run cf:dev` ni ishga tushiring.
+Ixtiyoriy (tezroq ishlashi uchun): Cloudflare'da *Hyperdrive* yarating (Neon manzilini kiriting) va `wrangler.jsonc` ga `"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<ID>" }]` qo'shing.
+
+Mahalliy sinash: repozitoriya ildizida `.dev.vars` faylida `DATABASE_URL` va `JWT_SECRET` ni yozing va `npx wrangler dev` ni ishga tushiring.
 
 ## Muhit o'zgaruvchilari
 
@@ -176,7 +171,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public` sxemasi o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 63 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash.
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public` sxemasi o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 64 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash.
 
 ## Loyiha tuzilishi
 

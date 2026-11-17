@@ -1,0 +1,37 @@
+// OMBOR PRO — Cloudflare Workers sozlamasi (repozitoriya ildizidan joylash uchun).
+// Cloudflare loyihasida "Root directory" bo'sh qoldirilsa shu fayl ishlatiladi:
+// avval ombor-pro papkasidagi kutubxonalar o'rnatiladi, keyin Worker yig'iladi.
+// Maxfiy qiymatlar (DATABASE_URL, JWT_SECRET) bu yerga YOZILMAYDI —
+// Cloudflare panelida Worker → Settings → Variables and Secrets bo'limida "Secret" sifatida kiritiladi.
+// (ombor-pro/wrangler.jsonc — xuddi shu sozlama, "Root directory: ombor-pro" uchun va mahalliy sinov uchun.)
+{
+  "$schema": "ombor-pro/node_modules/wrangler/config-schema.json",
+  "name": "ombor-pro",
+  "main": "ombor-pro/src/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "build": {
+    "command": "npm ci --prefix ombor-pro --no-audit --no-fund"
+  },
+
+  "assets": {
+    "directory": "ombor-pro/public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/uploads/*"]
+  },
+
+  "triggers": { "crons": ["* * * * *"] },
+
+  "vars": {
+    "NODE_ENV": "production"
+  },
+
+  "rules": [
+    { "type": "Text", "globs": ["**/*.sql"], "fallthrough": true },
+    { "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true }
+  ],
+
+  "observability": { "enabled": true }
+}

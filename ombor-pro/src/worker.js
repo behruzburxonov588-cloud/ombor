@@ -16,6 +16,7 @@ import m001 from '../migrations/001_init.sql';
 import m002 from '../migrations/002_analytics.sql';
 import m003 from '../migrations/003_notifications.sql';
 import m004 from '../migrations/004_product_images.sql';
+import m005 from '../migrations/005_pgcrypto.sql';
 import interRegular from '../assets/fonts/Inter-Regular.ttf';
 import interSemiBold from '../assets/fonts/Inter-SemiBold.ttf';
 
@@ -25,6 +26,7 @@ const MIGRATIONS = [
   { name: '002_analytics.sql', sql: m002 },
   { name: '003_notifications.sql', sql: m003 },
   { name: '004_product_images.sql', sql: m004 },
+  { name: '005_pgcrypto.sql', sql: m005 },
 ];
 
 const PORT = 8080;
