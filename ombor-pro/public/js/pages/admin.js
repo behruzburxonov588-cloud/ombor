@@ -256,8 +256,9 @@ async function renderSettings(root, ctx) {
           <input class="input" name="debt_warning_days" data-type="num" inputmode="numeric" value="${s.debt_warning_days}"></label>
       </div>
       <div class="stack">
-        <label class="check"><input type="checkbox" name="notify_low_stock" ${s.notify_low_stock ? 'checked' : ''}><span>Kam qolgan mahsulotlarni bosh sahifada ko'rsatish</span></label>
-        <label class="check"><input type="checkbox" name="notify_debts" ${s.notify_debts ? 'checked' : ''}><span>Muddati yaqin qarzlarni bosh sahifada ko'rsatish</span></label>
+        <label class="check"><input type="checkbox" name="notify_low_stock" ${s.notify_low_stock ? 'checked' : ''}><span>Kam qolgan va tugagan mahsulotlar haqida ogohlantirish</span></label>
+        <label class="check"><input type="checkbox" name="notify_debts" ${s.notify_debts ? 'checked' : ''}><span>Muddati yaqin va o'tgan qarzlar haqida eslatish</span></label>
+        <a class="link-btn" href="#/notifications?tab=settings">${icon('bell', 'ico-xs')} Batafsil: jadval, Telegram, chegaralar</a>
       </div>
       <div id="serr"></div>
       <button class="btn btn-lg" type="submit">${icon('check')} Saqlash</button>

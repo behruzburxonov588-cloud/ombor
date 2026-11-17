@@ -560,15 +560,23 @@ function openScanner() {
 
 // ---------- Savdolar tarixi va qaytarish ----------
 
-async function renderHistory(root, ctx) {
+async function renderHistory(root, ctx, query = {}) {
   const day = todayStr();
-  const r = await get(`/sales?from=${day}&to=${day}`);
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(query.from || '') ? query.from : day;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(query.to || '') ? query.to : from;
+  const r = await get(`/sales?from=${from}&to=${to}&limit=500`);
   const rows = r.sales;
+  const total = rows.reduce((s, x) => s + Number(x.total) - Number(x.refunded_total || 0), 0);
+  const title = from === to && from === day ? 'Bugungi savdolar' : 'Savdolar tarixi';
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Bugungi savdolar</h1><p class="muted">${dateOnly(day)} · ${rows.length} ta savdo</p></div>
-      <div class="row"><a class="btn btn-light" href="#/sales">${icon('cart', 'ico-sm')} Sotuvga qaytish</a></div>
+      <div><h1>${title}</h1><p class="muted">${from === to ? dateOnly(from) : `${dateOnly(from)} – ${dateOnly(to)}`} · ${rows.length} ta savdo · ${num(total)} so'm (qaytarishlar ayirilgan)</p></div>
+      <div class="filterbar">
+        <div class="range-custom"><input class="input" type="date" id="hf" value="${from}" max="${day}" aria-label="Boshlanish"><span class="muted">–</span><input class="input" type="date" id="ht" value="${to}" max="${day}" aria-label="Tugash"></div>
+        ${ctx.can('sales.create') ? `<a class="btn btn-light btn-sm" href="#/sales">${icon('cart', 'ico-sm')} Sotuvga qaytish</a>` : ''}
+      </div>
     </div>
+    ${rows.length >= 500 ? '<div class="alert alert-info" style="margin-bottom:12px">Faqat oxirgi 500 ta savdo ko\'rsatildi. Davrni qisqartiring.</div>' : ''}
     <div class="card">
       ${rows.length ? `<div class="table-wrap cards"><table>
         <thead><tr><th>Chek</th><th>Vaqt</th><th>Mijoz</th><th>To'lov</th><th class="right">Summa</th><th>Holat</th><th></th></tr></thead>
@@ -585,10 +593,17 @@ async function renderHistory(root, ctx) {
               ${ctx.can('sales.return') && s.status !== 'returned' ? `<button class="btn btn-sm btn-outline" data-return="${s.id}">Qaytarish</button>` : ''}
             </td>
           </tr>`).join('')}
-        </tbody></table></div>` : emptyState('Bugun hali savdo bo\'lmagan', 'cart')}
+        </tbody></table></div>` : emptyState(from === day && to === day ? 'Bugun hali savdo bo\'lmagan' : "Bu davrda savdo yo'q", 'cart')}
     </div>`;
+  const applyRange = () => {
+    const f = root.querySelector('#hf').value;
+    const t = root.querySelector('#ht').value;
+    if (f && t && f <= t) ctx.go(`#/sales/history?from=${f}&to=${t}`);
+  };
+  root.querySelector('#hf').addEventListener('change', applyRange);
+  root.querySelector('#ht').addEventListener('change', applyRange);
   root.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => showReceipt({ id: b.dataset.view }, ctx)));
-  root.querySelectorAll('[data-return]').forEach((b) => b.addEventListener('click', () => openReturn(Number(b.dataset.return), ctx, () => renderHistory(root, ctx))));
+  root.querySelectorAll('[data-return]').forEach((b) => b.addEventListener('click', () => openReturn(Number(b.dataset.return), ctx, () => renderHistory(root, ctx, query))));
 }
 
 function payLabel(m) {
@@ -642,7 +657,7 @@ async function openReturn(saleId, ctx, done) {
 export async function render(root, params, ctx) {
   // #/sales/history: router "history" ni id sifatida beradi
   if (params.id === 'history') {
-    return renderHistory(root, ctx);
+    return renderHistory(root, ctx, params.query);
   }
   if (params.id && !params.sub) {
     // Chek ko'rinishi (eski savdo)
