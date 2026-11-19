@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { pool, withTransaction } from '../db.js';
+import { pool, withTransaction, runWithSchema } from '../db.js';
+import {
+  noStoresYet, createStore, activateStore, dropStore, findLogin, loginTaken, storeIdForSchema, ensureSchemaReady,
+  releaseStuckLogin,
+} from '../tenants.js';
 import {
   authenticate, hashPassword, verifyPassword, publicUser, setSessionCookie, clearSessionCookie,
 } from '../auth.js';
@@ -48,62 +52,114 @@ export function validatePassword(value) {
   return password;
 }
 
-// Tizim birinchi marta sozlanmaganmi
+// Yangi do'kon ochishga ruxsat (OMBOR_SIGNUP=off bo'lsa — faqat birinchi do'kon)
+const signupAllowed = () => String(process.env.OMBOR_SIGNUP || 'on').toLowerCase() !== 'off';
+
+// Ro'yxatdan o'tish cheklovi: bitta IP dan soatiga 5 ta yangi do'kon (faqat muvaffaqiyatli ochilganlar sanaladi)
+const signups = new Map();
+const recentSignups = (ip) => (signups.get(ip) || []).filter((t) => Date.now() - t < 60 * 60 * 1000);
+function checkSignupLimit(ip) {
+  if (recentSignups(ip).length >= 5) throw new HttpError(429, "Juda ko'p yangi do'kon ochildi. Bir soatdan keyin urinib ko'ring");
+}
+function recordSignup(ip) {
+  signups.set(ip, [...recentSignups(ip), Date.now()]);
+}
+const clientIp = (req) => req.headers['cf-connecting-ip'] || req.ip;
+
+// Kirish sahifasi uchun: birinchi marta sozlash kerakmi va yangi do'kon ochish mumkinmi
 router.get('/auth/status', async (req, res) => {
-  const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM users');
-  res.json({ setup_required: rows[0].n === 0 });
+  res.json({ setup_required: await noStoresYet(), signup: signupAllowed() });
 });
 
-// Birinchi marta: do'kon va egasi hisobini yaratish (faqat bir marta)
-router.post('/setup', async (req, res) => {
+// Yangi do'kon: alohida sxema, egasi hisobi va sozlamalar. Login butun tizimda yagona.
+async function openStore(req, res) {
   const body = req.body || {};
-  const user = await withTransaction(async (client) => {
-    await client.query('SELECT pg_advisory_xact_lock(777)');
-    const { rows: cnt } = await client.query('SELECT COUNT(*)::int AS n FROM users');
-    if (cnt[0].n > 0) throw new HttpError(409, 'Tizim allaqachon sozlangan. Tizimga kiring');
+  const fullName = str(body.full_name, 'Ism familiya', { required: true, max: 100 });
+  const username = validateUsername(body.username);
+  const password = validatePassword(body.password);
+  const storeName = str(body.store_name, "Do'kon nomi", { required: true, max: 100 });
+  const storePhone = str(body.store_phone, 'Telefon', { max: 30 }) || '';
+  const storeAddress = str(body.store_address, 'Manzil', { max: 200 }) || '';
+  await releaseStuckLogin(username);
+  if (await loginTaken(username)) throw new HttpError(409, 'Bu login band. Boshqa login tanlang');
+  const hash = await hashPassword(password);
 
-    const fullName = str(body.full_name, 'Ism familiya', { required: true, max: 100 });
-    const username = validateUsername(body.username);
-    const password = validatePassword(body.password);
-    const storeName = str(body.store_name, "Do'kon nomi", { required: true, max: 100 });
-    const hash = await hashPassword(password);
-    const { rows } = await client.query(
-      `INSERT INTO users (full_name, username, password_hash, role)
-       VALUES ($1, $2, $3, 'owner') RETURNING *`,
-      [fullName, username, hash],
-    );
-    await saveSettings(client, {
-      store_name: storeName,
-      store_phone: str(body.store_phone, 'Telefon', { max: 30 }) || '',
-      store_address: str(body.store_address, 'Manzil', { max: 200 }) || '',
-    });
-    await audit(client, rows[0].id, 'setup', 'store', null, { store_name: storeName });
-    return rows[0];
-  });
-  setSessionCookie(res, user.id);
+  const store = await createStore({ name: storeName, username });
+  let user;
+  try {
+    user = await runWithSchema(store.schema, () => withTransaction(async (client) => {
+      const { rows: cnt } = await client.query('SELECT COUNT(*)::int AS n FROM users');
+      if (cnt[0].n > 0) throw new HttpError(409, 'Tizim allaqachon sozlangan. Tizimga kiring');
+      const { rows } = await client.query(
+        `INSERT INTO users (full_name, username, password_hash, role)
+         VALUES ($1, $2, $3, 'owner') RETURNING *`,
+        [fullName, username, hash],
+      );
+      await saveSettings(client, { store_name: storeName, store_phone: storePhone, store_address: storeAddress });
+      await audit(client, rows[0].id, 'setup', 'store', null, { store_name: storeName });
+      return rows[0];
+    }));
+    await activateStore(store);
+  } catch (err) {
+    await dropStore(store).catch(() => {});
+    throw err;
+  }
+  setSessionCookie(res, user.id, store);
   res.status(201).json({ user: publicUser(user) });
+}
+
+// Birinchi marta: birinchi do'kon va egasi hisobi (faqat hech qanday do'kon bo'lmaganda)
+router.post('/setup', async (req, res) => {
+  if (!(await noStoresYet())) throw new HttpError(409, 'Tizim allaqachon sozlangan. Tizimga kiring');
+  await openStore(req, res);
+});
+
+// Ro'yxatdan o'tish: istalgan odam o'z do'konini ochadi
+router.post('/auth/register', async (req, res) => {
+  if (!signupAllowed() && !(await noStoresYet())) {
+    throw new HttpError(403, "Yangi do'kon ochish o'chirilgan");
+  }
+  checkSignupLimit(clientIp(req));
+  await openStore(req, res);
+  recordSignup(clientIp(req));
 });
 
 router.post('/auth/login', async (req, res) => {
   const username = String(req.body?.username || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   // Cloudflare orqali kelganda haqiqiy IP shu sarlavhada bo'ladi
-  const key = `${username}|${req.headers['cf-connecting-ip'] || req.ip}`;
+  const key = `${username}|${clientIp(req)}`;
   if (checkLocked(key)) {
     throw new HttpError(429, "Juda ko'p noto'g'ri urinish. 15 daqiqadan keyin qayta urinib ko'ring");
   }
   if (!username || !password) throw new HttpError(400, 'Login va parolni kiriting');
 
-  const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-  const user = rows[0];
-  const ok = Boolean(user && user.is_active && await verifyPassword(password, user.password_hash));
-  if (!ok) {
+  // Login qaysi do'konga tegishli. Ro'yxatda bo'lmasa (eski yozuv) — birinchi do'kondan qidiriladi.
+  const found = await findLogin(username);
+  let store = null;
+  if (found) {
+    if (found.status === 'active') store = { id: found.store_id, schema: found.schema };
+  } else {
+    const id = await storeIdForSchema('public');
+    store = { id, schema: 'public' };
+  }
+  let user = null;
+  if (store) {
+    await ensureSchemaReady(store.schema);
+    user = await runWithSchema(store.schema, async () => {
+      const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+      const u = rows[0];
+      const ok = Boolean(u && u.is_active && await verifyPassword(password, u.password_hash));
+      if (ok) await audit(pool, u.id, 'login', 'user', u.id);
+      return ok ? u : null;
+    });
+  }
+  if (!user) {
     recordFailure(key);
     throw new HttpError(401, "Login yoki parol noto'g'ri");
   }
   attempts.delete(key);
-  setSessionCookie(res, user.id);
-  await audit(pool, user.id, 'login', 'user', user.id);
+  setSessionCookie(res, user.id, store.id ? store : null);
   res.json({ user: publicUser(user) });
 });
 

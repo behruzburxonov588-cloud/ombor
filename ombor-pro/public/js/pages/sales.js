@@ -5,7 +5,8 @@ import {
 } from '../ui.js';
 import { openBarcodeScanner } from '../scanner.js';
 
-const LS_KEY = 'ombor-pos-v2';
+const LS_KEY = 'ombor-pos-v3';
+try { localStorage.removeItem('ombor-pos-v2'); } catch { /* xotira yopiq */ }
 const METHODS = [
   { key: 'cash', label: 'Naqd', ico: 'money' },
   { key: 'card', label: 'Karta', ico: 'card' },
@@ -16,20 +17,24 @@ const METHODS = [
 
 const newKey = () => `pos-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
-function loadState() {
+// Savatcha har bir foydalanuvchi uchun alohida saqlanadi (login butun tizimda yagona):
+// bitta qurilmada boshqa do'kon yoki boshqa kassir kirsa, oldingi savatcha aralashmaydi
+const lsKey = (owner) => `${LS_KEY}:${owner || ''}`;
+
+function loadState(owner = '') {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(lsKey(owner));
     if (raw) {
       const s = JSON.parse(raw);
-      if (s && s.key && Array.isArray(s.cart)) return s;
+      if (s && s.key && Array.isArray(s.cart)) return { ...s, owner };
     }
   } catch {
     // buzilgan saqlangan ma'lumot e'tiborga olinmaydi
   }
-  return { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey() };
+  return { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey(), owner };
 }
 
-let S = loadState();
+let S = loadState('');
 let C = null; // joriy kontekst
 let products = [];
 const detailCache = new Map();
@@ -37,7 +42,7 @@ let cartModal = null; // mobil uchun savatcha oynasi (modal)
 
 function save() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(S));
+    localStorage.setItem(lsKey(S.owner), JSON.stringify(S));
   } catch {
     // saqlash imkoni bo'lmasa ham sotuv ishlaydi
   }
@@ -666,6 +671,7 @@ export async function render(root, params, ctx) {
     return showReceipt(sale, ctx);
   }
   C = { ctx, query: '' };
+  if (S.owner !== ctx.user.username) S = loadState(ctx.user.username);
   const isDesktop = window.matchMedia('(min-width: 720px)').matches;
   root.innerHTML = `
     <div class="pos">

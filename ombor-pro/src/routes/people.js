@@ -7,6 +7,7 @@ import { ROLES, PERMISSION_KEYS, PERMISSIONS, ROLE_DEFAULTS } from '../permissio
 import { audit } from '../audit.js';
 import { customerDebt, supplierDebt, receiveCustomerPayment, paySupplier } from '../services/ledger.js';
 import { validateUsername, validatePassword } from './auth.js';
+import { reserveLogin, storeIdForSchema } from '../tenants.js';
 
 const router = Router();
 
@@ -42,9 +43,12 @@ router.post('/users', requirePerm('employees.manage'), async (req, res) => {
   const fullName = str(body.full_name, 'Ism familiya', { required: true, max: 100 });
   const username = validateUsername(body.username);
   const password = validatePassword(body.password);
+  // Login butun tizimda (barcha do'konlarda) yagona bo'lishi kerak — kirishda do'kon login orqali topiladi
+  const storeId = req.store?.id || await storeIdForSchema(req.store?.schema || 'public');
   const user = await withTransaction(async (client) => {
     const { rows: exists } = await client.query('SELECT 1 FROM users WHERE username = $1', [username]);
     if (exists[0]) throw new HttpError(409, 'Bu login band');
+    if (storeId) await reserveLogin(client, username, storeId);
     const { rows } = await client.query(
       `INSERT INTO users (full_name, username, password_hash, role, permissions, phone)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,

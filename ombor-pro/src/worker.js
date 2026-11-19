@@ -3,16 +3,18 @@
 //  - sahifalar, stillar va skriptlarni Cloudflare o'zi beradi (public/ papkasi, "assets");
 //  - /api/* va /uploads/* so'rovlari shu yerga keladi va Express'ga uzatiladi;
 //  - har bir so'rov bazaga o'z ulanishini oladi (Workers'da ulanishni so'rovlar orasida bo'lishib bo'lmaydi);
+//  - ko'p do'kon: so'rov sessiyadagi do'kon sxemasida bajariladi (app.js, tenants.js);
 //  - bildirishnomalar soatiga bir marta Cron orqali tekshiriladi (ilova ochiq bo'lsa — tez-tez).
 import { handleAsNodeRequest } from 'cloudflare:node';
-import pg from 'pg';
 import { createApp } from './app.js';
-import { runWithPool } from './db.js';
-import { migrate } from './migrate.js';
+import { runWithPools, makePool, pool as dbPool } from './db.js';
+import { setMigrationSources } from './migrate.js';
 import { assertConfig } from './config.js';
 import { registerFonts } from './services/pdf.js';
 import { cleanDatabaseUrl, databaseUrlProblem, databaseErrorMessage } from './dburl.js';
 import { runCycle } from './services/notify.js';
+import { ensureCoreOnce } from './tenants.js';
+import { forEachStore } from './services/scheduler.js';
 import m001 from '../migrations/001_init.sql';
 import m002 from '../migrations/002_analytics.sql';
 import m003 from '../migrations/003_notifications.sql';
@@ -30,9 +32,13 @@ const MIGRATIONS = [
   { name: '005_pgcrypto.sql', sql: m005 },
 ];
 
+setMigrationSources(MIGRATIONS);
+
 const PORT = 8080;
 let listening = false;
-let migrated = false;
+// Cron: bitta ishga tushishda ko'pi bilan shuncha do'kon tekshiriladi (bepul rejadagi ulanishlar chegarasi uchun);
+// do'konlar navbat bilan almashadi. Ilova ochiq bo'lsa, tekshiruv so'rovlar orqali ham bajariladi.
+const CRON_STORES_PER_RUN = 8;
 
 function applyEnv(env) {
   for (const [k, v] of Object.entries(env || {})) {
@@ -60,17 +66,8 @@ function ensureServer() {
   listening = true;
 }
 
-function makePool() {
-  return new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4, connectionTimeoutMillis: 15000 });
-}
-
-// Har bir nusxa (isolate) birinchi marta ishga tushganda migratsiyalar tekshiriladi.
-// Bir vaqtda kelgan so'rovlar tranzaksiya qulfi tufayli navbat bilan bajaradi.
-async function ensureMigrated() {
-  if (migrated) return;
-  await migrate(() => {}, MIGRATIONS);
-  migrated = true;
-}
+// Har bir so'rov o'z ulanishlarini oladi; do'kon sxemasi bo'yicha alohida pool (odatda bitta)
+const poolFactory = (schema) => makePool(process.env.DATABASE_URL, schema, { max: 4, connectionTimeoutMillis: 15000 });
 
 const jsonError = (status, message) => new Response(JSON.stringify({ error: message }), {
   status,
@@ -83,34 +80,37 @@ export default {
     const problem = setupProblem();
     if (problem) return jsonError(503, problem);
     ensureServer();
-    const pool = makePool();
+    // Umumiy jadvallar (do'konlar, loginlar) shu nusxada birinchi marta tekshiriladi; do'kon sxemasi esa
+    // so'rov ichida (app.js) sessiyadan aniqlanadi va kerak bo'lsa yangilanadi
+    const { result, closeAll } = runWithPools(poolFactory, async () => {
+      await ensureCoreOnce();
+      return handleAsNodeRequest(PORT, request, env, ctx);
+    });
     try {
-      return await runWithPool(pool, async () => {
-        await ensureMigrated();
-        return handleAsNodeRequest(PORT, request, env, ctx);
-      });
+      return await result;
     } catch (err) {
       console.error(err);
       return jsonError(500, databaseErrorMessage(err));
     } finally {
-      ctx.waitUntil(pool.end().catch(() => {}));
+      ctx.waitUntil(closeAll());
     }
   },
 
   async scheduled(controller, env, ctx) {
     applyEnv(env);
     if (setupProblem()) return;
-    const pool = makePool();
+    const now = new Date(controller.scheduledTime || Date.now());
+    const { result, closeAll } = runWithPools(poolFactory, () => forEachStore(
+      () => runCycle(dbPool, { now }),
+      { limit: CRON_STORES_PER_RUN, offset: Math.floor(now.getTime() / 3600000) * CRON_STORES_PER_RUN },
+    ));
     ctx.waitUntil((async () => {
       try {
-        await runWithPool(pool, async () => {
-          await ensureMigrated();
-          await runCycle(pool, { now: new Date(controller.scheduledTime || Date.now()) });
-        });
+        await result;
       } catch (err) {
         console.error('Rejali tekshiruvda xato:', databaseErrorMessage(err), err.message);
       } finally {
-        await pool.end().catch(() => {});
+        await closeAll();
       }
     })());
   },

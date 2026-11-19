@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import { HttpError, round2, todayLocal, addDays } from '../util.js';
 import { getSettings, saveSettings } from './settings.js';
 import { mondayOf } from './analytics.js';
+import { currentSchema } from '../db.js';
 import {
   dailySummary, weeklySummary, monthlySummary, computeInsights, money, dmy,
 } from './insights.js';
@@ -608,7 +609,8 @@ export async function runCycle(db, { now = new Date() } = {}) {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    const { rows: lock } = await client.query('SELECT pg_try_advisory_xact_lock(515151) AS ok');
+    // Qulf har bir do'kon (sxema) uchun alohida: do'konlar bir-birini kutmaydi
+    const { rows: lock } = await client.query('SELECT pg_try_advisory_xact_lock(515151, hashtext(current_schema())) AS ok');
     if (!lock[0].ok) return { skipped: true, created: [] };
     const { config: cfg, token } = await getNotifyConfig(db);
     const settings = await getSettings(db);
@@ -641,14 +643,16 @@ export async function runCycle(db, { now = new Date() } = {}) {
 }
 
 // Ro'yxat so'ralganda ma'lumot eskirmasligi uchun: oxirgi tekshiruvdan 5 daqiqa o'tgan bo'lsa qayta tekshiradi
-let lastRun = 0;
+// Har bir do'kon uchun alohida hisoblanadi
+const lastRun = new Map();
 export async function ensureFresh(db, { maxAgeMs = 5 * 60 * 1000, force = false } = {}) {
-  if (!force && Date.now() - lastRun < maxAgeMs) return null;
-  lastRun = Date.now();
+  const key = currentSchema();
+  if (!force && Date.now() - (lastRun.get(key) || 0) < maxAgeMs) return null;
+  lastRun.set(key, Date.now());
   return runCycle(db);
 }
 export function resetFreshness() {
-  lastRun = 0;
+  lastRun.clear();
 }
 
 // ---------- Foydalanuvchi uchun ro'yxat ----------

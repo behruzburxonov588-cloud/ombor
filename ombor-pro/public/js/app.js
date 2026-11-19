@@ -153,24 +153,30 @@ async function showAuth(setupRequired) {
   const root = document.getElementById('auth-root') || Object.assign(document.createElement('div'), { id: 'auth-root', className: 'auth' });
   if (!root.parentNode) document.body.appendChild(root);
   root.hidden = false;
-  if (setupRequired) {
+  // setupRequired: true — birinchi do'kon; 'register' — yangi do'kon ochish; false — kirish
+  const mode = setupRequired === true ? 'setup' : setupRequired === 'register' ? 'register' : 'login';
+  if (mode === 'setup' || mode === 'register') {
     root.innerHTML = `
       <div class="auth-card">
         <div class="auth-brand">
           <div class="mark">${icon('layers')}</div>
-          <h1>OMBOR PRO</h1>
-          <p>Birinchi marta sozlash. Do'kon va egasi ma'lumotlarini kiriting</p>
+          <h1>${mode === 'register' ? "Yangi do'kon ochish" : 'OMBOR PRO'}</h1>
+          <p>${mode === 'register'
+    ? "Bir daqiqada o'z do'koningizni oching. Ma'lumotlaringizni faqat siz va xodimlaringiz ko'rasiz."
+    : "Do'koningizni yarating: do'kon nomi, ismingiz, login va parol"}</p>
         </div>
         <form id="setup-form" class="form-grid" novalidate>
           <label class="field"><span>Do'kon nomi</span><input class="input" name="store_name" required maxlength="100" placeholder="Masalan: Baraka savdo"></label>
           <label class="field"><span>Egasining ismi</span><input class="input" name="full_name" required maxlength="100" placeholder="Ism va familiya"></label>
           <label class="field"><span>Telefon (ixtiyoriy)</span><input class="input" name="store_phone" maxlength="30" inputmode="tel" placeholder="+998 90 123 45 67"></label>
-          <label class="field"><span>Login</span><input class="input" name="username" required maxlength="50" autocomplete="username" placeholder="masalan: egasi"><small>Faqat lotin harflari, raqam, nuqta yoki defis</small></label>
+          <label class="field"><span>Login (kirish uchun nom)</span><input class="input" name="username" required maxlength="50" autocomplete="username" autocapitalize="none" placeholder="masalan: baraka_dokon"><small>Lotin harflari, raqam, nuqta yoki defis. Bu login boshqa hech kimda bo'lmasligi kerak</small></label>
           <label class="field"><span>Parol</span><input class="input" name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="Kamida 6 belgi"></label>
           <label class="field"><span>Parolni tasdiqlang</span><input class="input" name="password2" type="password" required minlength="6" autocomplete="new-password"></label>
           <div id="form-error"></div>
-          <button class="btn btn-lg btn-block" type="submit">Tizimni yaratish</button>
+          <button class="btn btn-lg btn-block" type="submit">Do'konni ochish</button>
         </form>
+        <p class="auth-note">${icon('info', 'ico-xs')} Shu login va parol bilan telefon, planshet yoki kompyuterdan kirasiz — hamma joyda ma'lumotlar bir xil.</p>
+        ${mode === 'register' ? `<div class="auth-foot">Hisobingiz bormi? <button type="button" class="link-btn" data-mode="login">Kirish</button></div>` : ''}
       </div>`;
     root.querySelector('#setup-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -180,21 +186,28 @@ async function showAuth(setupRequired) {
         errEl.innerHTML = '<div class="alert alert-bad">Parollar bir xil emas</div>';
         return;
       }
+      const btn = e.currentTarget.querySelector('button[type=submit]');
+      btn.disabled = true;
       try {
-        const r = await post('/setup', d);
-        state.user = r.user;
-        await bootShell();
+        await post(mode === 'register' ? '/auth/register' : '/setup', d);
+        try { sessionStorage.setItem('ombor.welcome', '1'); } catch { /* xotira yopiq */ }
+        location.hash = '#/dashboard';
+        location.reload();
+        return;
       } catch (err) {
         errEl.innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`;
+      } finally {
+        btn.disabled = false;
       }
     });
+    root.querySelector('[data-mode="login"]')?.addEventListener('click', () => showAuth(false));
   } else {
     root.innerHTML = `
       <div class="auth-card">
         <div class="auth-brand">
           <div class="mark">${icon('layers')}</div>
           <h1>OMBOR PRO</h1>
-          <p>Tizimga kirish uchun login va parolingizni kiriting</p>
+          <p>Login va parolingizni kiriting. Telefon yoki kompyuter — farqi yo'q, ma'lumotlaringiz bir xil ko'rinadi</p>
         </div>
         <form id="login-form" class="form-grid" novalidate>
           <label class="field"><span>Login</span><input class="input" name="username" required autocomplete="username" autocapitalize="none"></label>
@@ -202,16 +215,21 @@ async function showAuth(setupRequired) {
           <div id="form-error"></div>
           <button class="btn btn-lg btn-block" type="submit">Kirish</button>
         </form>
+        <p class="auth-note">${icon('info', 'ico-xs')} Xodimmisiz? Login va parolni do'kon egasidan oling.</p>
+        ${state.signup !== false ? `<div class="auth-divider"><span>yoki</span></div>
+          <button type="button" class="btn btn-lg btn-block btn-light" data-mode="register">${icon('store', 'ico-sm')} Yangi do'kon ochish</button>` : ''}
       </div>`;
+    root.querySelector('[data-mode="register"]')?.addEventListener('click', () => showAuth('register'));
     root.querySelector('#login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(e.currentTarget));
       const btn = e.currentTarget.querySelector('button[type=submit]');
       btn.disabled = true;
       try {
-        const r = await post('/auth/login', d);
-        state.user = r.user;
-        await bootShell();
+        await post('/auth/login', d);
+        // Sahifa to'liq qayta yuklanadi: oldingi hisob (boshqa do'kon bo'lishi mumkin) xotirasi qolmaydi
+        location.reload();
+        return;
       } catch (err) {
         root.querySelector('#form-error').innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`;
       } finally {
@@ -428,7 +446,7 @@ function setBadge(n) {
   }
 }
 
-const seenKey = () => `ombor.notif.seen.${state.user?.id}`;
+const seenKey = () => `ombor.notif.seen.${state.user?.username}`;
 function readSeen() {
   try { return Number(localStorage.getItem(seenKey()) || 0); } catch { return 0; }
 }
@@ -519,11 +537,9 @@ async function logout() {
   } finally {
     state.user = null;
     clearInterval(state.pollTimer);
-    location.hash = '';
-    $('#app').hidden = true;
-    closeModal();
-    closePopover();
-    await showAuth(false);
+    // Chiqishda sahifa qayta yuklanadi: keyingi kirgan hisob oldingisining xotirasini ko'rmaydi
+    history.replaceState(null, '', location.pathname);
+    location.reload();
   }
 }
 
@@ -573,6 +589,12 @@ async function bootShell() {
   startPolling();
   if (parseHash().key) route();
   else ctx.go(firstAllowed());
+  let welcome = false;
+  try {
+    welcome = sessionStorage.getItem('ombor.welcome') === '1';
+    sessionStorage.removeItem('ombor.welcome');
+  } catch { /* xotira yopiq */ }
+  if (welcome) toast("Do'koningiz tayyor! «Do'koningizni ishga tushiring» qadamlaridan boshlang", 'ok');
 }
 
 onUnauthorized(() => {
@@ -590,6 +612,7 @@ onUnauthorized(() => {
 async function start() {
   try {
     const status = await get('/auth/status');
+    state.signup = status.signup !== false;
     if (status.setup_required) {
       $('#boot').hidden = true;
       await showAuth(true);

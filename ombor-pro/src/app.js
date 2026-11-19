@@ -3,8 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, config } from './config.js';
 import { HttpError } from './util.js';
-import { authenticate } from './auth.js';
-import { pool } from './db.js';
+import { authenticate, readSession } from './auth.js';
+import { pool, runWithSchema, SCHEMA_RE } from './db.js';
+import { ensureCoreOnce, ensureSchemaReady } from './tenants.js';
 import authRoutes from './routes/auth.js';
 import peopleRoutes from './routes/people.js';
 import catalogRoutes, { imagesInDb } from './routes/catalog.js';
@@ -23,7 +24,7 @@ const PG_MESSAGES = {
 function dbErrorMessage(err) {
   if (err.code === '23505') {
     if (err.constraint === 'products_barcode_key') return 'Bu shtrix-kod boshqa mahsulotda mavjud';
-    if (err.constraint === 'users_username_key') return 'Bu login band';
+    if (err.constraint === 'users_username_key' || err.constraint === 'logins_pkey') return 'Bu login band';
     return 'Bunday yozuv allaqachon mavjud';
   }
   if (err.code === '23514') {
@@ -64,6 +65,26 @@ export function createApp() {
 
   app.use(express.json({ limit: '1mb' }));
 
+  // Ko'p do'kon: sessiyadagi do'kon aniqlanadi va so'rov to'liq o'sha do'kon sxemasida bajariladi.
+  // Kirmagan foydalanuvchi uchun — umumiy qism (kirish, ro'yxatdan o'tish).
+  app.use(['/api', '/uploads'], async (req, res, next) => {
+    try {
+      const session = readSession(req);
+      let schema = 'public';
+      if (session && !session.invalid) {
+        if (SCHEMA_RE.test(session.sch)) schema = session.sch;
+        else req.session = { invalid: true };
+      }
+      if (req.session === undefined) req.session = session;
+      req.store = { schema, id: session?.sid || null };
+      await ensureCoreOnce();
+      await ensureSchemaReady(schema);
+      runWithSchema(schema, next);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // Himoya: API faqat JSON yoki fayl yuklash (multipart) so'rovlarini qabul qiladi.
   // Oddiy HTML forma orqali yuborilgan so'rovlar bloklanadi (CSRF).
   app.use('/api', (req, res, next) => {
@@ -83,7 +104,8 @@ export function createApp() {
       const { rows } = await pool.query('SELECT content_type, data FROM product_images WHERE name = $1', [req.params.name]);
       if (!rows[0]) return res.status(404).end();
       res.set('Content-Type', rows[0].content_type);
-      res.set('Cache-Control', 'public, max-age=86400, immutable');
+      // Rasm faqat o'z do'koniga tegishli: umumiy keshlarda saqlanmaydi
+      res.set('Cache-Control', 'private, max-age=86400, immutable');
       return res.send(rows[0].data);
     });
   } else {

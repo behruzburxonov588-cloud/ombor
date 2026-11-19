@@ -10,13 +10,20 @@ process.env.UPLOAD_DIR = process.env.UPLOAD_DIR || new URL('../uploads-test', im
 const { pool } = await import('../src/db.js');
 const { migrate } = await import('../src/migrate.js');
 const { createApp } = await import('../src/app.js');
+const { ensureCore, resetTenantCaches, markSchemaReady } = await import('../src/tenants.js');
 
 export { pool };
 
+// Bazani to'liq tozalaydi: birinchi do'kon (public), qo'shimcha do'konlar (t_*) va umumiy jadvallar (core)
 export async function resetDatabase() {
+  const { rows } = await pool.query("SELECT nspname FROM pg_namespace WHERE nspname = 'core' OR nspname ~ '^t_[0-9]+$'");
+  for (const r of rows) await pool.query(`DROP SCHEMA ${r.nspname} CASCADE`);
   await pool.query('DROP SCHEMA public CASCADE');
   await pool.query('CREATE SCHEMA public');
+  resetTenantCaches();
   await migrate(() => {});
+  markSchemaReady('public');
+  await ensureCore();
 }
 
 export async function startServer() {

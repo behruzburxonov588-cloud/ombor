@@ -40,6 +40,18 @@ npm start
 
 Brauzerda `http://localhost:3000` manzilini oching.
 
+## Ko'p do'kon (har kim o'z do'konini ochadi)
+
+Ilovadan bir nechta do'kon foydalana oladi:
+
+- Kirish sahifasida **«Yangi do'kon ochish»** tugmasi bor. Istalgan odam do'kon nomi, ismi, login va parol bilan o'z do'konini ochadi.
+- Har bir do'konning ma'lumoti bazada **alohida sxemada** turadi (birinchi do'kon — `public`, keyingilari — `t_<raqam>`). Barcha so'rovlar faqat sessiyadagi do'kon sxemasida bajariladi, shuning uchun bir do'kon boshqasining mahsuloti, savdosi, mijozi yoki sozlamalarini ko'ra olmaydi. Chek raqamlari ham har bir do'konda alohida.
+- **Login butun tizimda yagona**: kirishda dastur login orqali do'konni o'zi topadi. Shuning uchun bir xil login va parol bilan telefon, planshet yoki kompyuterdan kirish mumkin — hamma joyda ma'lumot bir xil. Xodimlarga login do'kon egasi **Xodimlar** bo'limida beradi.
+- Do'konlar va loginlar ro'yxati `core` sxemasida (`core.stores`, `core.logins`). Yangi versiyaga o'tganda mavjud do'kon avtomatik birinchi do'kon sifatida ro'yxatga olinadi, eski sessiyalar ishlashda davom etadi.
+- Har bir do'kon sxemasi birinchi so'rovda avtomatik yangilanadi (migratsiyalar). Bildirishnomalar har bir do'kon uchun alohida tekshiriladi.
+- Bitta IP dan soatiga ko'pi bilan 5 ta yangi do'kon ochiladi. Yangi do'kon ochishni o'chirish uchun `OMBOR_SIGNUP=off` qiling.
+- **Zaxira nusxa** har bir do'kon uchun alohida: egasi o'z do'koni ma'lumotini yuklab oladi va uni o'z serveriga tiklashi mumkin.
+
 ## Ma'lumotlarni saqlash va yangi serverga ko'chirish
 
 Barcha ma'lumotlar PostgreSQL bazasida turadi, serverda emas. Shuning uchun server almashganda ma'lumot yo'qolmaydi:
@@ -99,6 +111,7 @@ Mahalliy sinash: repozitoriya ildizida `.dev.vars` faylida `DATABASE_URL` va `JW
 | `OMBOR_TEST_DATABASE_URL` | Testlar uchun baza (nomi `ombor_test` bo'lishi shart) | `postgres://postgres:postgres@localhost:5432/ombor_test` |
 | `OMBOR_IMAGE_STORE` | `db` bo'lsa, mahsulot rasmlari diskka emas, bazaga saqlanadi (doimiy diski yo'q hosting uchun) | disk |
 | `OMBOR_DISABLE_SCHEDULER` | `1` bo'lsa, fon rejalashtiruvchisi (bildirishnomalar, rejali xulosalar) ishga tushmaydi. Bir nechta server bo'lsa ham yoqib qo'yish xavfsiz | — |
+| `OMBOR_SIGNUP` | `off` bo'lsa, kirish sahifasida «Yangi do'kon ochish» bo'lmaydi (faqat birinchi do'kon yaratiladi) | `on` |
 
 Production uchun misol:
 
@@ -111,7 +124,7 @@ export PORT=3000
 
 ## Birinchi ishga tushirish
 
-Tizim hali sozlanmagan bo'lsa, brauzer do'kon nomi va egasi (owner) hisobini yaratish oynasini ko'rsatadi. Standart foydalanuvchi yoki standart parol yo'q: egasi parolni o'zi belgilaydi. Keyin **Xodimlar** bo'limidan kassir, ombor xodimi yoki buxgalter qo'shing.
+Tizim hali sozlanmagan bo'lsa, brauzer do'kon nomi va egasi (owner) hisobini yaratish oynasini ko'rsatadi. Standart foydalanuvchi yoki standart parol yo'q: egasi parolni o'zi belgilaydi. Keyin **Xodimlar** bo'limidan kassir, ombor xodimi yoki buxgalter qo'shing. Keyingi do'konlar kirish sahifasidagi **«Yangi do'kon ochish»** orqali ochiladi.
 
 ## Moliyaviy formulalar
 
@@ -171,7 +184,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public` sxemasi o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 69 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi.
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 78 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish).
 
 ## Loyiha tuzilishi
 

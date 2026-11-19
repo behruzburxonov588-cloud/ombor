@@ -779,3 +779,10 @@ a.list-item:hover { text-decoration: none; }
 
 /* Rasmsiz tovar kartochkasida katta harf o'rniga ixcham belgi — ekranga ko'proq tovar sig'adi */
 .pcard .thumb:not(:has(img)) { height: 44px; font-size: 17px; }
+
+/* ---------- Kirish / ro'yxatdan o'tish ---------- */
+.auth-note { display: flex; gap: 6px; align-items: flex-start; margin-top: 14px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.auth-note .ico-xs { flex: none; margin-top: 2px; }
+.auth-foot { margin-top: 16px; text-align: center; font-size: 13.5px; color: var(--muted); }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0 12px; color: var(--faint); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; border-top: 1px solid var(--border); }

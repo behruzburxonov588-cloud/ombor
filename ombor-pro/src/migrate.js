@@ -1,6 +1,12 @@
 import { pathToFileURL } from 'node:url';
-import { pool } from './db.js';
+import { pool, currentSchema } from './db.js';
 import { ROOT } from './config.js';
+
+// Cloudflare Workers'da fayl tizimi yo'q: migratsiyalar matni oldindan beriladi
+let defaultSources = null;
+export function setMigrationSources(list) {
+  defaultSources = list;
+}
 
 async function readMigrationFiles() {
   const fs = await import('node:fs/promises');
@@ -14,12 +20,15 @@ async function readMigrationFiles() {
 // Hammasi bitta tranzaksiyada va tranzaksiya qulfi bilan bajariladi: bir vaqtda bir nechta server
 // (yoki Cloudflare nusxasi) ishga tushsa ham, ulanishlar puli (Neon, Hyperdrive) orqali ham xavfsiz.
 // sources: [{ name, sql }] — berilmasa migrations/ papkasidan o'qiladi.
+// Joriy do'kon sxemasida bajariladi (har bir do'konning jadvallari alohida yangilanadi)
 export async function migrate(log = console.log, sources = null) {
-  const list = sources || await readMigrationFiles();
+  const list = sources || defaultSources || await readMigrationFiles();
+  const schema = currentSchema();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(424242)');
+    if (schema !== 'public') await client.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
     await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
       name TEXT PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
