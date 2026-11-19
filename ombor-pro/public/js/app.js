@@ -73,6 +73,19 @@ const NAV = [
 ];
 
 const MOBILE = ['dashboard', 'sales', 'products', 'stock'];
+
+// "+ Qo'shish" menyusi: har sahifadan bir bosishda yangi yozuv (faqat ruxsat berilganlari ko'rinadi)
+const QUICK = [
+  { label: 'Mahsulot', hint: "Yangi tovar: nomi va narxi", icon: 'box', href: '#/products/new', perms: ['products.manage'] },
+  { label: 'Sotuv', hint: 'Tovar sotish (kassa)', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
+  { label: 'Kirim', hint: 'Omborga tovar keldi', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
+  { label: 'Xarajat', hint: 'Ijara, maosh, kommunal', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'], route: 'cash' },
+  { label: 'Mijoz', hint: 'Xaridor (nasiya uchun)', icon: 'users', href: '#/customers?new=1', perms: ['customers.manage'] },
+  { label: 'Yetkazib beruvchi', hint: 'Tovar oladigan joy', icon: 'store', href: '#/suppliers?new=1', perms: ['suppliers.manage'] },
+  { label: 'Xodim', hint: 'Sotuvchi uchun login', icon: 'userCog', href: '#/employees?new=1', perms: ['employees.manage'] },
+];
+const quickActions = () => QUICK.filter((a) => ctx.canAny(a.perms) && routeAllowed(a.route || a.href.slice(2).split(/[/?]/)[0]));
+
 const ROLE_LABELS = { owner: 'Egasi', administrator: 'Administrator', cashier: 'Kassir', warehouse: 'Ombor xodimi', accountant: 'Buxgalter' };
 
 const state = { user: null, settings: {}, unread: 0, notif: null, pollTimer: null };
@@ -224,6 +237,7 @@ function buildShell() {
         <button class="icon-btn" id="btn-menu" type="button" aria-label="Menyuni ochish">${icon('menu')}</button>
         <div class="title" id="page-title"></div>
         <div class="spacer"></div>
+        <button class="btn btn-sm quick-add" id="btn-add" type="button" aria-haspopup="menu" aria-label="Yangi qo'shish" hidden>${icon('plus', 'ico-sm')}<span>Qo'shish</span></button>
         <button class="searchbox" id="searchbox" type="button" aria-label="Qidiruv">${icon('search', 'ico-sm')}<span>Qidirish…</span><span class="kbd">Ctrl K</span></button>
         <button class="icon-btn" id="btn-search" type="button" aria-label="Qidiruv">${icon('search')}</button>
         <button class="icon-btn" id="btn-bell" type="button" aria-label="Bildirishnomalar">${icon('bell')}<span class="dot" hidden></span></button>
@@ -233,6 +247,7 @@ function buildShell() {
     <main class="content" id="page"></main>
     <nav class="bottomnav" id="bottomnav" aria-label="Pastki menyu"></nav>`;
   $('#btn-menu').addEventListener('click', () => toggleDrawer(true));
+  $('#btn-add').addEventListener('click', (e) => openQuickAdd(e.currentTarget));
   $('#btn-search').addEventListener('click', openGlobalSearch);
   $('#searchbox').addEventListener('click', openGlobalSearch);
   $('#btn-bell').addEventListener('click', (e) => openBell(e.currentTarget));
@@ -294,6 +309,7 @@ function renderNav(p) {
   $('#sidebar').querySelectorAll('.nav-item').forEach((a) => a.addEventListener('click', () => toggleDrawer(false)));
   $('#sb-user').addEventListener('click', (e) => openUserMenu(e.currentTarget, 'left'));
   $('#btn-user .avatar').textContent = initials(u.full_name);
+  $('#btn-add').hidden = quickActions().length === 0;
 
   const mobile = MOBILE.map((id) => NAV.flatMap((g) => g.items).find((it) => it.id === id)).filter((it) => it && navAllowed(it));
   $('#bottomnav').innerHTML = `
@@ -302,6 +318,28 @@ function renderNav(p) {
   $('#bottomnav').querySelectorAll('[data-href]').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.href; }));
   $('#bottomnav [data-menu]').addEventListener('click', () => toggleDrawer(true));
   return active;
+}
+
+function openQuickAdd(anchor) {
+  const items = quickActions();
+  openPopover(anchor, `
+    <div class="qa-menu" role="menu" aria-label="Yangi qo'shish">
+      <div class="qa-title">Nimani qo'shmoqchisiz?</div>
+      <div class="qa-grid">
+        ${items.map((a) => `<a class="qa-item" role="menuitem" href="${a.href}">
+          <span class="qa-ico">${icon(a.icon, 'ico-sm')}</span>
+          <span class="qa-text"><b>${esc(a.label)}</b><span>${esc(a.hint)}</span></span></a>`).join('')}
+      </div>
+    </div>`, {
+    onMount: (el, close) => {
+      el.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => {
+        close();
+        // Shu sahifaning o'zida bo'lsa ham oyna ochilsin
+        if (location.hash === a.getAttribute('href')) setTimeout(route, 0);
+      }));
+      el.querySelector('a')?.focus();
+    },
+  });
 }
 
 function openUserMenu(anchor, align = 'right') {

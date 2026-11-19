@@ -2,6 +2,7 @@
 import {
   get, post, put, icon, esc, money, dateTime, dateOnly, readForm, toast, errorToast,
   openModal, withBusy, emptyState, newKey,
+  takeNewFlag,
 } from '../ui.js';
 
 const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
@@ -60,12 +61,12 @@ export async function render(root, params, ctx) {
     return;
   }
   if (params.id) return renderDetail(root, cfg, Number(params.id), ctx);
-  return renderList(root, cfg, ctx);
+  return renderList(root, cfg, ctx, params);
 }
 
 // ---------- Ro'yxat ----------
 
-async function renderList(root, cfg, ctx) {
+async function renderList(root, cfg, ctx, params = null) {
   let q = '';
   root.innerHTML = `
     <div class="page-head">
@@ -106,6 +107,7 @@ async function renderList(root, cfg, ctx) {
   });
   root.querySelector('#add')?.addEventListener('click', () => openEditor(cfg, null, () => renderList(root, cfg, ctx)));
   await load();
+  if (takeNewFlag(params)) root.querySelector('#add')?.click();
 }
 
 // ---------- Tafsilot ----------

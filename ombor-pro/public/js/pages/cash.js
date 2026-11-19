@@ -2,6 +2,7 @@
 import {
   get, post, icon, esc, num, money, dateTime, dateOnly, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, monthStartStr, newKey,
+  takeNewFlag,
 } from '../ui.js';
 
 const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
@@ -46,6 +47,14 @@ export async function render(root, params, ctx) {
   const body = root.querySelector('#tabbody');
   if (tab.key === 'cash') await tabCash(body, params.query, ctx, refresh);
   else await tabExpenses(body, params.query, ctx, refresh);
+  // "+ Qo'shish" menyusidan kelinganda: yangi xarajat formasiga o'tkazadi
+  if (tab.key === 'expenses' && takeNewFlag(params)) {
+    const amount = root.querySelector('#ef [name=amount]');
+    if (amount) {
+      amount.closest('.card').scrollIntoView({ block: 'center' });
+      amount.focus();
+    }
+  }
 }
 
 // ---------- Kassa ----------

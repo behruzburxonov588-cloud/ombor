@@ -13,7 +13,7 @@ const FILTERS = [
 ];
 
 export async function render(root, params, ctx) {
-  if (params.id === 'new') return renderForm(root, null, ctx);
+  if (params.id === 'new') return renderForm(root, null, ctx, { name: params.query.name || '' });
   if (params.id && params.sub === 'edit') return renderForm(root, Number(params.id), ctx);
   if (params.id) return renderDetail(root, Number(params.id), ctx);
   return renderList(root, params, ctx);
@@ -56,7 +56,7 @@ async function renderList(root, params, ctx) {
             </div>
             <div class="end">${p.is_archived ? '<span class="badge badge-muted">Arxiv</span>' : statusBadge(p.status)}</div>
           </div>`).join('')}</div>`
-      : emptyState('Mahsulot topilmadi. Yangi mahsulot qo\'shing', 'box');
+      : emptyList(q, f, canManage);
     list.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => ctx.go(`#/products/${el.dataset.id}`)));
   };
 
@@ -73,6 +73,28 @@ async function renderList(root, params, ctx) {
     load().catch(errorToast);
   }));
   await load();
+}
+
+// Bo'sh ro'yxat: birinchi mahsulotga taklif yoki qidiruv bo'yicha yangi mahsulot qo'shish
+function emptyList(q, filter, canManage) {
+  if (!q && !filter) {
+    return `<div class="empty-hero">
+      <span class="hero-ico">${icon('box')}</span>
+      <h2>Hali mahsulot yo'q</h2>
+      <p>${canManage ? "Birinchi mahsulotingizni qo'shing: nomi va sotuv narxi kifoya. Bir daqiqa vaqt oladi." : "Mahsulot qo'shish uchun do'kon egasi yoki administratorga murojaat qiling."}</p>
+      ${canManage ? `<a class="btn btn-lg" href="#/products/new">${icon('plus')} Birinchi mahsulotni qo'shish</a>` : ''}
+    </div>`;
+  }
+  if (q && canManage && filter !== 'archived') {
+    return `<div class="empty-hero">
+      <span class="hero-ico">${icon('search')}</span>
+      <h2>«${esc(q)}» topilmadi</h2>
+      <p>Bunday mahsulot hali qo'shilmagan bo'lsa, hoziroq qo'shishingiz mumkin.</p>
+      <a class="btn" href="#/products/new?name=${encodeURIComponent(q)}">${icon('plus')} «${esc(q)}» ni qo'shish</a>
+    </div>`;
+  }
+  const text = { archived: "Arxivda mahsulot yo'q", low: "Kam qolgan mahsulot yo'q", out: "Tugagan mahsulot yo'q" }[filter] || 'Hech narsa topilmadi';
+  return emptyState(text, 'box');
 }
 
 // ---------- Tafsilot ----------
@@ -237,7 +259,7 @@ function sourceLabel(s) {
 
 // ---------- Qo'shish / tahrirlash formasi ----------
 
-async function renderForm(root, id, ctx) {
+async function renderForm(root, id, ctx, prefill = {}) {
   const [units, cats, sups] = await Promise.all([
     get('/units').then((r) => r.units),
     get('/categories').then((r) => r.categories),
@@ -260,8 +282,30 @@ async function renderForm(root, id, ctx) {
       <h1>${id ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot'}</h1>
     </div>
     <form id="pf" class="card form-grid two" novalidate>
+      <div class="form-sec" style="grid-column:1/-1"><h3>Asosiy ma'lumot</h3><small>* belgili maydonlar majburiy. Qolganini keyin ham to'ldirish mumkin.</small></div>
+
       <label class="field" style="grid-column:1/-1"><span>Mahsulot nomi *</span>
-        <input class="input" name="name" required maxlength="150" value="${esc(p?.name || '')}" placeholder="Masalan: Un oliy nav"></label>
+        <input class="input" name="name" required maxlength="150" value="${esc(p?.name || prefill.name || '')}" placeholder="Masalan: Un oliy nav" autocomplete="off"></label>
+
+      <label class="field"><span>Sotuv narxi (1 birlik uchun, so'm) *</span>
+        <input class="input" name="selling_price" data-type="num" inputmode="decimal" required value="${p?.selling_price ?? ''}" placeholder="0"><small>Xaridorga shu narxda sotiladi</small></label>
+
+      <label class="field"><span>Kirim narxi (1 birlik uchun, so'm)</span>
+        <input class="input" name="purchase_price" data-type="num" inputmode="decimal" value="${p?.purchase_price ?? ''}" placeholder="0"><small>O'zingiz necha so'mga olgansiz (foydani hisoblash uchun)</small></label>
+
+      <div class="field"><span>O'lchov birligi *</span>
+        <div class="input-group">
+          <select class="input" name="base_unit_id" id="base-unit" ${id && Number(p?.stock_qty) > 0 ? 'disabled' : ''}>${unitOpts(p?.base_unit_id || units.find((u) => u.code === 'piece')?.id)}</select>
+          <button class="btn btn-light" type="button" id="new-unit" style="min-width:56px" aria-label="Yangi birlik">${icon('plus')}</button>
+        </div>
+        <small>Qoldiq shu birlikda hisoblanadi (masalan: dona, kg, litr)</small></div>
+
+      ${!id ? `<label class="field"><span>Hozir omborda qancha bor? (ixtiyoriy)</span>
+        <input class="input" name="opening_qty" data-type="num" inputmode="decimal" placeholder="0"><small>Bo'sh qoldirsangiz, keyin «Kirim» orqali qo'shasiz</small></label>`
+    : `<label class="field"><span>Minimal qoldiq (ogohlantirish)</span>
+        <input class="input" name="min_stock" data-type="num" inputmode="decimal" value="${p?.min_stock ?? 0}" placeholder="0"><small>Qoldiq shundan kamaysa, ogohlantiriladi</small></label>`}
+
+      <div class="form-sec" style="grid-column:1/-1"><h3>Qo'shimcha ma'lumot (ixtiyoriy)</h3></div>
 
       <div class="field"><span>Shtrix-kod</span>
         <div class="input-group">
@@ -279,27 +323,11 @@ async function renderForm(root, id, ctx) {
           ${sups.map((s) => `<option value="${s.id}" ${p?.supplier_id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
         </select></label>
 
-      <div class="field"><span>Asosiy o'lchov birligi *</span>
-        <div class="input-group">
-          <select class="input" name="base_unit_id" id="base-unit" ${id && Number(p?.stock_qty) > 0 ? 'disabled' : ''}>${unitOpts(p?.base_unit_id || units.find((u) => u.code === 'piece')?.id)}</select>
-          <button class="btn btn-light" type="button" id="new-unit" style="min-width:56px" aria-label="Yangi birlik">${icon('plus')}</button>
-        </div>
-        <small>Qoldiq shu birlikda hisoblanadi (masalan: dona, kg, litr)</small></div>
-
-      <label class="field"><span>Kirim narxi (1 birlik uchun, so'm)</span>
-        <input class="input" name="purchase_price" data-type="num" inputmode="decimal" value="${p?.purchase_price ?? ''}" placeholder="0"></label>
-
-      <label class="field"><span>Sotuv narxi (1 birlik uchun, so'm) *</span>
-        <input class="input" name="selling_price" data-type="num" inputmode="decimal" required value="${p?.selling_price ?? ''}" placeholder="0"></label>
-
-      <label class="field"><span>Minimal qoldiq (ogohlantirish)</span>
-        <input class="input" name="min_stock" data-type="num" inputmode="decimal" value="${p?.min_stock ?? 0}" placeholder="0"><small>Qoldiq shundan kamaysa, ogohlantiriladi</small></label>
-
-      ${!id ? `<label class="field"><span>Boshlang'ich qoldiq (ixtiyoriy)</span>
-        <input class="input" name="opening_qty" data-type="num" inputmode="decimal" placeholder="0"><small>Mahsulot omborda bor bo'lsa, miqdorini kiriting</small></label>` : ''}
+      ${!id ? `<label class="field"><span>Minimal qoldiq (ogohlantirish)</span>
+        <input class="input" name="min_stock" data-type="num" inputmode="decimal" value="0" placeholder="0"><small>Qoldiq shundan kamaysa, ogohlantiriladi</small></label>` : ''}
 
       <div class="field" style="grid-column:1/-1">
-        <span>Qo'shimcha o'lchov birliklari (ixtiyoriy)</span>
+        <span>Qo'shimcha o'lchov birliklari</span>
         <small>Masalan: 1 quti = 12 dona. Sotuv va kirimda shu birliklar tanlanadi.</small>
         <div id="convs" class="stack"></div>
         <button class="btn btn-light btn-sm" type="button" id="add-conv" style="align-self:flex-start">${icon('plus', 'ico-sm')} Birlik qo'shish</button>
@@ -307,16 +335,20 @@ async function renderForm(root, id, ctx) {
 
       <div class="field" style="grid-column:1/-1">
         <span>Mahsulot rasmi</span>
-        <div class="row">
+        <div class="row" style="gap:12px">
           ${productThumb(p || { name: '?' }, true)}
-          <input type="file" accept="image/jpeg,image/png,image/webp" name="image" id="imgf" class="input" style="max-width:320px">
+          <div class="stack" style="gap:4px">
+            <label class="btn btn-light btn-sm file-btn" style="align-self:flex-start">${icon('image', 'ico-sm')} Rasm tanlash
+              <input type="file" accept="image/jpeg,image/png,image/webp" name="image" id="imgf"></label>
+            <span class="file-name" id="imgname">JPG, PNG yoki WEBP, 3 MB gacha</span>
+          </div>
         </div>
-        <small>JPG, PNG yoki WEBP, 3 MB gacha</small>
       </div>
 
       <div id="form-error" style="grid-column:1/-1"></div>
       <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-lg" type="submit" id="save" style="flex:1 1 200px">${icon('check')} Saqlash</button>
+        ${!id ? `<button class="btn btn-lg btn-light" type="submit" id="save-again" data-again="1" style="flex:1 1 200px">${icon('plus')} Saqlab, yana qo'shish</button>` : ''}
         <a class="btn btn-lg btn-outline" href="${id ? `#/products/${id}` : '#/products'}" style="flex:1 1 140px">Bekor qilish</a>
       </div>
     </form>`;
@@ -382,8 +414,15 @@ async function renderForm(root, id, ctx) {
     });
   });
 
+  root.querySelector('#imgf').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    root.querySelector('#imgname').textContent = f ? f.name : 'JPG, PNG yoki WEBP, 3 MB gacha';
+  });
+  if (!id) root.querySelector('[name=name]').focus();
+
   root.querySelector('#pf').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const again = e.submitter?.dataset.again === '1';
     const form = e.currentTarget;
     const d = readForm(form);
     const errEl = root.querySelector('#form-error');
@@ -403,7 +442,7 @@ async function renderForm(root, id, ctx) {
     };
     if (convs.some((c) => c.unit_id && !(c.factor > 0))) return fail('Birlik koeffitsientini kiriting (0 dan katta)');
     if (!id && d.opening_qty) body.opening_qty = d.opening_qty;
-    const btn = root.querySelector('#save');
+    const btn = again ? root.querySelector('#save-again') : root.querySelector('#save');
     await withBusy(btn, async () => {
       try {
         // Kategoriya nomi bo'yicha (mavjud bo'lmasa yaratiladi)
@@ -425,6 +464,13 @@ async function renderForm(root, id, ctx) {
           const fd = new FormData();
           fd.append('image', file);
           await api('POST', `/products/${productId}/image`, fd);
+        }
+        if (again) {
+          toast(`«${d.name}» saqlandi. Keyingi mahsulotni kiriting`, 'ok');
+          window.scrollTo({ top: 0 });
+          history.replaceState(null, '', '#/products/new');
+          await renderForm(root, null, ctx);
+          return;
         }
         toast(id ? 'Mahsulot yangilandi' : 'Mahsulot saqlandi', 'ok');
         ctx.go(`#/products/${productId}`);

@@ -32,6 +32,26 @@ const EXPENSE_LABEL = {
   rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 
+// Yangi do'kon uchun "Qayerdan boshlash" qadamlari (faqat ruxsat berilganlari ko'rinadi)
+const ONB_STEPS = [
+  {
+    perm: 'products.manage', title: "Mahsulot qo'shing", text: "Do'koningizdagi tovarni kiriting: nomi va sotuv narxi kifoya.",
+    href: '#/products/new', btn: "Mahsulot qo'shish", icon: 'box', done: (o) => o.products > 0,
+  },
+  {
+    perm: 'purchases.create', title: 'Tovar kirimini qiling', text: "Omborga qancha tovar kelganini kiriting. Qoldiq o'zi hisoblanadi.",
+    href: '#/purchases/new', btn: 'Kirim qilish', icon: 'truck', done: (o) => o.purchases > 0 || o.stocked > 0,
+  },
+  {
+    perm: 'sales.create', title: 'Birinchi sotuvni qiling', text: "Sotuv bo'limida tovarni tanlang va sotishni yakunlang.",
+    href: '#/sales', btn: "Sotuvga o'tish", icon: 'cart', done: (o) => o.sales > 0,
+  },
+  {
+    perm: 'employees.manage', title: "Xodim qo'shing (ixtiyoriy)", text: "Sotuvchiga alohida login bering: kim nima sotganini ko'rasiz.",
+    href: '#/employees?new=1', btn: "Xodim qo'shish", icon: 'userCog', done: (o) => o.users > 1,
+  },
+];
+
 let prefsCache = null;
 let charts = [];
 
@@ -73,14 +93,17 @@ async function load(host, range, ctx, first = false) {
   const widgets = prefsCache.dashboard.widgets.filter((w) => w.visible).map((w) => w.id);
   const wantAssistant = widgets.includes('assistant');
   const wantInv = widgets.includes('inventory') && (can('stock.view') || can('reports.view'));
+  const onbSteps = prefsCache.dashboard.onboarding_hidden ? [] : ONB_STEPS.filter((st) => can(st.perm));
   let d;
   let brief = null;
   let inv = null;
+  let onb = null;
   try {
-    [d, brief, inv] = await Promise.all([
+    [d, brief, inv, onb] = await Promise.all([
       get(`/analytics/dashboard?from=${range.from}&to=${range.to}`),
       wantAssistant ? get('/analytics/assistant').catch(() => null) : null,
       wantInv ? get('/analytics/inventory').catch(() => null) : null,
+      onbSteps.length ? get('/onboarding').catch(() => null) : null,
     ]);
   } catch (err) {
     if (dashEl) dashEl.classList.remove('is-loading');
@@ -118,7 +141,9 @@ async function load(host, range, ctx, first = false) {
     else flush();
   }
   flush();
-  const body = rendered.map((w) => `<div class="${w.size}" data-widget="${w.id}">${w.html}</div>`).join('');
+  const onbHtml = onb ? onboardingCard(onbSteps, onb) : '';
+  const body = (onbHtml ? `<div class="w-full" data-widget="onboarding">${onbHtml}</div>` : '')
+    + rendered.map((w) => `<div class="${w.size}" data-widget="${w.id}">${w.html}</div>`).join('');
 
   const canSell = can('sales.create');
   const canBuy = can('purchases.create');
@@ -171,10 +196,50 @@ async function load(host, range, ctx, first = false) {
   host.querySelector('#df').addEventListener('change', applyCustom);
   host.querySelector('#dt').addEventListener('change', applyCustom);
   host.querySelector('#widgets').addEventListener('click', () => openWidgetSettings(() => load(host, range, ctx)));
+  host.querySelector('#onb-hide')?.addEventListener('click', () => {
+    prefsCache.dashboard.onboarding_hidden = true;
+    host.querySelector('[data-widget="onboarding"]')?.remove();
+    put('/me/preferences', { dashboard: { onboarding_hidden: true } }).catch(() => {});
+    toast("Yo'riqnoma yashirildi. Yangi narsa qo'shish uchun yuqoridagi «Qo'shish» tugmasini bosing");
+  });
 
   mountSalesChart(host, d, range);
   mountForecast(host, d);
   mountTop(host, d);
+}
+
+// ---------- Boshlash yo'riqnomasi ----------
+
+function onboardingCard(steps, o) {
+  const list = steps.map((st) => ({ ...st, isDone: st.done(o) }));
+  const doneCount = list.filter((st) => st.isDone).length;
+  if (doneCount === list.length) return '';
+  const nextIdx = list.findIndex((st) => !st.isDone);
+  const pct = Math.round((doneCount / list.length) * 100);
+  return `
+    <section class="card" aria-labelledby="onb-title">
+      <div class="onb-head">
+        <div class="row" style="gap:12px;align-items:flex-start">
+          <span class="brand-mark onb-ico" style="width:36px;height:36px;border-radius:10px;background:var(--accent-soft);color:var(--accent)">${icon('rocket', 'ico-sm')}</span>
+          <div>
+            <h2 id="onb-title">Do'koningizni ishga tushiring</h2>
+            <div class="card-sub">Quyidagi qadamlarni tartib bilan bajaring. Har biri 1–2 daqiqa oladi.</div>
+            <div class="onb-meta"><span class="onb-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${list.length}" aria-valuenow="${doneCount}" aria-label="Bajarilgan qadamlar"><i style="width:${pct}%"></i></span><span class="onb-count">${doneCount} / ${list.length} bajarildi</span></div>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" type="button" id="onb-hide">Yashirish</button>
+      </div>
+      <ol class="onb-steps">
+        ${list.map((st, i) => `
+          <li class="onb-step${st.isDone ? ' done' : ''}${i === nextIdx ? ' next' : ''}">
+            <span class="onb-num" aria-hidden="true">${st.isDone ? icon('check', 'ico-sm') : i + 1}</span>
+            <div><b>${esc(st.title)}</b><span class="t">${esc(st.text)}</span></div>
+            <div class="onb-act">${st.isDone
+    ? `<span class="onb-done">${icon('check', 'ico-xs')} Bajarildi</span>`
+    : `<a class="btn ${i === nextIdx ? '' : 'btn-light'} btn-sm" href="${st.href}">${icon(st.icon, 'ico-sm')} ${esc(st.btn)}</a>`}</div>
+          </li>`).join('')}
+      </ol>
+    </section>`;
 }
 
 // ---------- Yordamchi xulosasi ----------
@@ -518,6 +583,7 @@ function recentCard(d) {
 
 function openWidgetSettings(onSaved) {
   let list = prefsCache.dashboard.widgets.map((w) => ({ ...w }));
+  let onbOn = !prefsCache.dashboard.onboarding_hidden;
   const body = () => list.map((w, i) => `
     <div class="widget-row">
       <label class="switch"><input type="checkbox" data-vis="${w.id}" ${w.visible ? 'checked' : ''}><span class="track"></span></label>
@@ -527,7 +593,7 @@ function openWidgetSettings(onSaved) {
     </div>`).join('');
   openModal({
     title: 'Bosh sahifa vidjetlari',
-    body: `<p class="small muted" style="margin-bottom:8px">Qaysi bo'limlar ko'rinishini va tartibini tanlang. Sozlama faqat siz uchun saqlanadi.</p><div id="wl">${body()}</div>`,
+    body: `<p class="small muted" style="margin-bottom:8px">Qaysi bo'limlar ko'rinishini va tartibini tanlang. Sozlama faqat siz uchun saqlanadi.</p><div class="widget-row"><label class="switch"><input type="checkbox" id="onb-on" ${onbOn ? 'checked' : ''}><span class="track"></span></label><span class="grow">Boshlash yo'riqnomasi (yangi do'kon uchun)</span></div><div id="wl">${body()}</div>`,
     foot: `<button class="btn btn-light" type="button" data-reset>Standart</button><button class="btn" type="button" data-save>${icon('check', 'ico-sm')} Saqlash</button>`,
     onMount: (el, close) => {
       const wl = el.querySelector('#wl');
@@ -537,14 +603,17 @@ function openWidgetSettings(onSaved) {
         wl.querySelectorAll('[data-down]').forEach((b) => b.addEventListener('click', () => { const i = Number(b.dataset.down); [list[i + 1], list[i]] = [list[i], list[i + 1]]; wl.innerHTML = body(); bind(); }));
       };
       bind();
+      el.querySelector('#onb-on').addEventListener('change', (e) => { onbOn = e.target.checked; });
       el.querySelector('[data-reset]').addEventListener('click', () => {
         list = Object.keys(WIDGET_LABELS).map((id) => ({ id, visible: true }));
+        onbOn = true;
+        el.querySelector('#onb-on').checked = true;
         wl.innerHTML = body();
         bind();
       });
       el.querySelector('[data-save]').addEventListener('click', async () => {
         try {
-          const r = await put('/me/preferences', { dashboard: { widgets: list } });
+          const r = await put('/me/preferences', { dashboard: { widgets: list, onboarding_hidden: !onbOn } });
           prefsCache = r.prefs;
           close();
           toast('Saqlandi', 'ok');

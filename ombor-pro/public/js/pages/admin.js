@@ -2,6 +2,7 @@
 import {
   get, post, put, icon, esc, num, money, dateTime, readForm, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, monthStartStr, download,
+  takeNewFlag,
 } from '../ui.js';
 
 const ACTION_LABELS = {
@@ -32,7 +33,7 @@ const toNum = (v) => {
 
 export async function render(root, params, ctx) {
   if (params.key === 'history') return renderHistory(root, params, ctx);
-  if (params.key === 'employees') return renderEmployees(root, ctx);
+  if (params.key === 'employees') return renderEmployees(root, ctx, takeNewFlag(params));
   return renderSettings(root, ctx);
 }
 
@@ -91,7 +92,7 @@ function detailsText(details) {
 
 // ---------- Xodimlar ----------
 
-async function renderEmployees(root, ctx) {
+async function renderEmployees(root, ctx, openNew = false) {
   if (!ctx.can('employees.manage')) {
     root.innerHTML = '<div class="alert alert-bad">Xodimlarni boshqarish uchun ruxsatingiz yo\'q</div>';
     return;
@@ -114,6 +115,7 @@ async function renderEmployees(root, ctx) {
     </div>`;
 
   root.querySelector('#addu').addEventListener('click', () => openUserEditor(ctx, meta, null, () => renderEmployees(root, ctx)));
+  if (openNew) openUserEditor(ctx, meta, null, () => renderEmployees(root, ctx));
   root.querySelectorAll('[data-id]').forEach((row) => row.addEventListener('click', () => {
     const u = users.find((x) => String(x.id) === row.dataset.id);
     openUserEditor(ctx, meta, u, () => renderEmployees(root, ctx));

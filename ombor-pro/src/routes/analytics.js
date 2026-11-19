@@ -23,6 +23,17 @@ router.use('/analytics', (req, res, next) => {
   }
 });
 
+// Yangi do'kon uchun "Qayerdan boshlash" ro'yxati: faqat sonlar (pul, nom yoki narx yo'q)
+router.get('/onboarding', async (req, res) => {
+  const { rows } = await pool.query(`SELECT
+      (SELECT COUNT(*) FROM products WHERE NOT is_archived)::int AS products,
+      (SELECT COUNT(*) FROM products WHERE stock_qty > 0)::int AS stocked,
+      (SELECT COUNT(*) FROM purchases)::int AS purchases,
+      (SELECT COUNT(*) FROM sales)::int AS sales,
+      (SELECT COUNT(*) FROM users WHERE is_active)::int AS users`);
+  res.json(rows[0]);
+});
+
 router.get('/analytics/dashboard', requirePerm('dashboard.view'), async (req, res) => {
   res.json(await dashboard(pool, req.user, req.query));
 });

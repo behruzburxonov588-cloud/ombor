@@ -684,3 +684,63 @@ a.list-item:hover { text-decoration: none; }
 .health a b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--text); }
 .health i { width: 8px; height: 8px; border-radius: 3px; flex: none; }
 @media (max-width: 719px) { .mobile-hide { display: none; } }
+
+/* ---------- "+ Qo'shish" menyusi ---------- */
+.quick-add { height: 36px; min-height: 36px; padding: 0 12px; flex: none; }
+.quick-add .ico-sm { width: 16px; height: 16px; }
+@media (max-width: 719px) {
+  .quick-add { width: 36px; padding: 0; border-radius: 9px; }
+  .quick-add span { display: none; }
+}
+.qa-menu { padding: 10px; width: min(470px, calc(100vw - 16px)); }
+.qa-title { font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 2px 6px 8px; }
+.qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+@media (max-width: 459px) { .qa-grid { grid-template-columns: 1fr; } }
+.qa-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; color: var(--text); text-decoration: none; min-height: 52px; }
+.qa-item:hover, .qa-item:focus-visible { background: var(--hover); text-decoration: none; outline: none; }
+.qa-item:focus-visible { box-shadow: 0 0 0 2px var(--focus-border); }
+.qa-ico { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+.qa-text { display: flex; flex-direction: column; min-width: 0; }
+.qa-text b { font-size: 13.5px; font-weight: 600; }
+.qa-text span { font-size: 12px; color: var(--muted); }
+
+/* ---------- Boshlash yo'riqnomasi (yangi do'kon) ---------- */
+.onb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.onb-head h2 { font-size: 16px; }
+.onb-meta { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.onb-count { white-space: nowrap; }
+.onb-bar { flex: 0 1 160px; min-width: 80px; height: 6px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.onb-bar i { display: block; height: 100%; background: var(--pos); border-radius: 999px; }
+.onb-steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.onb-step { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.onb-step.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.onb-num { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; font-weight: 700; font-size: 14px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+.onb-step.next .onb-num { background: var(--accent); color: #fff; border-color: var(--accent); }
+.onb-step.done .onb-num { background: var(--pos-bg); color: var(--pos); border-color: transparent; }
+.onb-step b { display: block; font-size: 14px; font-weight: 600; }
+.onb-step .t { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.onb-step.done b { color: var(--text-2); }
+.onb-done { font-size: 12.5px; color: var(--pos); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+.onb-step.done { padding-top: 9px; padding-bottom: 9px; }
+.onb-step.done .t { display: none; }
+@media (max-width: 719px) {
+  .onb-ico { display: none !important; }
+  .onb-step:not(.done) { grid-template-columns: 34px 1fr; }
+  .onb-step:not(.done) .onb-act { grid-column: 2; justify-self: start; }
+}
+
+/* ---------- Bo'sh ro'yxat: birinchi qadamga taklif ---------- */
+.empty-hero { text-align: center; padding: 40px 16px 44px; }
+.empty-hero .hero-ico { width: 56px; height: 56px; border-radius: 16px; background: var(--accent-soft); color: var(--accent); display: inline-grid; place-items: center; margin-bottom: 14px; }
+.empty-hero .hero-ico .ico { width: 26px; height: 26px; }
+.empty-hero h2 { font-size: 18px; margin-bottom: 6px; }
+.empty-hero p { color: var(--muted); font-size: 14px; max-width: 420px; margin: 0 auto 18px; }
+
+/* Fayl tanlash tugmasi (brauzerning inglizcha tugmasi o'rniga) */
+.file-btn { position: relative; cursor: pointer; }
+.file-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.file-name { font-size: 12.5px; color: var(--muted); }
+.form-sec { padding-top: 4px; }
+.form-sec h3 { font-size: 14.5px; font-weight: 650; }
+.form-sec small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.form-grid .form-sec:not(:first-child) { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 6px; }

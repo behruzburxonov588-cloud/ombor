@@ -655,13 +655,14 @@ export function resetFreshness() {
 
 export const WIDGETS = ['assistant', 'kpis', 'sales_chart', 'pnl', 'top_products', 'forecast', 'inventory', 'recent'];
 export const PREF_DEFAULTS = {
-  dashboard: { widgets: WIDGETS.map((id) => ({ id, visible: true })), range: 'today' },
+  dashboard: { widgets: WIDGETS.map((id) => ({ id, visible: true })), range: 'today', onboarding_hidden: false },
   reports: { period: 'month', grain: 'daily' },
   notifications: { muted: [], browser: false, browser_levels: ['critical', 'warning', 'info', 'success'] },
 };
 
-export function mergePrefs(raw) {
-  const p = clone(PREF_DEFAULTS);
+// base: noto'g'ri yoki berilmagan qiymat o'rniga qoladigan sozlamalar (saqlashda — joriy sozlamalar)
+export function mergePrefs(raw, base = PREF_DEFAULTS) {
+  const p = clone(base);
   if (!raw || typeof raw !== 'object') return p;
   if (Array.isArray(raw.dashboard?.widgets)) {
     const seen = new Set();
@@ -672,6 +673,7 @@ export function mergePrefs(raw) {
     p.dashboard.widgets = list;
   }
   if (['today', '7d', '30d', '90d'].includes(raw.dashboard?.range)) p.dashboard.range = raw.dashboard.range;
+  if (typeof raw.dashboard?.onboarding_hidden === 'boolean') p.dashboard.onboarding_hidden = raw.dashboard.onboarding_hidden;
   if (['today', 'week', 'month', 'year'].includes(raw.reports?.period)) p.reports.period = raw.reports.period;
   if (['daily', 'weekly', 'monthly'].includes(raw.reports?.grain)) p.reports.grain = raw.reports.grain;
   if (Array.isArray(raw.notifications?.muted)) p.notifications.muted = raw.notifications.muted.filter((k) => TYPE_GROUPS[k]);
@@ -693,7 +695,7 @@ export async function savePrefs(db, userId, patch) {
     dashboard: { ...current.dashboard, ...(patch?.dashboard || {}) },
     reports: { ...current.reports, ...(patch?.reports || {}) },
     notifications: { ...current.notifications, ...(patch?.notifications || {}) },
-  });
+  }, current);
   await db.query(
     `INSERT INTO user_preferences (user_id, prefs, updated_at) VALUES ($1, $2, now())
      ON CONFLICT (user_id) DO UPDATE SET prefs = EXCLUDED.prefs, updated_at = now()`,
