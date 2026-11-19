@@ -81,23 +81,27 @@ async function renderNew(root, ctx) {
       <a class="btn btn-light btn-sm" href="#/purchases">${icon('back', 'ico-sm')} Kirimlar</a>
       <h1>Yangi kirim</h1>
     </div>
-    ${suppliers.length ? '' : `<div class="alert alert-warn">Avval yetkazib beruvchi qo'shing: <a href="#/suppliers"><b>Yetkazib beruvchilar</b></a></div>`}
+    <p class="muted" style="margin:-8px 0 14px">Omborga kelgan tovarni kiriting. Saqlangach, tovar qoldig'i o'zi ko'payadi.</p>
     <div class="form-grid two" style="align-items:start">
       <div class="stack">
         <div class="card">
           <div class="form-grid two" style="gap:10px">
-            <label class="field"><span>Yetkazib beruvchi *</span>
-              <select class="input" id="sup"><option value="">— tanlang —</option>
-                ${suppliers.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
-              </select></label>
+            <div class="field"><span>Kimdan keldi? (yetkazib beruvchi) *</span>
+              <div class="input-group">
+                <select class="input" id="sup"><option value="">— tanlang —</option>
+                  ${suppliers.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+                </select>
+                ${ctx.can('suppliers.manage') ? `<button class="btn btn-light" type="button" id="sup-new" style="min-width:56px" aria-label="Yangi yetkazib beruvchi" title="Yangi yetkazib beruvchi qo'shish">${icon('plus')}</button>` : ''}
+              </div>
+              ${suppliers.length ? '' : "<small>Ro'yxat bo'sh — «+» tugmasi bilan qo'shing (masalan: «Bozor» yoki firma nomi)</small>"}</div>
             <label class="field"><span>Sana</span><input class="input" type="date" id="pdate" value="${todayStr()}"></label>
           </div>
           <label class="field" style="margin-top:10px"><span>Izoh (ixtiyoriy)</span><input class="input" id="note" maxlength="500"></label>
         </div>
 
         <div class="card">
-          <div class="card-head"><h2>Mahsulotlar</h2><span class="badge badge-info" id="icount">0 qator</span></div>
-          <input class="input" id="pq" type="search" placeholder="Mahsulot nomi bo'yicha qidirish" autocomplete="off">
+          <div class="card-head"><h2>Qanday tovar keldi?</h2><span class="badge badge-info" id="icount">0 qator</span></div>
+          <input class="input" id="pq" type="search" placeholder="Tovar nomini yozing va ro'yxatdan tanlang" autocomplete="off">
           <div id="pres" class="list" style="margin-top:8px"></div>
           <div class="input-group" style="margin-top:10px">
             <input class="input" id="bc" inputmode="numeric" placeholder="Shtrix-kod (skaner yoki qo'lda, Enter)" autocomplete="off">
@@ -108,17 +112,20 @@ async function renderNew(root, ctx) {
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Hisob</h2></div>
+        <div class="card-head"><h2>Hisob-kitob</h2></div>
         <div class="cart-totals">
-          <div class="between"><span class="muted">Mahsulotlar</span><span class="num" id="sub">0 so'm</span></div>
-          <div class="between"><span style="font-weight:700">Jami</span><span class="big num" id="tot">0 so'm</span></div>
-          <div class="between small"><span class="muted">Qoldiq qarz</span><span class="num" id="rem">0 so'm</span></div>
+          <div class="between"><span class="muted">Tovarlar summasi</span><span class="num" id="sub">0 so'm</span></div>
+          <div class="between"><span style="font-weight:700">Jami to'lanadigan</span><span class="big num" id="tot">0 so'm</span></div>
+          <div class="between small"><span class="muted">Yetkazib beruvchiga qarzingiz</span><span class="num" id="rem">0 so'm</span></div>
         </div>
         <div class="form-grid two" style="gap:10px;margin-top:12px">
-          <label class="field"><span>Yetkazib berish (so'm)</span><input class="input" id="dlv" inputmode="decimal" placeholder="0"></label>
-          <label class="field"><span>Chegirma (so'm)</span><input class="input" id="dsc" inputmode="decimal" placeholder="0"></label>
-          <label class="field"><span>To'langan (so'm)</span><input class="input" id="paid" inputmode="decimal" placeholder="0"></label>
-          <label class="field"><span>To'lov usuli</span>
+          <label class="field"><span>Yo'l kira (so'm)</span><input class="input" id="dlv" inputmode="decimal" placeholder="0"><small>Bo'lmasa, bo'sh qoldiring</small></label>
+          <label class="field"><span>Sizga chegirma (so'm)</span><input class="input" id="dsc" inputmode="decimal" placeholder="0"><small>Bo'lmasa, bo'sh qoldiring</small></label>
+          <div class="field"><span>Hozir qancha to'ladingiz? (so'm)</span>
+            <div class="input-group"><input class="input" id="paid" inputmode="decimal" placeholder="0">
+              <button class="btn btn-light" type="button" id="pay-all" title="Jami summani to'liq to'lash">Hammasi</button></div>
+            <small>Qolgani qarz bo'lib yoziladi</small></div>
+          <label class="field"><span>Qanday to'ladingiz?</span>
             <select class="input" id="pm"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
         </div>
         <div id="warn" style="margin-top:10px"></div>
@@ -153,7 +160,7 @@ async function renderNew(root, ctx) {
     $('#icount').textContent = `${items.length} qator`;
 
     let warn = '';
-    if (!$('#sup').value) warn = 'Yetkazib beruvchini tanlang';
+    if (!$('#sup').value) warn = "Tovar kimdan kelganini tanlang (yetkazib beruvchi)";
     else if (!items.length) warn = "Kamida bitta mahsulot qo'shing";
     else if (items.some((it) => !(toNum(it.quantity) > 0))) warn = 'Har bir qator uchun miqdorni kiriting';
     else if (items.some((it) => toNum(it.unit_price) < 0)) warn = "Narx manfiy bo'lishi mumkin emas";
@@ -189,13 +196,13 @@ async function renderNew(root, ctx) {
               <label class="field"><span>Miqdor</span><input class="input" inputmode="decimal" data-q="${i}" value="${esc(it.quantity)}"></label>
               <label class="field"><span>Birlik</span>
                 <select class="input" data-u="${i}">${units.map((u) => `<option value="${u.unit_id}" ${u.unit_id === it.unit_id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></label>
-              <label class="field"><span>Narx (1 ${esc(it.unit_name)}, so'm)</span><input class="input" inputmode="decimal" data-p="${i}" value="${esc(it.unit_price)}"></label>
-              <div class="field"><span>Qator summasi</span>
+              <label class="field"><span>Kelish narxi (1 ${esc(it.unit_name)}, so'm)</span><input class="input" inputmode="decimal" data-p="${i}" value="${esc(it.unit_price)}"></label>
+              <div class="field"><span>Summa</span>
                 <div class="num" style="font-weight:800;font-size:18px;padding-top:10px" data-lt="${i}">${money(lineTotal(it))}</div></div>
             </div>
           </div>`;
       }).join('')
-      : emptyState("Mahsulot qo'shing: nomini qidiring, shtrix-kodni o'qing yoki kiriting", 'box');
+      : emptyState("Tepadagi qatorga tovar nomini yozing va ro'yxatdan tanlang (yoki shtrix-kodni o'qiting)", 'box');
 
     $('#items').querySelectorAll('[data-q]').forEach((inp) => inp.addEventListener('input', () => {
       const i = Number(inp.dataset.q);
@@ -292,6 +299,48 @@ async function renderNew(root, ctx) {
   });
 
   $('#sup').addEventListener('change', totals);
+  // "Hammasi": jami summani to'liq to'langan deb yozadi
+  $('#pay-all').addEventListener('click', () => {
+    const subtotal = round2(items.reduce((sum, it) => sum + lineTotal(it), 0));
+    const total = round2(subtotal + toNum($('#dlv').value) - toNum($('#dsc').value));
+    $('#paid').value = total > 0 ? String(total) : '';
+    totals();
+  });
+  // Yetkazib beruvchini shu yerning o'zida qo'shish
+  $('#sup-new')?.addEventListener('click', () => {
+    const { close, el } = openModal({
+      title: "Yangi yetkazib beruvchi",
+      body: `<form id="nsf" class="form-grid" novalidate>
+          <label class="field"><span>Nomi *</span><input class="input" name="name" required maxlength="150" placeholder="Masalan: Bozor yoki «Baraka» ulgurji"></label>
+          <label class="field"><span>Telefon (ixtiyoriy)</span><input class="input" name="phone" inputmode="tel" maxlength="30" placeholder="+998 90 123 45 67"></label>
+          <div id="nserr"></div>
+        </form>`,
+      foot: `<button class="btn btn-outline" type="button" data-close>Bekor</button><button class="btn" type="submit" form="nsf">${icon('check', 'ico-sm')} Qo'shish</button>`,
+    });
+    el.querySelector('[name=name]').focus();
+    el.querySelector('#nsf').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = el.querySelector('[name=name]').value.trim();
+      const phone = el.querySelector('[name=phone]').value.trim();
+      if (!name) {
+        el.querySelector('#nserr').innerHTML = '<div class="alert alert-bad">Nomini kiriting</div>';
+        return;
+      }
+      try {
+        const r = await post('/suppliers', { name, phone });
+        const opt = document.createElement('option');
+        opt.value = r.supplier.id;
+        opt.textContent = r.supplier.name;
+        $('#sup').appendChild(opt);
+        $('#sup').value = String(r.supplier.id);
+        close();
+        toast(`«${r.supplier.name}» qo'shildi`, 'ok');
+        totals();
+      } catch (err) {
+        el.querySelector('#nserr').innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`;
+      }
+    });
+  });
   $('#pdate').addEventListener('change', totals);
   $('#dlv').addEventListener('input', totals);
   $('#dsc').addEventListener('input', totals);

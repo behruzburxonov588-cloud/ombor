@@ -78,28 +78,30 @@ async function tabCash(body, q, ctx, refresh) {
   const todayIn = Object.entries(sum.today).filter(([k]) => k.endsWith(':in')).reduce((s, [, v]) => s + v, 0);
   const todayOut = Object.entries(sum.today).filter(([k]) => k.endsWith(':out')).reduce((s, [, v]) => s + v, 0);
 
+  const SHIFTS_SHOWN = 7;
   body.innerHTML = `
+    <div class="card" id="shiftcard"></div>
+
+    <div class="section-title"><h2>Pul qayerda</h2><span class="muted small">hozirgi qoldiq</span></div>
     <div class="kpis">
-      <div class="kpi neutral"><div class="label">Naqd pul</div><div class="value">${money(b.cash)}</div><div class="hint">kassada</div></div>
-      <div class="kpi neutral"><div class="label">Karta</div><div class="value">${money(b.card)}</div><div class="hint">hisobda</div></div>
-      <div class="kpi neutral"><div class="label">O'tkazma</div><div class="value">${money(b.transfer)}</div><div class="hint">hisobda</div></div>
-      <div class="kpi ${b.total >= 0 ? 'good' : 'bad'}"><div class="label">Jami</div><div class="value">${money(b.total)}</div><div class="hint">barcha usullar</div></div>
+      <div class="kpi neutral"><div class="label">Naqd pul</div><div class="value">${money(b.cash)}</div><div class="hint">kassa qutisida bo'lishi kerak</div></div>
+      <div class="kpi neutral"><div class="label">Karta orqali</div><div class="value">${money(b.card)}</div><div class="hint">kartaga tushgan minus kartadan to'langan</div></div>
+      <div class="kpi neutral"><div class="label">Bank o'tkazmasi</div><div class="value">${money(b.transfer)}</div><div class="hint">${b.transfer < 0 ? "minus — o'tkazma bilan tushgandan ko'p to'langan" : "o'tkazma bilan tushgan minus to'langan"}</div></div>
+      <div class="kpi ${b.total >= 0 ? 'good' : 'bad'}"><div class="label">Hammasi</div><div class="value">${money(b.total)}</div><div class="hint">naqd + karta + o'tkazma</div></div>
     </div>
     <div class="kpis" style="margin-top:12px">
-      <div class="kpi good"><div class="label">Bugun kirim</div><div class="value">${money(todayIn)}</div></div>
-      <div class="kpi bad"><div class="label">Bugun chiqim</div><div class="value">${money(todayOut)}</div></div>
+      <div class="kpi good"><div class="label">Bugun kirdi</div><div class="value">${money(todayIn)}</div><div class="hint">savdo va boshqa tushumlar</div></div>
+      <div class="kpi bad"><div class="label">Bugun chiqdi</div><div class="value">${money(todayOut)}</div><div class="hint">to'lovlar, xarajatlar, qaytarishlar</div></div>
     </div>
 
-    <div class="card" style="margin-top:14px" id="shiftcard"></div>
-
     ${ctx.can('cash.manage') ? `<div class="row" style="margin-top:14px;flex-wrap:wrap">
-      <button class="btn btn-success" type="button" id="dep">${icon('plus', 'ico-sm')} Kirim (depozit)</button>
-      <button class="btn btn-outline" type="button" id="wd">${icon('minus', 'ico-sm')} Pul olish</button>
+      <button class="btn btn-success" type="button" id="dep">${icon('plus', 'ico-sm')} Kassaga pul qo'yish</button>
+      <button class="btn btn-outline" type="button" id="wd">${icon('minus', 'ico-sm')} Kassadan pul olish</button>
     </div>` : ''}
 
     ${canView ? `
     <div class="card" style="margin-top:14px">
-      <div class="card-head"><h2>Kassa harakatlari</h2></div>
+      <div class="card-head"><div><h2>Pul harakati</h2><div class="card-sub">Har bir kirgan va chiqqan pul</div></div></div>
       <div class="form-grid two" style="gap:10px;margin-bottom:12px">
         <label class="field"><span>Boshlanish</span><input class="input" type="date" data-from value="${esc(from)}"></label>
         <label class="field"><span>Tugash</span><input class="input" type="date" data-to value="${esc(to)}"></label>
@@ -121,17 +123,18 @@ async function tabCash(body, q, ctx, refresh) {
     </div>
 
     <div class="card" style="margin-top:14px">
-      <div class="card-head"><h2>Smenalar tarixi</h2></div>
+      <div class="card-head"><div><h2>Smenalar tarixi</h2><div class="card-sub">Smena yopilganda kassadagi pul sanaladi. «Farq» — kamomad (qizil) yoki ortiqcha (yashil)</div></div></div>
       ${shifts.shifts.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Ochilgan</th><th>Holat</th><th class="right">Boshlang'ich</th><th class="right">Kutilgan</th><th class="right">Sanalgan</th><th class="right">Farq</th></tr></thead>
-        <tbody>${shifts.shifts.map((s) => `<tr>
-          <td data-label="Ochilgan">${dateTime(s.opened_at)}<div class="small muted">${esc(s.opened_by_name || '')}</div></td>
+        <thead><tr><th>Smena ochilgan</th><th>Holat</th><th class="right">Ochilganda</th><th class="right">Bo'lishi kerak edi</th><th class="right">Sanab topildi</th><th class="right">Farq</th></tr></thead>
+        <tbody>${shifts.shifts.map((s, i) => `<tr ${i >= SHIFTS_SHOWN ? 'data-more hidden' : ''}>
+          <td data-label="Smena ochilgan">${dateTime(s.opened_at)}<div class="small muted">${esc(s.opened_by_name || '')}</div></td>
           <td data-label="Holat">${s.status === 'open' ? '<span class="badge badge-ok">Ochiq</span>' : '<span class="badge badge-muted">Yopilgan</span>'}</td>
-          <td data-label="Boshlang'ich" class="right num">${money(s.opening_amount)}</td>
-          <td data-label="Kutilgan" class="right num">${s.expected_amount === null ? '—' : money(s.expected_amount)}</td>
-          <td data-label="Sanalgan" class="right num">${s.counted_amount === null || s.counted_amount === undefined ? '—' : money(s.counted_amount)}</td>
+          <td data-label="Ochilganda" class="right num">${money(s.opening_amount)}</td>
+          <td data-label="Bo'lishi kerak edi" class="right num">${s.expected_amount === null ? '—' : money(s.expected_amount)}</td>
+          <td data-label="Sanab topildi" class="right num">${s.counted_amount === null || s.counted_amount === undefined ? '—' : money(s.counted_amount)}</td>
           <td data-label="Farq" class="right num ${Number(s.difference) < 0 ? 'red' : Number(s.difference) > 0 ? 'green' : ''}">${s.difference === null || s.difference === undefined ? '—' : money(s.difference, { sign: true })}</td>
-        </tr>`).join('')}</tbody></table></div>`
+        </tr>`).join('')}</tbody></table></div>
+        ${shifts.shifts.length > SHIFTS_SHOWN ? `<button class="btn btn-light btn-sm" type="button" id="more-shifts" style="margin-top:10px">Yana ${shifts.shifts.length - SHIFTS_SHOWN} ta smenani ko'rsatish</button>` : ''}`
         : emptyState("Smenalar yo'q", 'clock')}
     </div>` : ''}`;
 
@@ -142,9 +145,9 @@ async function tabCash(body, q, ctx, refresh) {
     sc.innerHTML = `
       <div class="between" style="flex-wrap:wrap;gap:10px">
         <div>
-          <div class="card-head" style="margin-bottom:6px"><h2>Smena: <span class="badge badge-ok">ochiq</span></h2></div>
-          <div class="small muted">Ochilgan: ${dateTime(shift.opened_at)} · boshlang'ich naqd: <b class="num">${money(shift.opening_amount)}</b></div>
-          <div style="margin-top:8px">Kutilayotgan naqd pul: <b class="big num" style="font-size:20px">${money(diffPreview)}</b></div>
+          <div class="card-head" style="margin-bottom:6px"><h2>Smena ochiq <span class="badge badge-ok">ishlayapti</span></h2></div>
+          <div class="small muted">Ochilgan: ${dateTime(shift.opened_at)} · ochilganda kassada: <b class="num">${money(shift.opening_amount)}</b></div>
+          <div style="margin-top:8px">Hozir kassada bo'lishi kerak: <b class="big num" style="font-size:20px">${money(diffPreview)}</b> <span class="small muted">naqd</span></div>
         </div>
         ${ctx.can('cash.shift') ? `<button class="btn btn-warn" type="button" id="closeshift">${icon('check', 'ico-sm')} Smenani yopish</button>` : ''}
       </div>`;
@@ -153,14 +156,18 @@ async function tabCash(body, q, ctx, refresh) {
     sc.innerHTML = `
       <div class="between" style="flex-wrap:wrap;gap:10px">
         <div>
-          <div class="card-head" style="margin-bottom:6px"><h2>Smena: <span class="badge badge-muted">yopiq</span></h2></div>
-          <div class="small muted">Savdo qilish uchun smenani oching. Naqd kirim-chiqim smena ichida hisoblanadi.</div>
+          <div class="card-head" style="margin-bottom:6px"><h2>Smena yopiq</h2></div>
+          <div class="small muted">Ish boshida smenani oching va kassadagi naqd pulni yozing. Ish oxirida yopasiz — dastur pulni tekshiradi.</div>
         </div>
         ${ctx.can('cash.shift') ? `<button class="btn btn-success" type="button" id="openshift">${icon('check', 'ico-sm')} Smenani ochish</button>` : ''}
       </div>`;
     sc.querySelector('#openshift')?.addEventListener('click', () => openShift(refresh));
   }
 
+  body.querySelector('#more-shifts')?.addEventListener('click', (e) => {
+    body.querySelectorAll('tr[data-more]').forEach((tr) => { tr.hidden = false; });
+    e.currentTarget.remove();
+  });
   body.querySelector('#dep')?.addEventListener('click', () => openMovement('deposit', refresh));
   body.querySelector('#wd')?.addEventListener('click', () => openMovement('withdrawal', refresh));
 
@@ -177,9 +184,9 @@ async function tabCash(body, q, ctx, refresh) {
 function openShift(refresh) {
   const { close, el } = openModal({
     title: 'Smenani ochish',
-    body: `<label class="field"><span>Boshlang'ich naqd pul (so'm)</span>
+    body: `<label class="field"><span>Hozir kassada qancha naqd pul bor? (so'm)</span>
              <input class="input" id="op" inputmode="decimal" value="0"></label>
-           <p class="small muted" style="margin-top:10px">Kassadagi naqd pul sanab kiritiladi.</p>
+           <p class="small muted" style="margin-top:10px">Kassadagi pulni sanab yozing. Bo'sh bo'lsa, 0 qoldiring.</p>
            <div id="err" style="margin-top:10px"></div>`,
     foot: `<button class="btn btn-outline" type="button" data-no>Bekor</button>
            <button class="btn btn-success" type="button" data-yes>Ochish</button>`,
@@ -202,8 +209,8 @@ function openShift(refresh) {
 function openCloseShift(expected, refresh) {
   const { close, el } = openModal({
     title: 'Smenani yopish',
-    body: `<p>Kutilgan naqd pul: <b class="num">${money(expected)}</b></p>
-           <label class="field" style="margin-top:12px"><span>Sanalgan naqd pul (so'm)</span>
+    body: `<p>Dastur hisobi bo'yicha kassada bo'lishi kerak: <b class="num">${money(expected)}</b></p>
+           <label class="field" style="margin-top:12px"><span>Kassadagi pulni sanang va yozing (so'm)</span>
              <input class="input" id="cc" inputmode="decimal" value="${expected}"></label>
            <div id="res" style="margin-top:12px"></div>`,
     foot: `<button class="btn btn-outline" type="button" data-no>Bekor</button>
@@ -232,15 +239,15 @@ function openCloseShift(expected, refresh) {
 }
 
 function openMovement(kind, refresh) {
-  const title = kind === 'deposit' ? "Kirim (depozit)" : 'Pul olish';
+  const title = kind === 'deposit' ? "Kassaga pul qo'yish" : 'Kassadan pul olish';
   const { close, el } = openModal({
     title,
     body: `<div class="form-grid two" style="gap:10px">
-        <label class="field"><span>Usul</span>
+        <label class="field"><span>Qayerga / qayerdan</span>
           <select class="input" id="mm"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
         <label class="field"><span>Summa (so'm) *</span><input class="input" id="ma" inputmode="decimal" placeholder="0"></label>
       </div>
-      <label class="field" style="margin-top:10px"><span>Izoh *</span>
+      <label class="field" style="margin-top:10px"><span>Nima uchun? *</span>
         <input class="input" id="mn" maxlength="200" placeholder="${kind === 'deposit' ? 'Masalan: mayda pul qo\'shildi' : 'Masalan: bankka topshirildi'}"></label>
       <div id="err" style="margin-top:10px"></div>`,
     foot: `<button class="btn btn-outline" type="button" data-no>Bekor</button>
@@ -292,7 +299,7 @@ async function tabExpenses(body, q, ctx, refresh) {
         <label class="field"><span>Turkum *</span>
           <select class="input" name="category">${categories.map((c) => `<option value="${c}">${esc(EXPENSE_LABELS[c] || c)}</option>`).join('')}</select></label>
         <label class="field"><span>Summa (so'm) *</span><input class="input" name="amount" inputmode="decimal" placeholder="0"></label>
-        <label class="field"><span>Usul</span>
+        <label class="field"><span>Qayerga / qayerdan</span>
           <select class="input" name="method"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
         <label class="field"><span>Sana</span><input class="input" type="date" name="expense_date" value="${todayStr()}"></label>
         <label class="field" style="grid-column:1/-1"><span>Izoh</span><input class="input" name="description" maxlength="200" placeholder="Masalan: oylik ijara"></label>

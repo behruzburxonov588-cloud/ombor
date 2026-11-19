@@ -12,11 +12,11 @@ const MOVEMENT_LABELS = {
 const MOVEMENT_TYPES = ['', 'purchase', 'sale', 'return', 'damage', 'correction', 'opening'];
 
 const TABS = [
-  { key: 'overview', label: 'Umumiy', perms: ['stock.view'] },
-  { key: 'movements', label: 'Harakatlar', perms: ['stock.view', 'history.view'] },
-  { key: 'adjust', label: 'Zarar / tuzatish', perms: ['stock.adjust'] },
-  { key: 'counts', label: 'Inventarizatsiya', perms: ['stock.count', 'stock.approve'] },
-  { key: 'discrepancies', label: 'Nomuvofiqliklar', perms: ['stock.view'] },
+  { key: 'overview', label: 'Qoldiq', perms: ['stock.view'] },
+  { key: 'movements', label: 'Kirdi-chiqdi tarixi', perms: ['stock.view', 'history.view'] },
+  { key: 'adjust', label: 'Buzilgan / tuzatish', perms: ['stock.adjust'] },
+  { key: 'counts', label: 'Tovar sanash', perms: ['stock.count', 'stock.approve'] },
+  { key: 'discrepancies', label: 'Sanashdagi farqlar', perms: ['stock.view'] },
 ];
 
 const toNum = (v) => {
@@ -24,12 +24,13 @@ const toNum = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-function periodCard(from, to) {
+function periodCard(from, to, note = '') {
   return `
     <div class="card" style="margin-bottom:14px">
+      ${note ? `<div class="small muted" style="margin-bottom:8px">${esc(note)}</div>` : ''}
       <div class="form-grid two" style="gap:10px">
-        <label class="field"><span>Boshlanish</span><input class="input" type="date" data-from value="${esc(from)}"></label>
-        <label class="field"><span>Tugash</span><input class="input" type="date" data-to value="${esc(to)}"></label>
+        <label class="field"><span>Qaysi sanadan</span><input class="input" type="date" data-from value="${esc(from)}"></label>
+        <label class="field"><span>Qaysi sanagacha</span><input class="input" type="date" data-to value="${esc(to)}"></label>
       </div>
     </div>`;
 }
@@ -52,7 +53,7 @@ export async function render(root, params, ctx) {
   const tab = allowed.find((t) => t.key === params.query.tab) || allowed[0];
 
   root.innerHTML = `
-    <div class="page-head"><div><h1>Ombor</h1><p class="muted">Qoldiq, harakatlar va inventarizatsiya</p></div></div>
+    <div class="page-head"><div><h1>Ombor</h1><p class="muted">Har bir tovardan qancha qolgani, nima kirib-chiqqani va tovar sanash</p></div></div>
     <div class="seg" role="tablist" style="margin-bottom:14px;flex-wrap:wrap">
       ${allowed.map((t) => `<button type="button" role="tab" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}" aria-selected="${t.key === tab.key}">${t.label}</button>`).join('')}
     </div>
@@ -77,13 +78,13 @@ async function tabOverview(body, q, ctx) {
   const items = r.items.filter((i) => !i.archived || i.current > 0);
 
   body.innerHTML = `
-    ${periodCard(from, to)}
+    ${periodCard(from, to, "«Keldi» va «Sotildi» ustunlari shu davr uchun hisoblanadi. «Hozir bor» — bugungi qoldiq.")}
     <div class="kpis">
-      <div class="kpi neutral"><div class="label">Ombor qiymati</div><div class="value">${money(t.inventory_value)}</div>
-        <div class="hint">${r.costing_method === 'FIFO' ? 'FIFO bo\'yicha' : "o'rtacha tannarx bo'yicha"}</div></div>
-      <div class="kpi neutral"><div class="label">Mahsulotlar</div><div class="value">${t.products}</div><div class="hint">faol mahsulotlar</div></div>
-      <div class="kpi ${t.low ? 'warn' : 'good'}"><div class="label">Kam qolgan</div><div class="value">${t.low}</div><div class="hint">minimal qoldiqdan kam</div></div>
-      <div class="kpi ${t.out ? 'bad' : 'good'}"><div class="label">Tugagan</div><div class="value">${t.out}</div><div class="hint">qoldiq nol</div></div>
+      <div class="kpi neutral"><div class="label">Ombordagi tovar qiymati</div><div class="value">${money(t.inventory_value)}</div>
+        <div class="hint">kelish narxida hisoblangan</div></div>
+      <div class="kpi neutral"><div class="label">Tovar turlari</div><div class="value">${t.products}</div><div class="hint">sotuvdagi mahsulotlar</div></div>
+      <div class="kpi ${t.low ? 'warn' : 'good'}"><div class="label">Kam qolgan</div><div class="value">${t.low}</div><div class="hint">tez orada olib kelish kerak</div></div>
+      <div class="kpi ${t.out ? 'bad' : 'good'}"><div class="label">Tugagan</div><div class="value">${t.out}</div><div class="hint">omborda umuman yo'q</div></div>
     </div>
     <div class="chips" style="margin-top:14px">
       <button type="button" class="chip active" data-f="">Hammasi</button>
@@ -92,15 +93,15 @@ async function tabOverview(body, q, ctx) {
     </div>
     <div class="card" style="margin-top:12px">
       ${items.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Mahsulot</th><th class="right">Kirim</th><th class="right">Sotuv</th><th class="right">Zarar</th><th class="right">Tuzatish</th><th class="right">Qoldiq</th><th class="right">Qiymat</th><th>Holat</th></tr></thead>
+        <thead><tr><th>Mahsulot</th><th class="right">Keldi</th><th class="right">Sotildi</th><th class="right" title="Buzilgan, yo'qolgan">Buzildi</th><th class="right" title="Qo'lda to'g'rilangan">Tuzatildi</th><th class="right">Hozir bor</th><th class="right">Qiymati</th><th>Holat</th></tr></thead>
         <tbody>${items.map((i) => `<tr data-st="${i.status}">
           <td data-label="Mahsulot"><b>${esc(i.name)}</b>${i.archived ? ' <span class="badge badge-muted">arxiv</span>' : ''}</td>
-          <td data-label="Kirim" class="right num">${qty(i.incoming)} ${esc(i.unit)}</td>
-          <td data-label="Sotuv" class="right num">${qty(i.sold)} ${esc(i.unit)}</td>
-          <td data-label="Zarar" class="right num ${i.damaged ? 'red' : ''}">${qty(i.damaged)}</td>
-          <td data-label="Tuzatish" class="right num">${diffHtml(i.corrected)}</td>
-          <td data-label="Qoldiq" class="right num"><b>${qty(i.current)}</b> ${esc(i.unit)}</td>
-          <td data-label="Qiymat" class="right num">${money(i.stock_value)}</td>
+          <td data-label="Keldi" class="right num">${qty(i.incoming)} ${esc(i.unit)}</td>
+          <td data-label="Sotildi" class="right num">${qty(i.sold)} ${esc(i.unit)}</td>
+          <td data-label="Buzildi" class="right num ${i.damaged ? 'red' : ''}">${qty(i.damaged)}</td>
+          <td data-label="Tuzatildi" class="right num">${diffHtml(i.corrected)}</td>
+          <td data-label="Hozir bor" class="right num"><b>${qty(i.current)}</b> ${esc(i.unit)}</td>
+          <td data-label="Qiymati" class="right num">${money(i.stock_value)}</td>
           <td data-label="Holat">${statusBadge(i.status)}</td>
         </tr>`).join('')}</tbody></table></div>`
         : emptyState("Mahsulot yo'q", 'layers')}

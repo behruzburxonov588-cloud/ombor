@@ -91,6 +91,7 @@ export const ICONS = {
   calc: '<rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>',
 
   rocket: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+  help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
   image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
 };
 
@@ -111,12 +112,14 @@ export function esc(value) {
 
 export function num(value, max = 2) {
   const n = Number(value || 0);
-  return n.toLocaleString('en-US', { maximumFractionDigits: max, minimumFractionDigits: 0 }).replace(/,/g, ' ');
+  // O'zbekcha yozuv: minglar bo'sh joy bilan, kasr vergul bilan (1 234,5)
+  return n.toLocaleString('en-US', { maximumFractionDigits: max, minimumFractionDigits: 0 }).replace(/,/g, ' ').replace('.', ',');
 }
 
 export function money(value, { sign = false } = {}) {
   const n = Number(value || 0);
-  const text = `${num(Math.abs(n), 2)} so'm`;
+  // So'mda tiyin amalda ishlatilmaydi: 100 so'mdan katta summalar butun ko'rsatiladi
+  const text = `${num(Math.abs(n), Math.abs(n) >= 100 ? 0 : 2)} so'm`;
   if (sign && n > 0) return `+${text}`;
   if (n < 0) return `-${text}`;
   return text;
@@ -257,7 +260,7 @@ export function openModal({ title, body = '', foot = '', wide = false, onMount, 
   backdrop.addEventListener('click', (e) => {
     if (e.target === backdrop) close();
   });
-  root.querySelector('[data-close]').addEventListener('click', close);
+  root.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
   document.addEventListener('keydown', onKey);
   const modalEl = root.querySelector('.modal');
   if (onMount) onMount(modalEl, close);
@@ -368,6 +371,21 @@ export function pctText(v, digits = 1) {
 }
 
 // O'zgarish belgisi. goodWhenUp=false bo'lsa (xarajat), o'sish qizil ko'rsatiladi
+// Farqni foiz o'rniga oddiy son bilan ko'rsatadi: "↑ 675 ming" yoki "↓ 3 ta"
+export function deltaAmount(cur, prev, { goodWhenUp = true, unit = 'money', title = '' } = {}) {
+  const c = Number(cur || 0);
+  const p = Number(prev || 0);
+  const diff = c - p;
+  const base = Math.max(Math.abs(p), Math.abs(c));
+  if (base === 0 || Math.abs(diff) < base * 0.005) {
+    return `<span class="delta flat" title="${esc(title)}">${icon('flat', 'ico-xs')}o'zgarmadi</span>`;
+  }
+  const up = diff > 0;
+  const good = up === goodWhenUp;
+  const amount = unit === 'money' ? compact(Math.abs(diff)) : `${num(Math.abs(diff), 0)} ${unit}`;
+  return `<span class="delta ${good ? 'up' : 'down'}" title="${esc(title)}">${icon(up ? 'up' : 'down', 'ico-xs')}${amount}</span>`;
+}
+
 export function deltaPill(change, { goodWhenUp = true, title = '' } = {}) {
   if (change === null || change === undefined) {
     return `<span class="delta flat" title="${esc(title || "Oldingi davrda ma'lumot yo'q")}">yangi</span>`;

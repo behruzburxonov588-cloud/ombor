@@ -24,10 +24,15 @@ export function dmy(date) {
 }
 
 // "kechaga nisbatan 12% ko'p" kabi taqqoslash iborasi
+// Ikki barobardan oshsa "2,6 barobar ko'p" deb yoziladi — foizdan tushunarliroq
 export function compareText(cur, prev, against) {
   const ch = pctChange(cur, prev);
   if (ch === null) return `${against} hech narsa yo'q edi`;
   if (Math.abs(ch) < 0.5) return `${against} deyarli bir xil`;
+  if (ch >= 100 && Number(prev) > 0) {
+    const times = Number(cur) / Number(prev);
+    return `${against} ${times.toFixed(times >= 10 ? 0 : 1).replace('.', ',').replace(/,0$/, '')} barobar ko'p`;
+  }
   return `${against} ${pct(Math.abs(ch), Math.abs(ch) >= 10 ? 0 : 1)} ${ch > 0 ? "ko'p" : 'kam'}`;
 }
 
@@ -112,21 +117,25 @@ export function periodSentences({ cur, prev }, { label, against, financial }) {
   if (cur.sales_count === 0) {
     lines.push(`${label} savdo bo'lmadi.`);
   } else {
-    lines.push(`${label} ${cur.sales_count} ta savdo bo'ldi, sof tushum ${money(cur.net_revenue)} — ${compareText(cur.net_revenue, prev.net_revenue, against)}.`);
+    lines.push(`${label} ${cur.sales_count} ta savdo bo'ldi, ${money(cur.net_revenue)} tushdi — ${compareText(cur.net_revenue, prev.net_revenue, against)}.`);
   }
   if (financial) {
     if (cur.sales_count > 0 || cur.expenses > 0) {
-      const tone = cur.net_profit >= 0 ? 'Sof foyda' : 'Sof zarar';
-      lines.push(`${tone}: ${money(Math.abs(cur.net_profit))}${cur.net_revenue > 0 ? ` (marja ${pct(cur.net_margin)})` : ''}. Yalpi foyda ${money(cur.gross_profit)}.`);
+      const per100 = cur.net_revenue > 0 ? Math.round(Math.abs(cur.net_margin)) : 0;
+      if (cur.net_profit >= 0) {
+        lines.push(`Sof foyda (qo'lingizda qoladigani): ${money(cur.net_profit)}${per100 > 0 ? ` — har 100 so'm savdodan ${per100} so'm` : ''}.`);
+      } else {
+        lines.push(`Zarar: ${money(Math.abs(cur.net_profit))} — xarajatlar savdo foydasidan ko'p bo'ldi.`);
+      }
     }
-    if (cur.expenses > 0) lines.push(`Xarajatlar: ${money(cur.expenses)}.`);
+    if (cur.expenses > 0) lines.push(`Xarajatlar (ijara, maosh va boshqalar): ${money(cur.expenses)}.`);
     if (cur.returns > 0 || cur.discounts > 0) {
       const parts = [];
-      if (cur.returns > 0) parts.push(`qaytarishlar ${money(cur.returns)}`);
-      if (cur.discounts > 0) parts.push(`chegirmalar ${money(cur.discounts)}`);
-      lines.push(`Tushumdan ayirilgan: ${parts.join(', ')}.`);
+      if (cur.returns > 0) parts.push(`qaytarilgan tovar ${money(cur.returns)}`);
+      if (cur.discounts > 0) parts.push(`chegirma ${money(cur.discounts)}`);
+      lines.push(`Savdodan ayirildi: ${parts.join(', ')}.`);
     }
-    if (cur.losses > 0) lines.push(`Ombor yo'qotishlari: ${money(cur.losses)}.`);
+    if (cur.losses > 0) lines.push(`Buzilgan yoki yo'qolgan tovar: ${money(cur.losses)}.`);
   }
   return lines;
 }
@@ -188,14 +197,14 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
       if (ch <= -t.sales_decline_pct) {
         out.push({
           id: 'sales_trend', kind: 'sales_decline', level: 'warning', title: 'Savdo pasaymoqda',
-          text: `So'nggi 7 kunda sof tushum ${money(w.net_revenue)} — oldingi 7 kundan ${pct(Math.abs(ch), 0)} kam.`,
+          text: `So'nggi 7 kunda ${money(w.net_revenue)} savdo bo'ldi — oldingi 7 kundan ${pct(Math.abs(ch), 0)} kam.`,
           recommendation: "Eng ko'p sotiladigan mahsulotlar omborda borligini tekshiring, mijozlarga aksiya yoki chegirma taklif qiling.",
           link: '#/reports?tab=sales',
         });
       } else if (ch >= 10) {
         out.push({
           id: 'sales_trend', kind: 'sales_growth', level: 'success', title: "Savdo o'smoqda",
-          text: `So'nggi 7 kunda sof tushum ${money(w.net_revenue)} — oldingi 7 kundan ${pct(ch, 0)} ko'p.`,
+          text: `So'nggi 7 kunda ${money(w.net_revenue)} savdo bo'ldi — oldingi 7 kundan ${pct(ch, 0)} ko'p.`,
           recommendation: "Talab oshgan mahsulotlar zaxirasini oldindan to'ldiring.",
           link: '#/reports?tab=sales',
         });
@@ -212,8 +221,8 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
         const discShareBase = base.gross_revenue > 0 ? (base.discounts / base.gross_revenue) * 100 : 0;
         out.push({
           id: 'margin_change', kind: 'margin_change', level: down ? 'warning' : 'success',
-          title: down ? 'Foyda marjasi pasaydi' : 'Foyda marjasi oshdi',
-          text: `Yalpi marja ${pct(base.gross_margin)} dan ${pct(w.gross_margin)} ga ${down ? 'tushdi' : "ko'tarildi"} (so'nggi 7 kun).`,
+          title: down ? 'Har sotuvdan foyda kamaydi' : 'Har sotuvdan foyda oshdi',
+          text: `So'nggi 7 kunda har 100 so'm savdodan ${Math.round(w.gross_margin)} so'm foyda qoldi (oldin ${Math.round(base.gross_margin)} so'm edi).`,
           recommendation: down
             ? (discShareNow > discShareBase + 2
               ? `Chegirmalar ulushi ${pct(discShareBase)} dan ${pct(discShareNow)} ga oshgan — chegirmalarni nazorat qiling.`
@@ -309,9 +318,9 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
     if (inv.restock.length) {
       const critical = inv.restock.filter((p) => p.status === 'out').length;
       out.push({
-        id: 'restock', kind: 'restock', level: critical ? 'critical' : 'warning', title: 'Qayta buyurtma kerak',
+        id: 'restock', kind: 'restock', level: critical ? 'critical' : 'warning', title: 'Olib kelish kerak',
         text: `${inv.restock.length} ta mahsulot: ${inv.restock.slice(0, 4).map((p) => `${p.name} (~${p.suggested_qty} ${p.unit})`).join(', ')}${inv.restock.length > 4 ? ' va boshqalar' : ''}.`,
-        recommendation: "Tavsiya etilgan miqdor so'nggi 30 kunlik savdo va minimal qoldiq asosida hisoblangan (taxminan 2 haftalik zaxira).",
+        recommendation: "Qavs ichidagi miqdor taxminan 2 haftaga yetadi (so'nggi 30 kunlik savdoga qarab hisoblangan).",
         link: '#/reports?tab=inventory',
         products: inv.restock.slice(0, 8).map((p) => ({ id: p.id, name: p.name, suggested_qty: p.suggested_qty, unit: p.unit, status: p.status })),
       });
@@ -327,8 +336,8 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
     }
     if (inv.overstock.length) {
       out.push({
-        id: 'overstock', kind: 'overstock', level: 'info', title: 'Ortiqcha zaxira',
-        text: `${inv.overstock.length} ta mahsulot zaxirasi 90 kundan ko'proqqa yetadi (ortiqcha qism ≈ ${money(inv.totals.excess_value)}).`,
+        id: 'overstock', kind: 'overstock', level: 'info', title: "Ko'p turib qolgan tovar",
+        text: `${inv.overstock.length} ta mahsulot omborda 3 oydan ko'proqqa yetadigan darajada ko'p (ortiqcha qismga ≈ ${money(inv.totals.excess_value)} pul bog'langan).`,
         recommendation: 'Keyingi kirimda bu mahsulotlarni kamroq oling.',
         link: '#/reports?tab=slow',
       });
@@ -414,7 +423,7 @@ export async function briefing(db, user, { thresholds } = {}) {
   if (changes.length) {
     const lost = changes.filter((c) => c.value < 0).reduce((s, c) => s - c.value, 0);
     attention.push({
-      level: 'info', kind: 'inventory_change', title: `So'nggi 24 soatda ${changes.length} ta ombor tuzatishi`,
+      level: 'info', kind: 'inventory_change', title: `So'nggi 24 soatda ${changes.length} ta tovar qoldig'i qo'lda o'zgartirildi`,
       text: `${changes.slice(0, 3).map((c) => `${c.name}: ${c.quantity > 0 ? '+' : ''}${round2(c.quantity)} ${c.unit}`).join('; ')}${lost > 0 ? `. Yo'qotish: ${money(lost)}` : ''}`,
       link: '#/stock?tab=movements',
     });

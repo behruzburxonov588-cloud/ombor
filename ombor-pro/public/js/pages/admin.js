@@ -248,10 +248,10 @@ async function renderSettings(root, ctx) {
 
       <div class="card-head" style="margin-top:6px"><h2>Hisob-kitob</h2></div>
       <div class="form-grid two" style="gap:10px">
-        <label class="field"><span>Tannarx usuli</span>
+        <label class="field"><span>Foydani hisoblash usuli</span>
           <select class="input" name="costing_method">
-            <option value="FIFO" ${s.costing_method === 'FIFO' ? 'selected' : ''}>FIFO: birinchi kirgan, birinchi chiqadi</option>
-            <option value="WAVG" ${s.costing_method === 'WAVG' ? 'selected' : ''}>WAVG: o'rtacha tannarx</option>
+            <option value="FIFO" ${s.costing_method === 'FIFO' ? 'selected' : ''}>Avval kelgan tovar avval sotiladi (tavsiya)</option>
+            <option value="WAVG" ${s.costing_method === 'WAVG' ? 'selected' : ''}>O'rtacha kelish narxi bo'yicha</option>
           </select>
           <small>O'zgartirish faqat keyingi amallarga ta'sir qiladi. Eski tarix o'zgarmaydi.</small></label>
         <label class="field"><span>Qarz ogohlantirish (kun oldin)</span>

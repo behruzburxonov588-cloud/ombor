@@ -2,7 +2,7 @@
 // Barcha raqamlar /api/analytics/dashboard dan (haqiqiy yozuvlar asosida) olinadi.
 import {
   get, put, esc, icon, num, compact, moneyFull, kpiMoney, deltaPill, pctText, dateTime, timeAgo, longDate,
-  shortDate, weekdayShort, RANGE_PRESETS, presetRange, todayStr, openModal, toast, errorToast,
+  shortDate, weekdayShort, deltaAmount, RANGE_PRESETS, presetRange, todayStr, openModal, toast, errorToast,
   productThumb, emptyState,
 } from '../ui.js';
 import { chart, sparkline, segbar, tableView } from '../charts.js';
@@ -11,10 +11,10 @@ const C = { s1: '#2a78d6', s2: '#1a9a62', prev: '#b9bfc9', pos: '#16794c', neg: 
 const WIDGET_LABELS = {
   assistant: 'Bugungi xulosa (yordamchi)',
   kpis: "Asosiy ko'rsatkichlar",
-  sales_chart: 'Savdo dinamikasi',
-  pnl: 'Foyda va zarar',
-  top_products: 'Mahsulotlar reytingi',
-  forecast: 'Keyingi 7 kun prognozi',
+  sales_chart: 'Savdo grafigi',
+  pnl: 'Foyda hisobi',
+  top_products: 'Qaysi tovarlar yaxshi sotilmoqda',
+  forecast: 'Keyingi 7 kun (taxmin)',
   inventory: 'Ombor holati',
   recent: "So'nggi amallar",
 };
@@ -74,10 +74,12 @@ function compareLabel(r) {
   return `oldingi ${RANGE_PRESETS.find((p) => p.key === r.key)?.days} kunga nisbatan`;
 }
 function shortCompare(r) {
-  if (r.key === 'today') return 'kechaga nisbatan';
-  if (r.key === 'custom') return 'oldingi davrga';
-  return `oldingi ${RANGE_PRESETS.find((p) => p.key === r.key)?.days} kunga`;
+  if (r.key === 'today') return 'kechagiga nisbatan';
+  if (r.key === 'custom') return 'oldingi davrga nisbatan';
+  return `oldingi ${RANGE_PRESETS.find((p) => p.key === r.key)?.days} kunga nisbatan`;
 }
+// Grafik izohidagi nomlar: "Bugun / Kecha" yoki "Shu davr / Oldingi davr"
+const seriesNames = (r) => (r.key === 'today' ? ['Bugun', 'Kecha'] : ['Shu davr', 'Oldingi davr']);
 
 export async function render(root, params, ctx) {
   if (!prefsCache) prefsCache = (await get('/me/preferences')).prefs;
@@ -253,13 +255,13 @@ function assistantCard(b) {
         <div>
           <div class="card-head" style="margin-bottom:10px">
             <div class="row" style="gap:10px"><span class="brand-mark" style="width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent)">${icon('sparkles', 'ico-sm')}</span>
-              <div><h2>Bugungi xulosa</h2><div class="card-sub">Haqiqiy savdo va ombor ma'lumotlaridan</div></div></div>
+              <div><h2>Qisqacha xulosa</h2><div class="card-sub">Dastur savdolaringiz asosida tayyorladi</div></div></div>
           </div>
           <div class="brief-text">${b.summary.map((s) => `<p>${esc(s)}</p>`).join('')}</div>
           ${insight ? `<div class="note" style="margin-top:12px">${icon('bulb', 'ico-xs')}<span><b style="color:var(--text);font-weight:550">${esc(insight.title)}.</b> ${esc(insight.recommendation)}</span></div>` : ''}
         </div>
         <div>
-          <div class="between" style="margin-bottom:6px"><h4 class="muted" style="font-weight:550">Diqqat talab qiladi</h4><a class="link-btn" href="#/assistant">Yordamchi ${icon('right', 'ico-xs')}</a></div>
+          <div class="between" style="margin-bottom:6px"><h4 class="muted" style="font-weight:550">Diqqat talab qiladi</h4><a class="link-btn" href="#/assistant">Maslahatlar ${icon('right', 'ico-xs')}</a></div>
           ${attn.length ? `<div class="attn">${attn.map((a) => `
             <a class="attn-item" href="${esc(a.link)}"><span class="lvl lvl-${esc(a.level)}"></span><div style="min-width:0"><b>${esc(a.title)}</b><span>${esc(a.text)}</span></div></a>`).join('')}</div>`
     : `<div class="alert alert-ok">${icon('ok', 'ico-sm')}<div>Hozircha shoshilinch masala yo'q</div></div>`}
@@ -275,45 +277,47 @@ function kpiCards(d, range) {
   const q = `from=${range.from}&to=${range.to}`;
   const cmp = compareLabel(range);
   const shortCmp = shortCompare(range);
-  const card = ({ label, kpi, href, note, goodWhenUp = true, color = C.s1, valueHtml, snapshot = false, hint }) => `
+  const today = range.key === 'today';
+  const startNote = today ? 'bugun ertalabga nisbatan' : 'davr boshiga nisbatan';
+  const card = ({ label, kpi, href, note, goodWhenUp = true, color = C.s1, valueHtml, snapshot = false, hint, unit = 'money' }) => `
     <a class="stat" href="${href}" title="${esc(hint || '')}">
       <div class="stat-label">${esc(label)}<span class="go">${icon('arrowUpRight', 'ico-xs')}</span></div>
       <div class="stat-value ${kpi.value < 0 ? 'neg' : ''}" title="${esc(`${moneyFull(kpi.value)} so'm`)}">${valueHtml || kpiMoney(kpi.value)}</div>
       ${sparkline(kpi.spark, { color })}
-      <div class="stat-foot">${deltaPill(kpi.change, { goodWhenUp, title: snapshot ? 'davr boshiga nisbatan' : cmp })}<span class="stat-note" title="${esc(note)}">${esc(note)}</span></div>
+      <div class="stat-foot">${deltaAmount(kpi.value, kpi.previous, { goodWhenUp, unit, title: snapshot ? startNote : cmp })}<span class="stat-note">${esc(note || (snapshot ? startNote : shortCmp))}</span></div>
     </a>`;
   const cards = [];
   cards.push(card({
-    label: range.key === 'today' ? 'Bugungi tushum' : 'Sof tushum', kpi: k.revenue, href: `#/reports?tab=sales&${q}`,
-    note: shortCmp, hint: "Sof tushum = sotuvlar − chegirmalar − qaytarishlar. Qarz to'lovlari kirmaydi.",
+    label: today ? 'Bugun sotildi' : 'Sotuvdan tushum', kpi: k.revenue, href: `#/reports?tab=sales&${q}`,
+    hint: "Sotuvdan tushgan pul (chegirma va qaytarilgan tovar ayirilgan). Qarz to'lovlari kirmaydi.",
   }));
   if (k.net_profit) {
     cards.push(card({
-      label: range.key === 'today' ? 'Bugungi sof foyda' : 'Sof foyda', kpi: k.net_profit, href: `#/reports?tab=pnl&${q}`,
-      note: k.net_profit.margin ? `marja ${pctText(k.net_profit.margin)}` : shortCmp, color: k.net_profit.value >= 0 ? C.s2 : C.neg,
-      hint: "Sof foyda = sof tushum − tannarx − xarajatlar − ombor yo'qotishlari",
+      label: today ? 'Bugungi sof foyda' : 'Sof foyda', kpi: k.net_profit, href: `#/reports?tab=pnl&${q}`,
+      color: k.net_profit.value >= 0 ? C.s2 : C.neg,
+      hint: "Qo'lingizda qoladigan pul: tushum − tovarlarning kelish narxi − xarajatlar − buzilgan tovar",
     }));
   }
   if (k.expenses) {
     cards.push(card({
       label: 'Xarajatlar', kpi: k.expenses, href: `#/cash?tab=expenses&${q}`, goodWhenUp: false, color: C.cost,
-      note: k.expenses.losses > 0 ? `+ yo'qotish ${compact(k.expenses.losses)}` : shortCmp, hint: 'Ijara, maosh, kommunal va boshqa operatsion xarajatlar',
+      note: k.expenses.losses > 0 ? `+ buzilgan tovar ${compact(k.expenses.losses)}` : '', hint: 'Ijara, maosh, kommunal va boshqa chiqimlar',
     }));
   }
   cards.push(card({
-    label: 'Savdolar soni', kpi: k.sales_count, href: `#/sales/history?${q}`, valueHtml: `${num(k.sales_count.value, 0)}<span class="cur">ta</span>`,
-    note: `o'rtacha ${compact(k.sales_count.avg_order)}`, hint: 'Yakunlangan cheklar soni',
+    label: 'Cheklar soni', kpi: k.sales_count, href: `#/sales/history?${q}`, valueHtml: `${num(k.sales_count.value, 0)}<span class="cur">ta</span>`,
+    unit: 'ta', note: k.sales_count.value ? `o'rtacha chek ${compact(k.sales_count.avg_order)}` : '', hint: 'Nechta xaridor xarid qildi (yakunlangan cheklar)',
   }));
   if (k.inventory_value) {
     cards.push(card({
       label: 'Ombordagi tovar', kpi: k.inventory_value, href: '#/reports?tab=inventory', snapshot: true, color: C.cost,
-      note: 'tannarxda', hint: "Omborga sarflangan pul (sotib olish narxida)",
+      note: 'kelish narxida', hint: "Ombordagi barcha tovarlar kelish narxida qancha turadi",
     }));
   }
   if (k.customer_debt) {
     cards.push(card({
       label: 'Mijozlar qarzi', kpi: k.customer_debt, href: '#/debts', snapshot: true, goodWhenUp: false, color: C.warn,
-      note: 'jami nasiya', hint: "Mijozlarning to'lanmagan nasiya qarzi",
+      note: 'nasiya, jami', hint: "Mijozlarning hali to'lanmagan nasiyasi",
     }));
   }
   return `<div class="stats ${cards.length <= 3 ? 'three' : cards.length === 4 ? 'four' : ''}">${cards.join('')}</div>`;
@@ -323,30 +327,26 @@ function kpiCards(d, range) {
 
 const METRICS = [
   { key: 'net_revenue', label: 'Tushum', money: true },
-  { key: 'gross_profit', label: 'Yalpi foyda', money: true, financial: true },
-  { key: 'sales_count', label: 'Savdolar', money: false },
+  { key: 'gross_profit', label: 'Savdo foydasi', money: true, financial: true },
+  { key: 'sales_count', label: 'Cheklar soni', money: false },
   { key: 'avg_order', label: "O'rtacha chek", money: true },
 ];
 
-function salesCard(d) {
-  const s = d.sales;
+function salesCard(d, range) {
   const metrics = METRICS.filter((m) => !m.financial || d.access.financial);
-  const gp = d.pnl ? `<div><div class="l">Yalpi foyda</div><div class="v">${compact(d.pnl.current.gross_profit)}</div><div class="d">${deltaPill(pctFrom(d.pnl.current.gross_profit, d.pnl.previous.gross_profit))}</div></div>` : '';
+  const [curName, prevName] = seriesNames(range);
+  const sub = d.chart.grain === 'hour'
+    ? "Har soatda qancha sotildi. Kulrang chiziq — kechagi kun"
+    : "Har kuni qancha sotildi. Kulrang chiziq — oldingi davr";
   return `
     <section class="card" style="height:100%">
       <div class="card-head" style="margin-bottom:10px">
-        <div><h2>Savdo dinamikasi</h2><div class="card-sub">${d.chart.grain === 'hour' ? 'Soatlar bo\'yicha, kecha bilan solishtirib' : 'Kunlar bo\'yicha, oldingi davr bilan solishtirib'}</div></div>
+        <div><h2>Savdo grafigi</h2><div class="card-sub">${sub}</div></div>
         <button class="btn btn-ghost btn-sm" type="button" data-table-toggle>${icon('table', 'ico-sm')} Jadval</button>
-      </div>
-      <div class="mini-stats" style="margin-bottom:14px">
-        <div><div class="l">Sof tushum</div><div class="v">${compact(s.net_revenue)}</div><div class="d">${deltaPill(pctFrom(s.net_revenue, s.previous.net_revenue))}</div></div>
-        <div><div class="l">Savdolar</div><div class="v">${num(s.sales_count, 0)}</div><div class="d">${deltaPill(pctFrom(s.sales_count, s.previous.sales_count))}</div></div>
-        <div><div class="l">O'rtacha chek</div><div class="v">${compact(s.avg_order)}</div><div class="d">${deltaPill(pctFrom(s.avg_order, s.previous.avg_order))}</div></div>
-        ${gp || `<div><div class="l">Pozitsiyalar</div><div class="v">${num(s.lines, 0)}</div><div class="d"><span class="muted small">chekdagi qatorlar</span></div></div>`}
       </div>
       <div class="legend-row">
         <div class="ptabs" style="margin:0;border:0" role="tablist">${metrics.map((m, i) => `<button type="button" data-metric="${m.key}" class="${i === 0 ? 'active' : ''}">${m.label}</button>`).join('')}</div>
-        <div class="legend"><span><i style="background:${C.s1}"></i>Joriy davr</span><span><i style="background:${C.prev}"></i>Oldingi davr</span></div>
+        <div class="legend"><span><i style="background:${C.s1}"></i>${curName}</span><span><i style="background:${C.prev}"></i>${prevName}</span></div>
       </div>
       <div data-chart="sales"></div>
       <div data-table hidden></div>
@@ -358,13 +358,14 @@ function pctFrom(cur, prev) {
   return ((cur - prev) / Math.abs(prev)) * 100;
 }
 
-function mountSalesChart(host, d) {
+function mountSalesChart(host, d, range) {
   const box = host.querySelector('[data-chart="sales"]');
   if (!box) return;
   const hourly = d.chart.grain === 'hour';
   const cur = d.chart.current;
   const prev = d.chart.previous;
   let metric = METRICS[0];
+  const [curName, prevName] = seriesNames(range);
   const labels = cur.map((x) => x.day);
   // Bugun: hali kelmagan soatlar chizilmaydi
   const nowHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hour12: false }).format(new Date()));
@@ -379,13 +380,13 @@ function mountSalesChart(host, d) {
       tickLabel: (i) => (hourly ? `${String(i).padStart(2, '0')}:00` : shortDate(labels[i])),
       titleFor: (i) => (hourly ? `${labels[i]} – ${String(i + 1).padStart(2, '0')}:00` : `${weekdayShort(labels[i])}, ${shortDate(labels[i])}`),
       series: [
-        { name: 'Oldingi davr', values: prev.map((x) => x[metric.key]), color: C.prev, width: 1.5 },
-        { name: 'Joriy davr', values: curVals, color: C.s1, area: true, endDot: true },
+        { name: prevName, values: prev.map((x) => x[metric.key]), color: C.prev, width: 1.5 },
+        { name: curName, values: curVals, color: C.s1, area: true, endDot: true },
       ],
       format: fmt,
       axisFormat: metric.money ? (v) => compact(v) : (v) => num(v, 0),
       height: 250,
-      ariaLabel: `${metric.label}: joriy va oldingi davr grafigi`,
+      ariaLabel: `${metric.label}: ${curName.toLowerCase()} va ${prevName.toLowerCase()} grafigi`,
     });
     c.box = box;
     charts.push(c);
@@ -393,7 +394,7 @@ function mountSalesChart(host, d) {
     table.innerHTML = tableView([
       { label: hourly ? 'Soat' : 'Sana', get: (r) => (hourly ? r.cur.day : shortDate(r.cur.day)) },
       { label: metric.label, right: true, get: (r) => fmt(r.cur[metric.key]) },
-      { label: 'Oldingi davr', right: true, get: (r) => (r.prev ? fmt(r.prev[metric.key]) : '—') },
+      { label: prevName, right: true, get: (r) => (r.prev ? fmt(r.prev[metric.key]) : '—') },
     ], cur.map((x, i) => ({ cur: x, prev: prev[i] })));
   };
   draw();
@@ -413,35 +414,36 @@ function mountSalesChart(host, d) {
 function pnlCard(d) {
   const c = d.pnl.current;
   const p = d.pnl.previous;
-  const row = (label, cur, prev, cls = '', goodWhenUp = true) => `
-    <div class="pnl-row ${cls}"><span class="lbl">${label}</span><span class="val ${cls.includes('grand') && cur < 0 ? 'neg' : ''}">${moneyFull(cur)}</span>
-      <span class="chg">${cls.includes('sub') ? '' : deltaPill(pctFrom(cur, prev), { goodWhenUp })}</span></div>`;
+  const row = (label, cur, prev, cls = '', goodWhenUp = true, tip = '') => `
+    <div class="pnl-row ${cls}" ${tip ? `title="${esc(tip)}"` : ''}><span class="lbl">${label}</span><span class="val ${cls.includes('grand') && cur < 0 ? 'neg' : ''}">${moneyFull(cur)}</span>
+      <span class="chg">${cls.includes('sub') ? '' : deltaAmount(cur, prev, { goodWhenUp, title: 'oldingi davrga nisbatan' })}</span></div>`;
   const parts = [
-    { label: 'Tannarx', value: Math.max(0, c.cogs), color: C.cost },
+    { label: 'Tovar kelish narxi', value: Math.max(0, c.cogs), color: C.cost },
     { label: 'Xarajatlar', value: Math.max(0, c.expenses), color: C.warn },
-    { label: "Yo'qotishlar", value: Math.max(0, c.losses), color: C.neg },
+    { label: 'Buzilgan tovar', value: Math.max(0, c.losses), color: C.neg },
     { label: 'Sof foyda', value: Math.max(0, c.net_profit), color: C.s2 },
   ];
+  const per100 = c.net_revenue > 0 ? Math.round(Math.max(0, c.net_margin)) : 0;
   return `
     <section class="card" style="height:100%">
-      <div class="card-head"><div><h2>Foyda va zarar</h2><div class="card-sub">so'mda, oldingi davr bilan</div></div>
+      <div class="card-head"><div><h2>Foyda hisobi</h2><div class="card-sub">Sotuvdan tushgan puldan nima qoldi</div></div>
         <a class="link-btn" href="#/reports?tab=pnl&from=${d.range.from}&to=${d.range.to}">Batafsil ${icon('right', 'ico-xs')}</a></div>
       <div class="pnl-list">
-        ${row('Yalpi tushum', c.gross_revenue, p.gross_revenue)}
+        ${row('Jami sotuv', c.gross_revenue, p.gross_revenue, '', true, 'Chegirma va qaytarishdan oldingi summa')}
         ${row('− Chegirmalar', c.discounts, p.discounts, 'sub')}
-        ${row('− Qaytarishlar', c.returns, p.returns, 'sub')}
-        ${row('Sof tushum', c.net_revenue, p.net_revenue, 'total')}
-        ${row('− Tovar tannarxi', c.cogs, p.cogs, 'sub')}
-        ${row('Yalpi foyda', c.gross_profit, p.gross_profit, 'total')}
+        ${row('− Qaytarilgan tovar', c.returns, p.returns, 'sub')}
+        ${row('Tushum', c.net_revenue, p.net_revenue, 'total', true, 'Haqiqatda tushgan pul')}
+        ${row('− Tovarlarning kelish narxi', c.cogs, p.cogs, 'sub', true, "Sotilgan tovarlarni o'zingiz necha so'mga olgansiz")}
+        ${row('Savdo foydasi', c.gross_profit, p.gross_profit, 'total', true, 'Tushum minus tovarlarning kelish narxi')}
         ${row('− Xarajatlar', c.expenses, p.expenses, 'sub', false)}
-        ${row("− Ombor yo'qotishlari", c.losses, p.losses, 'sub', false)}
-        ${row(c.net_profit >= 0 ? 'Sof foyda' : 'Sof zarar', c.net_profit, p.net_profit, 'grand')}
+        ${row("− Buzilgan / yo'qolgan tovar", c.losses, p.losses, 'sub', false)}
+        ${row(c.net_profit >= 0 ? "Sof foyda (qo'lga qoladi)" : 'Zarar', c.net_profit, p.net_profit, 'grand')}
       </div>
       <div style="margin-top:14px">
-        <div class="between small" style="margin-bottom:6px"><span class="muted">Sof tushum qayerga ketdi</span><span class="muted">sof marja <b style="color:var(--text)">${pctText(c.net_margin)}</b></span></div>
+        <div class="between small" style="margin-bottom:6px"><span class="muted">Tushum qayerga ketdi</span>${per100 ? `<span class="muted">har 100 so'mdan <b style="color:var(--text)">${per100} so'm</b> foyda</span>` : ''}</div>
         ${segbar(parts)}
         <div class="legend" style="margin-top:8px">${parts.map((x) => `<span><i class="box" style="background:${x.color}"></i>${x.label}</span>`).join('')}</div>
-        ${c.net_profit < 0 ? `<div class="note" style="margin-top:10px">${icon('info', 'ico-xs')}<span>Bu davrda xarajatlar yalpi foydadan ${compact(Math.abs(c.net_profit), { unit: true })} ko'p.</span></div>` : ''}
+        ${c.net_profit < 0 ? `<div class="note" style="margin-top:10px">${icon('info', 'ico-xs')}<span>Bu davrda xarajatlar savdo foydasidan ${compact(Math.abs(c.net_profit), { unit: true })} ko'p bo'ldi.</span></div>` : ''}
       </div>
     </section>`;
 }
@@ -449,17 +451,16 @@ function pnlCard(d) {
 // ---------- Mahsulotlar reytingi ----------
 
 const TOP_TABS = [
-  { key: 'best', label: "Eng ko'p sotilgan", value: (p) => [compact(p.revenue, { unit: true }), `${num(p.qty_sold, 2)} ${p.unit}`] },
-  { key: 'profit', label: 'Eng foydali', value: (p) => [compact(p.profit, { unit: true }), `marja ${pctText(p.margin)}`] },
-  { key: 'frequent', label: "Ko'p xarid", value: (p) => [`${p.receipts} chek`, compact(p.revenue, { unit: true })] },
-  { key: 'slow', label: 'Sekin', value: (p) => [`${pctText(p.sell_through, 0)}`, 'sotilish ulushi'] },
+  { key: 'best', label: "Ko'p sotilgan", value: (p) => [compact(p.revenue, { unit: true }), `${num(p.qty_sold, 2)} ${p.unit} sotildi`] },
+  { key: 'profit', label: 'Eng foydali', value: (p) => [compact(p.profit, { unit: true }), `har 100 so'mdan ${Math.round(Math.max(0, p.margin || 0))} so'm`] },
+  { key: 'slow', label: 'Sekin sotiladi', value: (p) => [`${pctText(p.sell_through, 0)}`, 'qoldiqdan sotilgani'] },
   { key: 'zero', label: 'Sotilmagan', value: (p) => [compact(p.stock_value, { unit: true }), 'omborda turibdi'] },
 ];
 
 function topCard(d) {
   return `
     <section class="card" style="height:100%">
-      <div class="card-head" style="margin-bottom:8px"><div><h2>Mahsulotlar reytingi</h2><div class="card-sub">Tanlangan davr bo'yicha</div></div>
+      <div class="card-head" style="margin-bottom:8px"><div><h2>Qaysi tovarlar yaxshi sotilmoqda</h2><div class="card-sub">Tanlangan davr bo'yicha</div></div>
         <a class="link-btn" href="#/reports?tab=products&from=${d.range.from}&to=${d.range.to}">Barchasi ${icon('right', 'ico-xs')}</a></div>
       <div class="ptabs" role="tablist">${TOP_TABS.map((t, i) => `<button type="button" data-top="${t.key}" class="${i === 0 ? 'active' : ''}">${t.label}${t.key === 'zero' && d.top.zero_count ? ` · ${d.top.zero_count}` : ''}</button>`).join('')}</div>
       <div data-top-list></div>
@@ -497,15 +498,15 @@ function forecastCard(f) {
   const conf = { low: 'past', medium: "o'rtacha", high: 'yuqori' }[f.confidence];
   return `
     <section class="card" style="height:100%">
-      <div class="card-head" style="margin-bottom:10px"><div><h2>Keyingi 7 kun</h2><div class="card-sub">Taxminiy natija · ishonchlilik: ${conf}</div></div>
+      <div class="card-head" style="margin-bottom:10px"><div><h2>Keyingi 7 kun</h2><div class="card-sub">Taxminan qancha sotiladi · ishonchlilik: ${conf}</div></div>
         <span class="badge badge-est">${icon('target2', 'ico-xs')} Taxmin</span></div>
       <div class="kv" style="margin-bottom:12px">
-        <span class="k">Kutilayotgan tushum</span><span class="v">${compact(f.totals.low)} – ${compact(f.totals.high)} so'm</span>
-        <span class="k">Taxminiy yalpi foyda</span><span class="v">≈ ${compact(f.totals.gross_profit, { unit: true })}</span>
-        <span class="k">Xarajatlardan keyin</span><span class="v ${f.totals.net_profit < 0 ? 'neg' : ''}">≈ ${compact(f.totals.net_profit, { unit: true })}</span>
-        <span class="k">O'tgan 7 kun (haqiqiy)</span><span class="v">${compact(f.last7_actual.revenue, { unit: true })}</span>
+        <span class="k">Kutilayotgan savdo</span><span class="v">${compact(f.totals.low)} – ${compact(f.totals.high)} so'm</span>
+        <span class="k">Taxminiy savdo foydasi</span><span class="v">≈ ${compact(f.totals.gross_profit, { unit: true })}</span>
+        <span class="k">Xarajatlar ayirilgandan keyin</span><span class="v ${f.totals.net_profit < 0 ? 'neg' : ''}">≈ ${compact(f.totals.net_profit, { unit: true })}</span>
+        <span class="k">O'tgan 7 kunda haqiqatda</span><span class="v">${compact(f.last7_actual.revenue, { unit: true })}</span>
       </div>
-      <div class="legend" style="margin-bottom:6px"><span><i style="background:${C.s1}"></i>Haqiqiy</span><span><i class="dash" style="--c:${C.s1}"></i>Taxmin</span><span><i class="box" style="background:${C.s1};opacity:.18"></i>Ehtimoliy oraliq</span></div>
+      <div class="legend" style="margin-bottom:6px"><span><i style="background:${C.s1}"></i>Haqiqiy</span><span><i class="dash" style="--c:${C.s1}"></i>Taxmin</span><span><i class="box" style="background:${C.s1};opacity:.18"></i>Bo'lishi mumkin bo'lgan chegara</span></div>
       <div data-chart="forecast"></div>
       <div class="note" style="margin-top:8px">${icon('info', 'ico-xs')}<span>${esc(f.method)} Kafolatlangan natija emas.</span></div>
     </section>`;
@@ -528,7 +529,7 @@ function mountForecast(host, d) {
       { name: 'Haqiqiy tushum', values: actual, color: C.s1 },
       { name: 'Taxminiy tushum', values: est, color: C.s1, dashed: true },
     ],
-    band: { low: [...hist.map(() => null), ...f.days.map((x) => x.low)], high: [...hist.map(() => null), ...f.days.map((x) => x.high)], color: C.s1, name: 'Ehtimoliy oraliq' },
+    band: { low: [...hist.map(() => null), ...f.days.map((x) => x.low)], high: [...hist.map(() => null), ...f.days.map((x) => x.high)], color: C.s1, name: "Bo'lishi mumkin bo'lgan chegara" },
     format: (v) => `${moneyFull(v)} so'm`,
     height: 180,
     ariaLabel: 'So\'nggi 14 kun tushumi va keyingi 7 kun taxmini',
@@ -544,20 +545,20 @@ function inventoryCard(inv, d) {
     { label: 'Kam qolgan', value: t.low, color: C.warn, href: '#/products?filter=low' },
     { label: 'Tugagan', value: t.out, color: C.neg, href: '#/products?filter=out' },
     { label: 'Sotilmayotgan', value: t.dead, color: '#8a93a3', href: '#/reports?tab=slow' },
-    { label: 'Ortiqcha zaxira', value: t.overstock, color: C.cost, href: '#/reports?tab=slow' },
+    { label: "Ko'p turib qolgan", value: t.overstock, color: C.cost, href: '#/reports?tab=slow' },
   ];
   const restock = inv.restock.slice(0, 4);
   return `
     <section class="card" style="height:100%">
       <div class="card-head"><div><h2>Ombor holati</h2><div class="card-sub">${t.products} ta mahsulot, ${t.in_stock} tasi omborda</div></div>
         <a class="link-btn" href="#/reports?tab=inventory">Tahlil ${icon('right', 'ico-xs')}</a></div>
-      <div class="row" style="align-items:baseline;gap:6px"><div class="big-figure">${compact(t.cost_value)}<span class="cur">so'm</span></div><span class="muted small">tannarx bo'yicha${t.retail_value !== null ? ` · sotuv narxida ${compact(t.retail_value)}` : ''}</span></div>
+      <div class="row" style="align-items:baseline;gap:6px"><div class="big-figure">${compact(t.cost_value)}<span class="cur">so'm</span></div><span class="muted small">kelish narxida${t.retail_value !== null ? ` · sotsangiz ≈ ${compact(t.retail_value)}` : ''}</span></div>
       <div style="margin-top:12px">${segbar(parts)}</div>
       <div class="health">${parts.map((x) => `<a href="${x.href}"><i style="background:${x.color}"></i>${x.label}<b>${x.value}</b></a>`).join('')}</div>
-      ${restock.length ? `<div style="margin-top:14px"><h4 class="muted" style="font-weight:550;margin-bottom:4px">Qayta buyurtma kerak</h4>
+      ${restock.length ? `<div style="margin-top:14px"><h4 class="muted" style="font-weight:550;margin-bottom:4px">Tez orada olib kelish kerak</h4>
         ${restock.map((p) => `<a class="prod-row" href="#/products/${p.id}" style="grid-template-columns:minmax(0,1fr) auto">
           <div style="min-width:0"><div class="pn">${esc(p.name)}</div><div class="ps">${p.status === 'out' ? '<span class="neg">tugagan</span>' : `qoldiq ${num(p.stock_qty, 2)} ${esc(p.unit)}`}</div></div>
-          <div class="pv">~${num(p.suggested_qty, 0)} ${esc(p.unit)}<small>tavsiya</small></div></a>`).join('')}</div>` : ''}
+          <div class="pv">~${num(p.suggested_qty, 0)} ${esc(p.unit)}<small>olib keling</small></div></a>`).join('')}</div>` : ''}
     </section>`;
 }
 

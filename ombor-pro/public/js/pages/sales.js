@@ -10,8 +10,8 @@ const METHODS = [
   { key: 'cash', label: 'Naqd', ico: 'money' },
   { key: 'card', label: 'Karta', ico: 'card' },
   { key: 'transfer', label: "O'tkazma", ico: 'transfer' },
-  { key: 'credit', label: 'Nasiya', ico: 'credit' },
-  { key: 'mixed', label: 'Aralash', ico: 'split' },
+  { key: 'credit', label: 'Nasiya (qarzga)', ico: 'credit' },
+  { key: 'mixed', label: "Bir nechta usul", ico: 'split' },
 ];
 
 const newKey = () => `pos-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -153,7 +153,7 @@ function cartHtml(ctx) {
           <div class="row" style="justify-content:space-between">
             <div class="qty-ctrl" aria-label="Miqdor">
               <button type="button" data-step="${i}" data-d="-1" aria-label="Kamaytirish">−</button>
-              <input type="text" inputmode="decimal" value="${num(l.qty, 4)}" data-qty="${i}" aria-label="Miqdor">
+              <input type="text" inputmode="decimal" value="${String(round4(l.qty)).replace('.', ',')}" data-qty="${i}" aria-label="Miqdor">
               <button type="button" data-step="${i}" data-d="1" aria-label="Ko'paytirish">+</button>
             </div>
             <select class="input" style="width:auto;min-width:130px;min-height:48px" data-unit="${i}" aria-label="Birlik">${unitOptions}</select>
@@ -165,7 +165,7 @@ function cartHtml(ctx) {
           ${c.over ? '<div class="small red" style="font-weight:700">Qoldiq yetarli emas</div>' : ''}
         </div>`;
     }).join('')
-    : emptyState('Savatcha bo\'sh. Mahsulotni bosing yoki shtrix-kodni o\'qiting', 'cart');
+    : emptyState("Savatcha bo'sh. Chapdagi tovarni bosing — u shu yerga tushadi. Keyin to'lov turini tanlab «Sotuvni yakunlash» ni bosing.", 'cart');
 
   const cust = S.customer
     ? `<div class="alert alert-info" style="align-items:center"><div class="grow"><b>${esc(S.customer.name)}</b>
@@ -189,16 +189,16 @@ function cartHtml(ctx) {
 
   const reason = payValidity(t);
   return `
-    <div class="card-head"><h2>Savatcha</h2><span class="badge badge-info">${S.cart.length} ta qator</span></div>
+    <div class="card-head"><h2>Savatcha</h2><span class="badge badge-info">${S.cart.length} ta tovar</span></div>
     <div class="stack" style="max-height:none">${lines}</div>
     ${S.cart.length ? `
       <div style="margin-top:12px">${cust}</div>
       <div class="cart-totals" style="margin-top:12px">
-        <div class="between"><span class="muted">Yalpi summa</span><span class="num">${money(t.gross)}</span></div>
+        <div class="between"><span class="muted">Tovarlar summasi</span><span class="num">${money(t.gross)}</span></div>
         ${t.discount ? `<div class="between"><span class="muted">Chegirma</span><span class="num red">−${money(t.discount)}</span></div>` : ''}
-        <div class="between"><span style="font-weight:700">Jami to'lov</span><span class="big num">${money(t.total)}</span></div>
+        <div class="between"><span style="font-weight:700">Xaridor to'laydi</span><span class="big num">${money(t.total)}</span></div>
       </div>
-      <div style="margin-top:12px"><div class="small" style="font-weight:700;margin-bottom:6px">To'lov usuli</div>
+      <div style="margin-top:12px"><div class="small" style="font-weight:700;margin-bottom:6px">Xaridor qanday to'laydi?</div>
         <div class="pay-grid">${METHODS.map((m) => `<button type="button" data-method="${m.key}" class="${S.method === m.key ? 'active' : ''}">${icon(m.ico)}<span>${m.label}</span></button>`).join('')}</div>
       </div>
       <div class="stack" style="margin-top:12px">${pay}${dueRow}</div>
@@ -303,7 +303,7 @@ function refreshAll() {
     bar.querySelector('[data-total]').textContent = money(t.total);
   }
   const badge = document.getElementById('grid-selected');
-  if (badge) badge.textContent = `${S.cart.length} ta qator`;
+  if (badge) badge.textContent = `${S.cart.length} ta tovar savatchada`;
 }
 
 // ---------- Mijoz tanlash ----------
@@ -672,14 +672,14 @@ export async function render(root, params, ctx) {
       <div class="pos-main-col">
         <div class="pos-search">
           <div class="input-group">
-            <input class="input" id="q" type="search" placeholder="Mahsulot nomini yozing..." autocomplete="off" aria-label="Mahsulot qidirish">
+            <input class="input" id="q" type="search" placeholder="Tovar nomini yozing" autocomplete="off" aria-label="Mahsulot qidirish">
             <button class="btn btn-light" type="button" id="btn-scan" aria-label="Kamera bilan shtrix-kod" style="min-width:56px">${icon('camera')}</button>
           </div>
           <div class="input-group" style="margin-top:8px">
-            <input class="input" id="barcode" type="text" inputmode="numeric" placeholder="Shtrix-kod (skaner bilan o'qing yoki yozing)" autocomplete="off" aria-label="Shtrix-kod">
+            <input class="input" id="barcode" type="text" inputmode="numeric" placeholder="Shtrix-kod (skaner yoki raqam)" autocomplete="off" aria-label="Shtrix-kod">
             <button class="btn btn-outline" type="button" id="btn-bc" style="min-width:56px">${icon('scan')}</button>
           </div>
-          <div class="between" style="margin-top:10px"><span class="small muted" id="grid-selected">${S.cart.length} ta qator</span>
+          <div class="between" style="margin-top:10px"><span class="small muted" id="grid-selected">${S.cart.length} ta tovar savatchada</span>
             <a class="small" href="#/sales/history">Bugungi savdolar &rsaquo;</a></div>
         </div>
         <div class="product-grid" id="grid"><div class="empty">Yuklanmoqda...</div></div>

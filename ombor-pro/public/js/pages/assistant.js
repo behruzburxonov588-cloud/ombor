@@ -87,7 +87,7 @@ export async function render(root, params, ctx) {
           <div class="rec">${icon('bulb', 'ico-xs')}<span>${esc(i.recommendation)}</span></div>
         </div>`).join('') : emptyState("Hozircha tavsiya yo'q. Savdo tarixi ko'paygan sari tahlil aniqroq bo'ladi.", 'sparkles')}
     </section>
-    <p class="note" style="margin-top:12px">${icon('info', 'ico-xs')}<span>Xulosalar savdo, qaytarish, xarajat, ombor va qarz yozuvlaridan avtomatik hisoblanadi. Sof foyda = sof tushum − tannarx − xarajatlar − ombor yo'qotishlari. Mijozlarning eski qarz to'lovlari savdo hisoblanmaydi.</span></p>`;
+    <p class="note" style="margin-top:12px">${icon('info', 'ico-xs')}<span>Xulosalar savdo, qaytarish, xarajat, ombor va qarz yozuvlaridan avtomatik hisoblanadi. Sof foyda = tushum − tovarlarning kelish narxi − xarajatlar − buzilgan/yo'qolgan tovar. Mijozlarning eski qarz to'lovlari savdo hisoblanmaydi.</span></p>`;
 
   root.querySelector('#refresh').addEventListener('click', () => render(root, params, ctx).catch(errorToast));
 }
