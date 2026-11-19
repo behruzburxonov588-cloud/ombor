@@ -218,10 +218,10 @@ router.get('/dashboard', requirePerm('dashboard.view'), async (req, res) => {
     pool.query(`
       (SELECT 'sale' AS kind, s.receipt_no AS ref, s.total AS amount, s.created_at AS at,
               COALESCE(c.name, 'Naqd mijoz') AS party
-         FROM sales s LEFT JOIN customers c ON c.id = s.customer_id ORDER BY s.created_at DESC LIMIT 8)
+         FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.kind = 'sale' ORDER BY s.created_at DESC LIMIT 8)
       UNION ALL
       (SELECT 'purchase', p.purchase_no, p.total, p.created_at, sp.name
-         FROM purchases p JOIN suppliers sp ON sp.id = p.supplier_id ORDER BY p.created_at DESC LIMIT 5)
+         FROM purchases p JOIN suppliers sp ON sp.id = p.supplier_id WHERE p.kind = 'purchase' ORDER BY p.created_at DESC LIMIT 5)
       UNION ALL
       (SELECT 'expense', e.category, e.amount, e.created_at, COALESCE(e.description, '')
          FROM expenses e ORDER BY e.created_at DESC LIMIT 5)

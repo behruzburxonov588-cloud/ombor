@@ -564,7 +564,7 @@ async function checkSummaries(db, cfg, clock) {
   const { date, time, weekday } = clock;
   const hasActivity = async (days) => {
     const { rows } = await db.query(
-      `SELECT EXISTS (SELECT 1 FROM sales WHERE created_at > now() - ($1::int * interval '1 day')) AS x`,
+      `SELECT EXISTS (SELECT 1 FROM sales WHERE kind = 'sale' AND created_at > now() - ($1::int * interval '1 day')) AS x`,
       [days],
     );
     return rows[0].x;

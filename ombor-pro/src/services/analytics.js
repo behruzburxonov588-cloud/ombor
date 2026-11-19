@@ -84,7 +84,7 @@ export async function pnlTotals(db, fromTs, toTs, fromDate, toDate) {
               COALESCE(SUM(total), 0) AS total, COALESCE(SUM(cost_total), 0) AS cost,
               COALESCE(SUM(credit_amount), 0) AS credit, COALESCE(SUM(paid_total), 0) AS paid,
               COUNT(*) FILTER (WHERE status = 'returned')::int AS fully_returned
-         FROM sales WHERE created_at >= $1 AND created_at < $2`,
+         FROM sales WHERE created_at >= $1 AND created_at < $2 AND kind = 'sale'`,
       [fromTs, toTs],
     ),
     db.query(
@@ -190,7 +190,7 @@ export async function dailyPnl(db, from, to) {
     db.query(
       `SELECT ${localDay('created_at')} AS k, COUNT(*)::int AS cnt, SUM(gross_total) AS gross,
               SUM(discount_total) AS disc, SUM(total) AS total, SUM(cost_total) AS cost
-         FROM sales WHERE created_at >= $1 AND created_at < $2 GROUP BY 1`,
+         FROM sales WHERE created_at >= $1 AND created_at < $2 AND kind = 'sale' GROUP BY 1`,
       [fromTs, toTs],
     ),
     db.query(
@@ -227,7 +227,7 @@ export async function hourlyPnl(db, fromTs, toTs) {
     db.query(
       `SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE '${TZ}')::int AS k, COUNT(*)::int AS cnt,
               SUM(gross_total) AS gross, SUM(discount_total) AS disc, SUM(total) AS total, SUM(cost_total) AS cost
-         FROM sales WHERE created_at >= $1 AND created_at < $2 GROUP BY 1`,
+         FROM sales WHERE created_at >= $1 AND created_at < $2 AND kind = 'sale' GROUP BY 1`,
       [fromTs, toTs],
     ),
     db.query(
@@ -684,14 +684,14 @@ export async function recentActivity(db, { financial }) {
   const parts = [
     `(SELECT 'sale' AS kind, s.id, s.receipt_no AS ref, s.total AS amount, s.created_at AS at,
              COALESCE(c.name, 'Naqd mijoz') AS party
-        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id ORDER BY s.created_at DESC LIMIT 8)`,
+        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.kind = 'sale' ORDER BY s.created_at DESC LIMIT 8)`,
     `(SELECT 'payment', cp.id, 'Qarz to''lovi', cp.amount, cp.created_at, c.name
         FROM customer_payments cp JOIN customers c ON c.id = cp.customer_id ORDER BY cp.created_at DESC LIMIT 5)`,
   ];
   if (financial) {
     parts.push(
       `(SELECT 'purchase', p.id, p.purchase_no, p.total, p.created_at, sp.name
-          FROM purchases p JOIN suppliers sp ON sp.id = p.supplier_id ORDER BY p.created_at DESC LIMIT 5)`,
+          FROM purchases p JOIN suppliers sp ON sp.id = p.supplier_id WHERE p.kind = 'purchase' ORDER BY p.created_at DESC LIMIT 5)`,
       `(SELECT 'expense', e.id, e.category, e.amount, e.created_at, COALESCE(e.description, '')
           FROM expenses e ORDER BY e.created_at DESC LIMIT 5)`,
     );
@@ -807,12 +807,12 @@ export async function salesAnalytics(db, query) {
     dailyPnl(db, range.prevFrom, range.prevTo),
     db.query(
       `SELECT payment_method AS method, COUNT(*)::int AS cnt, COALESCE(SUM(total), 0) AS total
-         FROM sales WHERE created_at >= $1 AND created_at < $2 GROUP BY 1 ORDER BY 3 DESC`,
+         FROM sales WHERE created_at >= $1 AND created_at < $2 AND kind = 'sale' GROUP BY 1 ORDER BY 3 DESC`,
       [range.fromTs, range.toTs],
     ),
     db.query(
       `SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE '${TZ}')::int AS hour, COUNT(*)::int AS cnt, COALESCE(SUM(total), 0) AS total
-         FROM sales WHERE created_at >= $1 AND created_at < $2 GROUP BY 1 ORDER BY 1`,
+         FROM sales WHERE created_at >= $1 AND created_at < $2 AND kind = 'sale' GROUP BY 1 ORDER BY 1`,
       [range.fromTs, range.toTs],
     ),
   ]);
@@ -1006,17 +1006,17 @@ export async function staffPerformance(db, query, { userId = null } = {}) {
               COUNT(*) FILTER (WHERE s.discount_total > 0)::int AS discounted,
               (SELECT COUNT(*) FROM sale_items si JOIN sales s2 ON s2.id = si.sale_id
                 WHERE s2.cashier_id = s.cashier_id AND s2.created_at >= $1 AND s2.created_at < $2)::int AS lines
-         FROM sales s WHERE s.created_at >= $1 AND s.created_at < $2${own} GROUP BY s.cashier_id`,
+         FROM sales s WHERE s.created_at >= $1 AND s.created_at < $2 AND s.kind = 'sale'${own} GROUP BY s.cashier_id`,
       params,
     ),
     db.query(
       `SELECT s.cashier_id AS id, COUNT(*)::int AS cnt, SUM(s.total) AS total
-         FROM sales s WHERE s.created_at >= $1 AND s.created_at < $2${own} GROUP BY s.cashier_id`,
+         FROM sales s WHERE s.created_at >= $1 AND s.created_at < $2 AND s.kind = 'sale'${own} GROUP BY s.cashier_id`,
       prevParams,
     ),
     db.query(
       `SELECT s.cashier_id AS id, ${localDay('s.created_at')} AS day, SUM(s.total) AS total, COUNT(*)::int AS cnt
-         FROM sales s WHERE s.created_at >= $1 AND s.created_at < $2${own} GROUP BY 1, 2`,
+         FROM sales s WHERE s.created_at >= $1 AND s.created_at < $2 AND s.kind = 'sale'${own} GROUP BY 1, 2`,
       params,
     ),
     db.query(

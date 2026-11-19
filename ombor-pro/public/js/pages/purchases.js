@@ -14,7 +14,7 @@ const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 const round4 = (n) => Math.round((n + Number.EPSILON) * 10000) / 10000;
 
 export async function render(root, params, ctx) {
-  if (params.id === 'new') return renderNew(root, ctx);
+  if (params.id === 'new') return renderNew(root, ctx, params.query.product ? Number(params.query.product) : null);
   if (params.id) return renderDetail(root, Number(params.id), ctx);
   return renderList(root, params, ctx);
 }
@@ -31,7 +31,7 @@ async function renderList(root, params, ctx) {
   root.innerHTML = `
     <div class="page-head">
       <div><h1>Kirimlar</h1><p class="muted">${rows.length} ta kirim</p></div>
-      ${ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('plus')} Yangi kirim</a>` : ''}
+      ${ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('plus')} Yuk keldi — kiritish</a>` : ''}
     </div>
     <div class="card" style="margin-bottom:14px">
       <div class="form-grid two" style="gap:10px">
@@ -67,7 +67,7 @@ async function renderList(root, params, ctx) {
 
 // ---------- Yangi kirim ----------
 
-async function renderNew(root, ctx) {
+async function renderNew(root, ctx, preselect = null) {
   if (!ctx.can('purchases.create')) {
     root.innerHTML = '<div class="alert alert-bad">Kirim qilish uchun ruxsatingiz yo\'q</div>';
     return;
@@ -79,7 +79,7 @@ async function renderNew(root, ctx) {
   root.innerHTML = `
     <div class="page-head">
       <a class="btn btn-light btn-sm" href="#/purchases">${icon('back', 'ico-sm')} Kirimlar</a>
-      <h1>Yangi kirim</h1>
+      <h1>Yuk keldi: yangi kirim</h1>
     </div>
     <p class="muted" style="margin:-8px 0 14px">Omborga kelgan tovarni kiriting. Saqlangach, tovar qoldig'i o'zi ko'payadi.</p>
     <div class="form-grid two" style="align-items:start">
@@ -377,6 +377,11 @@ async function renderNew(root, ctx) {
   });
 
   drawItems();
+  // Mahsulot sahifasidagi «Yuk keldi» tugmasidan kelinganda: o'sha mahsulot ro'yxatga oldindan qo'shiladi
+  if (preselect) {
+    history.replaceState(null, '', '#/purchases/new');
+    await addProduct(preselect).catch(() => {});
+  }
 }
 
 // ---------- Tafsilot ----------

@@ -53,7 +53,8 @@ export async function render(root, params, ctx) {
   const tab = allowed.find((t) => t.key === params.query.tab) || allowed[0];
 
   root.innerHTML = `
-    <div class="page-head"><div><h1>Ombor</h1><p class="muted">Har bir tovardan qancha qolgani, nima kirib-chiqqani va tovar sanash</p></div></div>
+    <div class="page-head"><div><h1>Ombor</h1><p class="muted">Har bir tovardan qancha qolgani, nima kirib-chiqqani va tovar sanash</p></div>
+      ${ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a>` : ''}</div>
     <div class="seg" role="tablist" style="margin-bottom:14px;flex-wrap:wrap">
       ${allowed.map((t) => `<button type="button" role="tab" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}" aria-selected="${t.key === tab.key}">${t.label}</button>`).join('')}
     </div>

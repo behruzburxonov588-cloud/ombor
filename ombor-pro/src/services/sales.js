@@ -175,6 +175,7 @@ export async function returnSale(client, user, saleId, body) {
   const { rows: sr } = await client.query('SELECT * FROM sales WHERE id = $1 FOR UPDATE', [saleId]);
   if (!sr[0]) throw new HttpError(404, 'Savdo topilmadi');
   const sale = sr[0];
+  if (sale.kind === 'debt') throw new HttpError(400, "Bu qo'lda yozilgan qarz, savdo emas — undan tovar qaytarib bo'lmaydi");
   if (sale.status === 'returned') throw new HttpError(400, 'Bu savdodagi barcha mahsulotlar allaqachon qaytarilgan');
 
   const list = Array.isArray(body.items) ? body.items : [];

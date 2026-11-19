@@ -5,7 +5,9 @@ import { requirePerm, hashPassword, publicUser } from '../auth.js';
 import { HttpError, str, round2 } from '../util.js';
 import { ROLES, PERMISSION_KEYS, PERMISSIONS, ROLE_DEFAULTS } from '../permissions.js';
 import { audit } from '../audit.js';
-import { customerDebt, supplierDebt, receiveCustomerPayment, paySupplier } from '../services/ledger.js';
+import {
+  customerDebt, supplierDebt, receiveCustomerPayment, paySupplier, addCustomerDebt, addSupplierDebt,
+} from '../services/ledger.js';
 import { validateUsername, validatePassword } from './auth.js';
 import { reserveLogin, storeIdForSchema } from '../tenants.js';
 
@@ -112,7 +114,7 @@ router.get('/suppliers', requirePerm('suppliers.view', 'purchases.view'), async 
   const q = String(req.query.q || '').trim();
   const { rows } = await pool.query(
     `SELECT s.*,
-            COALESCE((SELECT SUM(total) FROM purchases p WHERE p.supplier_id = s.id), 0) AS total_purchased,
+            COALESCE((SELECT SUM(total) FROM purchases p WHERE p.supplier_id = s.id AND p.kind = 'purchase'), 0) AS total_purchased,
             COALESCE((SELECT SUM(remaining_debt) FROM purchases p WHERE p.supplier_id = s.id), 0) AS debt
        FROM suppliers s
       WHERE s.is_active AND ($1 = '' OR s.name ILIKE '%' || $1 || '%' OR s.phone ILIKE '%' || $1 || '%')
@@ -155,7 +157,7 @@ router.get('/suppliers/:id', requirePerm('suppliers.view', 'purchases.view'), as
   const { rows } = await pool.query('SELECT * FROM suppliers WHERE id = $1', [id]);
   if (!rows[0]) throw new HttpError(404, 'Yetkazib beruvchi topilmadi');
   const { rows: purchases } = await pool.query(
-    'SELECT id, purchase_no, purchase_date, total, paid_amount, remaining_debt FROM purchases WHERE supplier_id = $1 ORDER BY purchase_date DESC, id DESC LIMIT 200',
+    'SELECT id, purchase_no, purchase_date, total, paid_amount, remaining_debt, kind, note FROM purchases WHERE supplier_id = $1 ORDER BY purchase_date DESC, id DESC LIMIT 200',
     [id],
   );
   const { rows: payments } = await pool.query(
@@ -166,7 +168,7 @@ router.get('/suppliers/:id', requirePerm('suppliers.view', 'purchases.view'), as
     supplier: rows[0],
     purchases,
     payments,
-    total_purchased: round2(purchases.reduce((s, p) => s + Number(p.total), 0)),
+    total_purchased: round2(purchases.filter((p) => p.kind === 'purchase').reduce((s, p) => s + Number(p.total), 0)),
     debt: await supplierDebt(pool, id),
   });
 });
@@ -184,7 +186,7 @@ router.get('/customers', requirePerm('customers.view', 'sales.create'), async (r
   const { rows } = await pool.query(
     `SELECT c.*,
             COALESCE((SELECT SUM(balance_due) FROM sales s WHERE s.customer_id = c.id), 0) AS debt,
-            COALESCE((SELECT SUM(total) FROM sales s WHERE s.customer_id = c.id), 0) AS total_purchases
+            COALESCE((SELECT SUM(total) FROM sales s WHERE s.customer_id = c.id AND s.kind = 'sale'), 0) AS total_purchases
        FROM customers c
       WHERE c.is_active AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.phone ILIKE '%' || $1 || '%')
       ORDER BY c.name LIMIT 300`,
@@ -226,7 +228,7 @@ router.get('/customers/:id', requirePerm('customers.view', 'sales.create'), asyn
   const { rows } = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
   if (!rows[0]) throw new HttpError(404, 'Mijoz topilmadi');
   const { rows: sales } = await pool.query(
-    `SELECT id, receipt_no, created_at, total, paid_total, balance_due, due_date, status, payment_method
+    `SELECT id, receipt_no, created_at, total, paid_total, balance_due, due_date, status, payment_method, kind, note
        FROM sales WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 200`,
     [id],
   );
@@ -241,13 +243,26 @@ router.get('/customers/:id', requirePerm('customers.view', 'sales.create'), asyn
     payments,
     open_debts: open,
     debt: await customerDebt(pool, id),
-    total_purchases: round2(sales.reduce((s, x) => s + Number(x.total), 0)),
+    total_purchases: round2(sales.filter((x) => x.kind === 'sale').reduce((s, x) => s + Number(x.total), 0)),
   });
 });
 
 router.post('/customers/:id/payments', requirePerm('payments.create', 'customers.manage'), async (req, res) => {
   const result = await withTransaction((client) =>
     receiveCustomerPayment(client, req.user, Number(req.params.id), req.body || {}));
+  res.status(result.duplicate ? 200 : 201).json(result);
+});
+
+// Qo'lda qarz yozish (daftardagi eski qarz yoki dasturdan tashqari nasiya) — savdo hisoblanmaydi
+router.post('/customers/:id/debts', requirePerm('customers.manage'), async (req, res) => {
+  const result = await withTransaction((client) =>
+    addCustomerDebt(client, req.user, Number(req.params.id), req.body || {}));
+  res.status(result.duplicate ? 200 : 201).json(result);
+});
+
+router.post('/suppliers/:id/debts', requirePerm('suppliers.manage'), async (req, res) => {
+  const result = await withTransaction((client) =>
+    addSupplierDebt(client, req.user, Number(req.params.id), req.body || {}));
   res.status(result.duplicate ? 200 : 201).json(result);
 });
 

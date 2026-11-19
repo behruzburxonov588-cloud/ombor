@@ -26,7 +26,7 @@ router.get('/purchases', requirePerm('purchases.view'), async (req, res) => {
        FROM purchases p
        JOIN suppliers s ON s.id = p.supplier_id
        LEFT JOIN users u ON u.id = p.created_by
-      WHERE p.purchase_date BETWEEN $1::date AND $2::date${extra}
+      WHERE p.purchase_date BETWEEN $1::date AND $2::date AND p.kind = 'purchase'${extra}
       ORDER BY p.purchase_date DESC, p.id DESC LIMIT ${limit} OFFSET ${offset}`,
     params,
   );
@@ -65,7 +65,7 @@ router.get('/sales', requirePerm('sales.view', 'reports.view'), async (req, res)
        FROM sales s
        LEFT JOIN customers c ON c.id = s.customer_id
        LEFT JOIN users u ON u.id = s.cashier_id
-      WHERE s.created_at >= $1 AND s.created_at < $2${extra}
+      WHERE s.created_at >= $1 AND s.created_at < $2 AND s.kind = 'sale'${extra}
       ORDER BY s.created_at DESC, s.id DESC LIMIT ${limit} OFFSET ${offset}`,
     params,
   );

@@ -578,7 +578,7 @@ async function renderHistory(root, ctx, query = {}) {
       <div><h1>${title}</h1><p class="muted">${from === to ? dateOnly(from) : `${dateOnly(from)} – ${dateOnly(to)}`} · ${rows.length} ta savdo · ${num(total)} so'm (qaytarishlar ayirilgan)</p></div>
       <div class="filterbar">
         <div class="range-custom"><input class="input" type="date" id="hf" value="${from}" max="${day}" aria-label="Boshlanish"><span class="muted">–</span><input class="input" type="date" id="ht" value="${to}" max="${day}" aria-label="Tugash"></div>
-        ${ctx.can('sales.create') ? `<a class="btn btn-light btn-sm" href="#/sales">${icon('cart', 'ico-sm')} Sotuvga qaytish</a>` : ''}
+        ${ctx.can('sales.create') ? `<a class="btn btn-sm" href="#/sales">${icon('plus', 'ico-sm')} Yangi sotuv</a>` : ''}
       </div>
     </div>
     ${rows.length >= 500 ? '<div class="alert alert-info" style="margin-bottom:12px">Faqat oxirgi 500 ta savdo ko\'rsatildi. Davrni qisqartiring.</div>' : ''}

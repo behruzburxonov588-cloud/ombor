@@ -141,6 +141,7 @@ Barcha hisobotlar va bosh sahifa bir xil formulalardan foydalanadi:
 
 - Nasiya savdo sotilgan kuni tushumga kiradi; mijozning keyinchalik qarzini to'lashi yangi savdo hisoblanmaydi (faqat pul oqimida ko'rinadi).
 - Qaytarish qaytarilgan kuni hisobga olinadi.
+- **Qo'lda yozilgan qarz** (Qarzdor mijozlar → «Qarz yozish»; mijoz yoki yetkazib beruvchi sahifasi → «Qarz yozish»): daftardagi eski qarz yoki dasturdan tashqari nasiya. U savdo yoki kirim emas — tushum, foyda, savdolar soni, kirimlar summasi va omborga ta'sir qilmaydi, faqat qarz bo'lib turadi. Raqami `Q-000001` (mijoz) yoki `QK-000001` (yetkazib beruvchi). To'lov oddiy nasiya kabi eng eski qarzdan boshlab yopiladi; muddati o'tgan qarz va eslatmalar ham ishlaydi.
 - Taqqoslash: "Bugun" tanlansa, kechaning **shu vaqtigacha** bo'lgan natijasi bilan solishtiriladi.
 - Prognoz so'nggi 4 haftalik savdo va hafta kunlari bo'yicha hisoblangan taxmin; u haqiqiy natijalardan alohida, "Taxmin" belgisi bilan ko'rsatiladi.
 
@@ -184,7 +185,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 78 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish).
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 82 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar.
 
 ## Loyiha tuzilishi
 

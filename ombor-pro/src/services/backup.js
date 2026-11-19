@@ -9,7 +9,7 @@ export const BACKUP_TABLES = [
   'stock_movements', 'inventory_counts', 'inventory_count_items', 'cash_transactions', 'expenses', 'audit_log',
   'notifications', 'notification_reads', 'notification_deliveries', 'user_preferences',
 ];
-export const CUSTOM_SEQUENCES = ['receipt_seq', 'purchase_seq', 'count_seq', 'return_seq'];
+export const CUSTOM_SEQUENCES = ['receipt_seq', 'purchase_seq', 'count_seq', 'return_seq', 'debt_seq', 'supplier_debt_seq'];
 const BATCH = 500;
 
 // Barcha qiymatlar bazadan xom matn ko'rinishida olinadi va o'zgarishsiz qaytariladi:

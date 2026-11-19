@@ -16,7 +16,7 @@ export async function financeSummary(db, period) {
     db.query(
       `SELECT COUNT(*)::int AS count, COALESCE(SUM(total), 0) AS gross,
               COALESCE(SUM(cost_total), 0) AS cogs, COALESCE(SUM(credit_amount), 0) AS credit
-         FROM sales WHERE created_at >= $1 AND created_at < $2`,
+         FROM sales WHERE created_at >= $1 AND created_at < $2 AND kind = 'sale'`,
       [from, to],
     ),
     db.query(
@@ -42,7 +42,7 @@ export async function financeSummary(db, period) {
     ),
     db.query(
       `SELECT COUNT(*)::int AS count, COALESCE(SUM(total), 0) AS total FROM purchases
-        WHERE purchase_date BETWEEN $1::date AND $2::date`,
+        WHERE purchase_date BETWEEN $1::date AND $2::date AND kind = 'purchase'`,
       [fromDate, toDate],
     ),
   ]);
@@ -87,7 +87,7 @@ export async function dailySeries(db, fromDate, toDate, from, to) {
     db.query(
       `SELECT (created_at AT TIME ZONE '${TZ}')::date::text AS day,
               SUM(total) AS gross, SUM(cost_total) AS cogs
-         FROM sales WHERE created_at >= $1 AND created_at < $2 GROUP BY 1`,
+         FROM sales WHERE created_at >= $1 AND created_at < $2 AND kind = 'sale' GROUP BY 1`,
       [from, to],
     ),
     db.query(
@@ -124,7 +124,7 @@ export async function periodSeries(db, period, kind) {
     db.query(
       `SELECT to_char(date_trunc($1, created_at AT TIME ZONE '${TZ}'), 'YYYY-MM-DD') AS period,
               COUNT(*)::int AS sales_count, SUM(total) AS gross, SUM(cost_total) AS cogs
-         FROM sales WHERE created_at >= $2 AND created_at < $3 GROUP BY 1`,
+         FROM sales WHERE created_at >= $2 AND created_at < $3 AND kind = 'sale' GROUP BY 1`,
       [unit, from, to],
     ),
     db.query(

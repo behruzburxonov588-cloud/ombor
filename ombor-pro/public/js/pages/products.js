@@ -111,6 +111,7 @@ async function renderDetail(root, id, ctx) {
     <div class="page-head">
       <a class="btn btn-light btn-sm" href="#/products">${icon('back', 'ico-sm')} Ro'yxat</a>
       <div class="row">
+        ${ctx.can('purchases.create') && !p.is_archived ? `<a class="btn" href="#/purchases/new?product=${id}" title="Shu tovardan yangi yuk keldi">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}
         ${canManage && !p.is_archived ? `<a class="btn btn-outline" href="#/products/${id}/edit">${icon('edit', 'ico-sm')} Tahrirlash</a>` : ''}
         ${canManage ? `<button class="btn ${p.is_archived ? 'btn-success' : 'btn-warn'}" type="button" id="btn-arch">${icon(p.is_archived ? 'restore' : 'archive', 'ico-sm')} ${p.is_archived ? 'Tiklash' : 'Arxivlash'}</button>` : ''}
       </div>

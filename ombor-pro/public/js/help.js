@@ -80,7 +80,8 @@ const HELP = {
     steps: [
       "«Yangi» tugmasi bilan mijoz qo'shing: ismi va telefoni kifoya.",
       "Mijozni bossangiz, uning xaridlari va qarzi ko'rinadi.",
-      "Mijoz qarzini to'lasa, mijoz sahifasida «To'lov qabul qilish» ni bosing.",
+      "Mijoz qarzini to'lasa, mijoz sahifasida «Qarzni to'lash» ni bosing.",
+      "Daftardagi eski qarzni mijoz sahifasidagi «Qarz yozish» bilan kiriting.",
     ],
     terms: ['nasiya'],
   },
@@ -91,6 +92,7 @@ const HELP = {
       "«Yangi» tugmasi bilan yetkazib beruvchi qo'shing.",
       "Tovar kirimi qilganda yetkazib beruvchini tanlaysiz; to'lanmagan qism qarz bo'lib yoziladi.",
       "Qarzni to'laganingizda yetkazib beruvchi sahifasida to'lovni kiriting.",
+      "Oldindan qolgan qarzingiz bo'lsa, yetkazib beruvchi sahifasida «Qarz yozish» ni bosing (bu kirim emas, omborga tovar qo'shilmaydi).",
     ],
     terms: ['kirim'],
   },
@@ -98,8 +100,10 @@ const HELP = {
     title: 'Qarzdor mijozlar',
     what: "Kim sizdan qancha qarz va qarz qachondan beri to'lanmagan.",
     steps: [
+      "«Qarz yozish» — daftardagi eski qarz yoki dasturdan tashqari berilgan nasiyani kiritish. Bu savdo hisoblanmaydi, faqat qarz bo'lib turadi.",
+      "«To'lov qabul qilish» yoki qatordagi «To'lov» — mijoz qarzini to'laganda bosing. To'lov eng eski qarzdan boshlab yopiladi.",
       "Qizil — muddati o'tgan qarzlar. Ularga birinchi bo'lib qo'ng'iroq qiling.",
-      "Mijozni bossangiz, to'lov qabul qilish mumkin.",
+      "Tovar hozir nasiyaga sotilsa, «Sotuv» bo'limida to'lov turini «Nasiya» qiling — qarz o'zi shu yerga tushadi.",
     ],
     terms: ['nasiya'],
   },
@@ -130,7 +134,7 @@ const HELP = {
     title: 'Tovar kirimi',
     what: "Omborga kelgan tovarlar ro'yxati. Kirim qilinganda tovar qoldig'i ko'payadi.",
     steps: [
-      "«Yangi kirim» tugmasini bosing.",
+      "Yuk kelsa — «Yuk keldi — kiritish» tugmasini bosing (tugma «Ombor» va mahsulot sahifasida ham bor).",
       "Yetkazib beruvchini tanlang (yo'q bo'lsa, shu yerning o'zida qo'shing).",
       "Kelgan tovarlarni qo'shing: miqdori va kelish narxi.",
       "Hozir qancha to'laganingizni yozing — qolgani yetkazib beruvchiga qarz bo'ladi.",
@@ -153,6 +157,7 @@ const HELP = {
     title: "Ombor qoldig'i",
     what: "Har bir tovardan qancha qolgani, qancha kelgani va qancha sotilgani.",
     steps: [
+      "Yuk kelsa — tepadagi «Yuk keldi — kiritish» tugmasini bosing.",
       "«Kam qolgan» va «Tugagan» tugmalari — olib kelish kerak bo'lgan tovarlar.",
       "Tovar buzilsa yoki yo'qolsa, «Zarar / tuzatish» bo'limida hisobdan chiqaring.",
       "«Harakatlar» — har bir tovarning kirdi-chiqdi tarixi.",

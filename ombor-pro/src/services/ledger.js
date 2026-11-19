@@ -1,10 +1,68 @@
 // Qarzlar: mijoz qarzi (nasiya) va yetkazib beruvchi qarzi alohida hisoblanadi.
 // To'lovlar eng eski qarzdan boshlab taqsimlanadi.
-import { HttpError, num, round2 } from '../util.js';
+import { HttpError, num, round2, dateStr, todayLocal } from '../util.js';
 import { recordCash } from './cash.js';
 import { audit } from '../audit.js';
 
 const METHODS = ['cash', 'card', 'transfer'];
+
+// ---------- Qo'lda yozilgan qarz (daftardagi eski qarz, dasturdan tashqari nasiya) ----------
+// Savdo yoki kirim emas (kind = 'debt'): tushum, foyda va kirimlar summasiga kirmaydi, faqat qarz bo'lib turadi.
+
+function debtInput(body) {
+  const amount = round2(num(body.amount, 'Qarz summasi', { positive: true, max: 1e11 }));
+  const date = body.date ? dateStr(body.date, 'Sana') : null;
+  if (date && date > todayLocal()) throw new HttpError(400, "Sana kelajakda bo'lishi mumkin emas");
+  const due = body.due_date ? dateStr(body.due_date, "To'lov muddati") : null;
+  const note = body.note ? String(body.note).trim().slice(0, 200) || null : null;
+  return { amount, date, due, note, key: body.idempotency_key ? String(body.idempotency_key).slice(0, 100) : null };
+}
+
+// Mijoz bizga qarz: Q-000001
+export async function addCustomerDebt(client, user, customerId, body) {
+  const input = debtInput(body);
+  if (input.key) {
+    const { rows } = await client.query('SELECT id, receipt_no, total FROM sales WHERE idempotency_key = $1', [input.key]);
+    if (rows[0]) {
+      return { id: rows[0].id, doc_no: rows[0].receipt_no, amount: Number(rows[0].total), debt: await customerDebt(client, customerId), duplicate: true };
+    }
+  }
+  const { rows: cust } = await client.query('SELECT id, name FROM customers WHERE id = $1', [customerId]);
+  if (!cust[0]) throw new HttpError(404, 'Mijoz topilmadi');
+  const { rows: no } = await client.query("SELECT 'Q-' || lpad(nextval('debt_seq')::text, 6, '0') AS no");
+  const { rows } = await client.query(
+    `INSERT INTO sales (receipt_no, customer_id, cashier_id, payment_method, gross_total, discount_total, total, cost_total,
+                        paid_total, credit_amount, balance_due, status, due_date, idempotency_key, note, kind, created_at)
+     VALUES ($1, $2, $3, 'credit', $4, 0, $4, 0, 0, $4, $4, 'completed', $5, $6, $7, 'debt',
+             COALESCE(($8::date + time '12:00') AT TIME ZONE 'Asia/Tashkent', now()))
+     RETURNING id, receipt_no`,
+    [no[0].no, customerId, user.id, input.amount, input.due, input.key, input.note, input.date],
+  );
+  await audit(client, user.id, 'customer.debt', 'customer', customerId, { amount: input.amount, doc: rows[0].receipt_no, note: input.note });
+  return { id: rows[0].id, doc_no: rows[0].receipt_no, amount: input.amount, debt: await customerDebt(client, customerId) };
+}
+
+// Biz yetkazib beruvchiga qarz: QK-000001
+export async function addSupplierDebt(client, user, supplierId, body) {
+  const input = debtInput(body);
+  if (input.key) {
+    const { rows } = await client.query('SELECT id, purchase_no, total FROM purchases WHERE idempotency_key = $1', [input.key]);
+    if (rows[0]) {
+      return { id: rows[0].id, doc_no: rows[0].purchase_no, amount: Number(rows[0].total), debt: await supplierDebt(client, supplierId), duplicate: true };
+    }
+  }
+  const { rows: sup } = await client.query('SELECT id, name FROM suppliers WHERE id = $1', [supplierId]);
+  if (!sup[0]) throw new HttpError(404, 'Yetkazib beruvchi topilmadi');
+  const { rows: no } = await client.query("SELECT 'QK-' || lpad(nextval('supplier_debt_seq')::text, 6, '0') AS no");
+  const { rows } = await client.query(
+    `INSERT INTO purchases (purchase_no, supplier_id, purchase_date, subtotal, delivery_cost, discount, total, paid_amount,
+                            remaining_debt, note, idempotency_key, created_by, kind)
+     VALUES ($1, $2, $3, $4, 0, 0, $4, 0, $4, $5, $6, $7, 'debt') RETURNING id, purchase_no`,
+    [no[0].no, supplierId, input.date || todayLocal(), input.amount, input.note, input.key, user.id],
+  );
+  await audit(client, user.id, 'supplier.debt', 'supplier', supplierId, { amount: input.amount, doc: rows[0].purchase_no, note: input.note });
+  return { id: rows[0].id, doc_no: rows[0].purchase_no, amount: input.amount, debt: await supplierDebt(client, supplierId) };
+}
 
 export async function customerDebt(db, customerId) {
   const { rows } = await db.query(

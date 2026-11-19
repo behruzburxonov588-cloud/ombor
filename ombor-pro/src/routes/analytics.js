@@ -28,8 +28,8 @@ router.get('/onboarding', async (req, res) => {
   const { rows } = await pool.query(`SELECT
       (SELECT COUNT(*) FROM products WHERE NOT is_archived)::int AS products,
       (SELECT COUNT(*) FROM products WHERE stock_qty > 0)::int AS stocked,
-      (SELECT COUNT(*) FROM purchases)::int AS purchases,
-      (SELECT COUNT(*) FROM sales)::int AS sales,
+      (SELECT COUNT(*) FROM purchases WHERE kind = 'purchase')::int AS purchases,
+      (SELECT COUNT(*) FROM sales WHERE kind = 'sale')::int AS sales,
       (SELECT COUNT(*) FROM users WHERE is_active)::int AS users`);
   res.json(rows[0]);
 });

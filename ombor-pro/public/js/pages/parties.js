@@ -4,6 +4,7 @@ import {
   openModal, withBusy, emptyState, newKey,
   takeNewFlag,
 } from '../ui.js';
+import { openDebtForm } from '../debtform.js';
 
 const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
 const SALE_STATUS = {
@@ -120,12 +121,15 @@ async function renderDetail(root, cfg, id, ctx) {
   const payments = d[cfg.paymentsKey] || [];
   const isCustomer = cfg.key === 'customers';
   const canPay = debt > 0 && ctx.canAny(cfg.pay);
+  const canDebt = ctx.can(cfg.manage);
+  const realDocs = docs.filter((x) => (x.kind || (isCustomer ? 'sale' : 'purchase')) !== 'debt');
 
   root.innerHTML = `
     <div class="page-head">
       <a class="btn btn-light btn-sm" href="${cfg.base}">${icon('back', 'ico-sm')} ${cfg.title}</a>
       <div class="row">
         ${canPay ? `<button class="btn btn-success" type="button" id="pay">${icon('money', 'ico-sm')} ${cfg.payTitle}</button>` : ''}
+        ${canDebt ? `<button class="btn btn-outline" type="button" id="add-debt" title="${isCustomer ? 'Daftardagi eski qarz yoki dasturdan tashqari nasiya' : 'Yetkazib beruvchiga qolgan eski qarz'}">${icon('plus', 'ico-sm')} Qarz yozish</button>` : ''}
         ${ctx.can(cfg.manage) ? `<button class="btn btn-outline" type="button" id="edit">${icon('edit', 'ico-sm')} Tahrirlash</button>` : ''}
       </div>
     </div>
@@ -148,13 +152,13 @@ async function renderDetail(root, cfg, id, ctx) {
       <div class="kpi neutral">
         <div class="label">${isCustomer ? 'Jami xaridlar' : 'Jami kirimlar'}</div>
         <div class="value">${money(isCustomer ? d.total_purchases : d.total_purchased)}</div>
-        <div class="hint">${docs.length} ta ${isCustomer ? 'savdo' : 'kirim'}</div>
+        <div class="hint">${realDocs.length} ta ${isCustomer ? 'savdo' : 'kirim'}</div>
       </div>
     </div>
 
     <div class="card" style="margin-top:14px">
       <div class="seg" style="margin-bottom:12px">
-        <button type="button" data-t="docs" class="active">${cfg.docsTitle}</button>
+        <button type="button" data-t="docs" class="active">${cfg.docsTitle} va qarzlar</button>
         <button type="button" data-t="pay">To'lovlar</button>
       </div>
       <div id="tb"></div>
@@ -182,7 +186,15 @@ async function renderDetail(root, cfg, id, ctx) {
             <th>${isCustomer ? 'Chek' : 'Raqam'}</th><th>Sana</th><th class="right">Jami</th>
             <th class="right">${isCustomer ? 'Qarz' : 'Qarz'}</th><th>Holat</th>
           </tr></thead>
-          <tbody>${docs.map((x) => isCustomer
+          <tbody>${docs.map((x) => (x.kind === 'debt'
+    ? `<tr>
+                <td data-label="${isCustomer ? 'Chek' : 'Raqam'}"><b>${esc(isCustomer ? x.receipt_no : x.purchase_no)}</b><div class="small muted">Qo'lda yozilgan qarz${x.note ? ` · ${esc(x.note)}` : ''}</div></td>
+                <td data-label="Sana">${isCustomer ? dateTime(x.created_at) : dateOnly(x.purchase_date)}</td>
+                <td data-label="Jami" class="right num">${money(x.total)}</td>
+                <td data-label="Qarz" class="right num ${Number(isCustomer ? x.balance_due : x.remaining_debt) > 0 ? 'amber' : ''}">${money(isCustomer ? x.balance_due : x.remaining_debt)}</td>
+                <td data-label="Holat">${Number(isCustomer ? x.balance_due : x.remaining_debt) > 0 ? '<span class="badge badge-low">Qarz</span>' : '<span class="badge badge-ok">To\'langan</span>'}</td>
+              </tr>`
+    : isCustomer
     ? `<tr class="clickable" data-go="#/sales/${x.id}">
                 <td data-label="Chek"><b>${esc(x.receipt_no)}</b></td>
                 <td data-label="Sana">${dateTime(x.created_at)}</td>
@@ -196,7 +208,7 @@ async function renderDetail(root, cfg, id, ctx) {
                 <td data-label="Jami" class="right num">${money(x.total)}</td>
                 <td data-label="Qarz" class="right num ${Number(x.remaining_debt) > 0 ? 'amber' : ''}">${money(x.remaining_debt)}</td>
                 <td data-label="Holat">${Number(x.remaining_debt) > 0 ? '<span class="badge badge-low">Qarzli</span>' : '<span class="badge badge-ok">To\'langan</span>'}</td>
-              </tr>`).join('')}
+              </tr>`)).join('')}
           </tbody></table></div>`
       : emptyState(`${cfg.docsTitle} yo'q`, isCustomer ? 'cart' : 'truck');
     tb.querySelectorAll('[data-go]').forEach((tr) => tr.addEventListener('click', () => ctx.go(tr.dataset.go)));
@@ -206,6 +218,9 @@ async function renderDetail(root, cfg, id, ctx) {
 
   root.querySelector('#pay')?.addEventListener('click', () => openPayment(cfg, id, debt, () => renderDetail(root, cfg, id, ctx)));
   root.querySelector('#edit')?.addEventListener('click', () => openEditor(cfg, entity, () => renderDetail(root, cfg, id, ctx)));
+  root.querySelector('#add-debt')?.addEventListener('click', () => openDebtForm({
+    kind: isCustomer ? 'customer' : 'supplier', party: { id, name: entity.name }, onDone: () => renderDetail(root, cfg, id, ctx),
+  }));
 }
 
 // ---------- Qarz to'lovi ----------

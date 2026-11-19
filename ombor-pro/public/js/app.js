@@ -81,7 +81,8 @@ const MOBILE = ['dashboard', 'sales', 'products', 'stock'];
 const QUICK = [
   { label: 'Mahsulot', hint: "Yangi tovar: nomi va narxi", icon: 'box', href: '#/products/new', perms: ['products.manage'] },
   { label: 'Sotuv', hint: 'Tovar sotish (kassa)', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
-  { label: 'Kirim', hint: 'Omborga tovar keldi', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
+  { label: 'Yuk keldi', hint: 'Kelgan tovarni omborga kiritish', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
+  { label: 'Qarz yozish', hint: 'Daftardagi eski qarz', icon: 'debt', href: '#/debts?new=1', perms: ['customers.manage'], route: 'debts' },
   { label: 'Xarajat', hint: 'Ijara, maosh, kommunal', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'], route: 'cash' },
   { label: 'Mijoz', hint: 'Xaridor (nasiya uchun)', icon: 'users', href: '#/customers?new=1', perms: ['customers.manage'] },
   { label: 'Yetkazib beruvchi', hint: 'Tovar oladigan joy', icon: 'store', href: '#/suppliers?new=1', perms: ['suppliers.manage'] },
