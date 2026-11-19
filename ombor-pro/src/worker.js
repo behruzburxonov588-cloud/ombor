@@ -11,6 +11,7 @@ import { runWithPool } from './db.js';
 import { migrate } from './migrate.js';
 import { assertConfig } from './config.js';
 import { registerFonts } from './services/pdf.js';
+import { cleanDatabaseUrl, databaseUrlProblem, databaseErrorMessage } from './dburl.js';
 import { runCycle } from './services/notify.js';
 import m001 from '../migrations/001_init.sql';
 import m002 from '../migrations/002_analytics.sql';
@@ -37,6 +38,7 @@ function applyEnv(env) {
   for (const [k, v] of Object.entries(env || {})) {
     if (typeof v === 'string') process.env[k] = v;
   }
+  if (process.env.DATABASE_URL) process.env.DATABASE_URL = cleanDatabaseUrl(process.env.DATABASE_URL);
   // Hyperdrive ulangan bo'lsa, u ustun (tezroq: ulanishlar puli Cloudflare tarmog'ida)
   if (env?.HYPERDRIVE?.connectionString) process.env.DATABASE_URL = env.HYPERDRIVE.connectionString;
   process.env.OMBOR_RUNTIME = 'worker';
@@ -48,10 +50,7 @@ function setupProblem() {
   } catch {
     return "JWT_SECRET sozlanmagan. Cloudflare → Worker → Settings → Variables and Secrets bo'limida JWT_SECRET maxfiy qiymatini qo'shing.";
   }
-  if (!process.env.DATABASE_URL) {
-    return "Ma'lumotlar bazasi ulanmagan. DATABASE_URL maxfiy qiymatini (Neon PostgreSQL manzili) yoki HYPERDRIVE bog'lanishini qo'shing.";
-  }
-  return null;
+  return databaseUrlProblem(process.env.DATABASE_URL);
 }
 
 function ensureServer() {
@@ -92,7 +91,7 @@ export default {
       });
     } catch (err) {
       console.error(err);
-      return jsonError(500, "Server xatosi. Ma'lumotlar bazasi ulanishini tekshiring");
+      return jsonError(500, databaseErrorMessage(err));
     } finally {
       ctx.waitUntil(pool.end().catch(() => {}));
     }
@@ -109,7 +108,7 @@ export default {
           await runCycle(pool, { now: new Date(controller.scheduledTime || Date.now()) });
         });
       } catch (err) {
-        console.error('Rejali tekshiruvda xato:', err.message);
+        console.error('Rejali tekshiruvda xato:', databaseErrorMessage(err), err.message);
       } finally {
         await pool.end().catch(() => {});
       }
