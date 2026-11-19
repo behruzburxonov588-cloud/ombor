@@ -5,6 +5,9 @@ Do'konlar uchun ombor, sotuv, kirim, hisob-kitob va biznes tahlili tizimi. Inter
 ## Imkoniyatlar
 
 - **Mahsulotlar**: bir nechta o'lchov birligi va konvertatsiya (masalan, 1 quti = 12 dona), shtrix-kod orqali kiritish va kamera orqali skanerlash
+- **Yangi tovar (savol-javob)**: «Qanday sotasiz?» (dona, kg, litr, metr), «Optomda qanday keladi?» (1 rulon ichida 100 metr), «Har xil hajmi bormi?» (Pepsi 0,5 L / 1 L — bitta formada bir nechta tovar). Kelish narxi qadoq (rulon, blok) uchun yozilsa, 1 metr/1 dona narxi va foyda o'zi hisoblanadi
+- **Yuk keldi**: tovar qadoqda kelsa, qadoq o'zi tanlanadi va 1 birlik narxi ko'rsatiladi; topilmagan tovar shu yerning o'zida qo'shiladi
+- **Bosh sahifa**: «Nima qilmoqchisiz?» katta tugmalari (Sotish, Yuk keldi, Yangi tovar, Qarz yozish, Qarz to'lovi, Xarajat); telefonda pastki menyuda «+» tugmasi
 - **Kirim**: bitta hujjatda bir nechta mahsulot, partiyalar (batch) bilan, qisman to'lov va yetkazib beruvchi qarzi
 - **Kassa (POS)**: naqd, karta, o'tkazma, nasiya va aralash to'lov; chek; qaytarish
 - **Tannarx**: FIFO yoki o'rtacha tannarx usullari

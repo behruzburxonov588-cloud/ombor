@@ -4,6 +4,7 @@ import {
   productThumb, statusBadge, emptyState, confirmBox, readForm, api,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
+import { renderProductWizard } from '../productform.js';
 
 const FILTERS = [
   { key: '', label: 'Hammasi' },
@@ -13,7 +14,24 @@ const FILTERS = [
 ];
 
 export async function render(root, params, ctx) {
-  if (params.id === 'new') return renderForm(root, null, ctx, { name: params.query.name || '' });
+  if (params.id === 'new') {
+    if (!ctx.can('products.manage')) {
+      root.innerHTML = '<div class="alert alert-bad">Tovar qo\'shish uchun ruxsatingiz yo\'q</div>';
+      return undefined;
+    }
+    // Yangi tovar: oddiy savollar bilan (qanday sotasiz, optomda qanday keladi, har xil hajmi bormi)
+    return renderProductWizard(root, {
+      name: params.query.name || '',
+      onSaved: (created, { again }) => {
+        if (again) {
+          history.replaceState(null, '', '#/products/new');
+          return;
+        }
+        ctx.go(created.length === 1 ? `#/products/${created[0].id}` : '#/products');
+      },
+      onCancel: () => ctx.go('#/products'),
+    });
+  }
   if (params.id && params.sub === 'edit') return renderForm(root, Number(params.id), ctx);
   if (params.id) return renderDetail(root, Number(params.id), ctx);
   return renderList(root, params, ctx);
@@ -29,7 +47,7 @@ async function renderList(root, params, ctx) {
   root.innerHTML = `
     <div class="page-head">
       <div><h1>Mahsulotlar</h1><p class="muted" id="count">Yuklanmoqda...</p></div>
-      ${canManage ? `<a class="btn" href="#/products/new">${icon('plus')} Yangi mahsulot</a>` : ''}
+      ${canManage ? `<a class="btn" href="#/products/new">${icon('plus')} Yangi tovar</a>` : ''}
     </div>
     <div class="stack">
       <input class="input" type="search" id="q" placeholder="Nomi yoki shtrix-kodi bo'yicha qidirish" value="${esc(q)}" autocomplete="off">
@@ -328,10 +346,10 @@ async function renderForm(root, id, ctx, prefill = {}) {
         <input class="input" name="min_stock" data-type="num" inputmode="decimal" value="0" placeholder="0"><small>Qoldiq shundan kamaysa, ogohlantiriladi</small></label>` : ''}
 
       <div class="field" style="grid-column:1/-1">
-        <span>Qo'shimcha o'lchov birliklari</span>
-        <small>Masalan: 1 quti = 12 dona. Sotuv va kirimda shu birliklar tanlanadi.</small>
+        <span>Optomda qanday keladi? (qadoqlar)</span>
+        <small>Masalan: 1 rulon ichida 100 metr, 1 blok ichida 12 dona. Yuk kelganda va sotuvda shu qadoqni tanlash mumkin.</small>
         <div id="convs" class="stack"></div>
-        <button class="btn btn-light btn-sm" type="button" id="add-conv" style="align-self:flex-start">${icon('plus', 'ico-sm')} Birlik qo'shish</button>
+        <button class="btn btn-light btn-sm" type="button" id="add-conv" style="align-self:flex-start">${icon('plus', 'ico-sm')} Qadoq qo'shish</button>
       </div>
 
       <div class="field" style="grid-column:1/-1">
@@ -359,13 +377,13 @@ async function renderForm(root, id, ctx, prefill = {}) {
     convBox.innerHTML = convs.length ? convs.map((c, i) => `
       <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:12px">
         <div class="form-grid two" style="gap:8px">
-          <label class="field"><span>Birlik</span><select class="input" data-cu="${i}">${unitOpts(c.unit_id)}</select></label>
-          <label class="field"><span>1 shu birlik = ? ${esc(unitName(units, root))}</span>
+          <label class="field"><span>Qadoq</span><select class="input" data-cu="${i}">${unitOpts(c.unit_id)}</select></label>
+          <label class="field"><span>Ichida nechta ${esc(unitName(units, root))}?</span>
             <input class="input" data-cf="${i}" inputmode="decimal" value="${c.factor ?? ''}" placeholder="masalan: 12"></label>
         </div>
         <div class="between" style="margin-top:8px"><small class="muted" data-hint="${i}">${hintText(c, units, root)}</small>
           <button class="btn btn-sm btn-ghost red" type="button" data-cdel="${i}">O'chirish</button></div>
-      </div>`).join('') : '<div class="small muted">Qo\'shimcha birlik yo\'q. Kerak bo\'lsa "Birlik qo\'shish" ni bosing.</div>';
+      </div>`).join('') : '<div class="small muted">Qadoq yo\'q — tovar donalab yoki o\'lchab keladi. Qutida yoki rulonda kelsa, «Qadoq qo\'shish» ni bosing.</div>';
     convBox.querySelectorAll('[data-cu]').forEach((s) => s.addEventListener('change', () => { convs[s.dataset.cu].unit_id = Number(s.value); drawConvs(); }));
     convBox.querySelectorAll('[data-cf]').forEach((s) => s.addEventListener('input', () => {
       convs[s.dataset.cf].factor = Number(String(s.value).replace(',', '.')) || null;
@@ -491,6 +509,6 @@ function unitName(units, root) {
 function hintText(c, units, root) {
   const cu = units.find((u) => u.id === Number(c.unit_id));
   const base = unitName(units, root);
-  if (!cu || !(c.factor > 0)) return 'Masalan: 1 quti = 12 dona';
-  return `1 ${cu.name} = ${num(c.factor, 4)} ${base}`;
+  if (!cu || !(c.factor > 0)) return 'Masalan: 1 rulon ichida 100 metr';
+  return `1 ${cu.name} ichida ${num(c.factor, 4)} ${base}`;
 }

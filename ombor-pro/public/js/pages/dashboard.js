@@ -52,6 +52,28 @@ const ONB_STEPS = [
   },
 ];
 
+// Bosh sahifadagi katta tugmalar: eng ko'p qilinadigan ishlar bir bosishda (faqat ruxsat berilganlari)
+const ACTIONS = [
+  { label: 'Sotish', hint: 'Xaridorga tovar sotish', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
+  { label: 'Yuk keldi', hint: 'Kelgan tovarni kiritish', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
+  { label: 'Yangi tovar', hint: "Tovar va narxini qo'shish", icon: 'box', href: '#/products/new', perms: ['products.manage'] },
+  { label: 'Qarz yozish', hint: 'Daftardagi eski qarz', icon: 'debt', href: '#/debts?new=1', perms: ['customers.manage'] },
+  { label: "Qarz to'lovi", hint: "Mijoz qarzini to'ladi", icon: 'money', href: '#/debts', perms: ['payments.create', 'customers.manage'] },
+  { label: 'Xarajat', hint: 'Ijara, maosh, svet…', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'] },
+];
+
+function actionTiles(ctx) {
+  const list = ACTIONS.filter((a) => ctx.canAny(a.perms));
+  if (!list.length) return '';
+  return `
+    <section class="actions-card" aria-label="Tez amallar">
+      <div class="actions-title">Nima qilmoqchisiz?</div>
+      <div class="action-grid">
+        ${list.map((a) => `<a class="action-tile" href="${a.href}"><span class="at-ico">${icon(a.icon)}</span><b>${esc(a.label)}</b><span>${esc(a.hint)}</span></a>`).join('')}
+      </div>
+    </section>`;
+}
+
 let prefsCache = null;
 let charts = [];
 
@@ -144,11 +166,11 @@ async function load(host, range, ctx, first = false) {
   }
   flush();
   const onbHtml = onb ? onboardingCard(onbSteps, onb) : '';
-  const body = (onbHtml ? `<div class="w-full" data-widget="onboarding">${onbHtml}</div>` : '')
+  const tiles = actionTiles(ctx);
+  const body = (tiles ? `<div class="w-full" data-widget="actions">${tiles}</div>` : '')
+    + (onbHtml ? `<div class="w-full" data-widget="onboarding">${onbHtml}</div>` : '')
     + rendered.map((w) => `<div class="${w.size}" data-widget="${w.id}">${w.html}</div>`).join('');
 
-  const canSell = can('sales.create');
-  const canBuy = can('purchases.create');
   host.innerHTML = `
     <div class="dash-head">
       <div>
@@ -167,8 +189,6 @@ async function load(host, range, ctx, first = false) {
           <input class="input" type="date" id="dt" value="${esc(range.to)}" max="${todayStr()}" aria-label="Tugash sanasi">
         </div>
         <button class="btn btn-light btn-sm" type="button" id="widgets" title="Vidjetlarni sozlash">${icon('sliders', 'ico-sm')}<span class="mobile-hide">Vidjetlar</span></button>
-        ${canSell ? `<a class="btn btn-sm" href="#/sales">${icon('cart', 'ico-sm')} Sotuv</a>` : ''}
-        ${canBuy ? `<a class="btn btn-light btn-sm" href="#/purchases/new">${icon('truck', 'ico-sm')} Kirim</a>` : ''}
       </div>
     </div>
     <div class="dash">${body || `<div class="w-full card">${emptyState("Barcha vidjetlar yashirilgan. «Vidjetlar» tugmasi orqali yoqing", 'sliders')}</div>`}</div>`;

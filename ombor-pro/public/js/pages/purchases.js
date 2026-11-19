@@ -4,6 +4,7 @@ import {
   emptyState, todayStr, monthStartStr,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
+import { openProductWizard } from '../productform.js';
 
 const newKey = () => `pur-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const toNum = (v) => {
@@ -143,8 +144,10 @@ async function renderNew(root, ctx, preselect = null) {
   const lineTotal = (it) => round2(toNum(it.quantity) * toNum(it.unit_price));
   const baseText = (it) => {
     const f = factorOf(it);
-    const conv = f !== 1 ? ` · 1 ${it.unit_name} = ${num(f, 4)} ${it.base_unit_name}` : '';
-    return `Omborga: ${num(lineBase(it), 4)} ${it.base_unit_name}${conv}`;
+    const conv = f !== 1 ? ` (1 ${it.unit_name} ichida ${num(f, 4)} ${it.base_unit_name})` : '';
+    const price = toNum(it.unit_price);
+    const perBase = f !== 1 && price > 0 ? ` · 1 ${it.base_unit_name} ${money(Math.round((price / f) * 100) / 100)}ga tushdi` : '';
+    return `Omborga ${num(lineBase(it), 4)} ${it.base_unit_name} qo'shiladi${conv}${perBase}`;
   };
 
   function totals() {
@@ -193,8 +196,8 @@ async function renderNew(root, ctx, preselect = null) {
               <button class="icon-btn icon-btn-light" style="width:40px;height:40px" type="button" data-del="${i}" aria-label="Qatorni o'chirish">${icon('minus', 'ico-sm')}</button>
             </div>
             <div class="form-grid two" style="gap:8px">
-              <label class="field"><span>Miqdor</span><input class="input" inputmode="decimal" data-q="${i}" value="${esc(it.quantity)}"></label>
-              <label class="field"><span>Birlik</span>
+              <label class="field"><span>Nechta keldi?</span><input class="input" inputmode="decimal" data-q="${i}" value="${esc(it.quantity)}"></label>
+              <label class="field"><span>Qanday keldi?</span>
                 <select class="input" data-u="${i}">${units.map((u) => `<option value="${u.unit_id}" ${u.unit_id === it.unit_id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></label>
               <label class="field"><span>Kelish narxi (1 ${esc(it.unit_name)}, so'm)</span><input class="input" inputmode="decimal" data-p="${i}" value="${esc(it.unit_price)}"></label>
               <div class="field"><span>Summa</span>
@@ -218,8 +221,11 @@ async function renderNew(root, ctx, preselect = null) {
     }));
     $('#items').querySelectorAll('[data-u]').forEach((sel) => sel.addEventListener('change', () => {
       const it = items[Number(sel.dataset.u)];
+      const oldF = factorOf(it);
       it.unit_id = Number(sel.value);
       it.unit_name = sel.options[sel.selectedIndex].text;
+      const price = toNum(it.unit_price);
+      if (price > 0) it.unit_price = String(Math.round(((price / oldF) * factorOf(it)) * 100) / 100);
       drawItems();
     }));
     $('#items').querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => {
@@ -235,12 +241,15 @@ async function renderNew(root, ctx, preselect = null) {
     if (existing) {
       existing.quantity = String(round4(toNum(existing.quantity) + 1));
     } else {
+      const conv = p.conversions || [];
+      const pack = conv.reduce((best, c) => (!best || Number(c.factor) > Number(best.factor) ? c : best), null);
+      const f = pack ? Number(pack.factor) : 1;
       items.push({
         product_id: p.id, name: p.name,
         base_unit_id: p.base_unit_id, base_unit_name: p.base_unit_name,
-        unit_id: p.base_unit_id, unit_name: p.base_unit_name,
-        conv: p.conversions || [],
-        quantity: '1', unit_price: String(p.purchase_price ?? 0),
+        unit_id: pack ? pack.unit_id : p.base_unit_id, unit_name: pack ? pack.name : p.base_unit_name,
+        conv,
+        quantity: '1', unit_price: String(Math.round(Number(p.purchase_price ?? 0) * f * 100) / 100),
       });
     }
     drawItems();
@@ -267,7 +276,16 @@ async function renderNew(root, ctx, preselect = null) {
             <div class="meta"><div class="name">${esc(p.name)}</div>
               <div class="sub">Qoldiq: ${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}</div></div>
             <span class="badge badge-info">+ qo'shish</span>
-          </div>`).join('') || '<div class="empty">Mahsulot topilmadi. <a href="#/products/new">Yangi mahsulot</a></div>';
+          </div>`).join('') || `<div class="empty">«${esc(text)}» topilmadi.
+            ${ctx.can('products.manage') ? `<div style="margin-top:10px"><button class="btn btn-sm" type="button" data-newprod>${icon('plus', 'ico-sm')} «${esc(text)}» ni yangi tovar sifatida qo'shish</button></div>` : ''}</div>`;
+        $('#pres').querySelector('[data-newprod]')?.addEventListener('click', async () => {
+          const created = await openProductWizard({ name: text });
+          for (const c of created) await addProduct(c.id).catch(errorToast);
+          if (created.length) {
+            $('#pq').value = '';
+            $('#pres').innerHTML = '';
+          }
+        });
         $('#pres').querySelectorAll('[data-id]').forEach((row) => row.addEventListener('click', async () => {
           try {
             const name = await addProduct(Number(row.dataset.id));

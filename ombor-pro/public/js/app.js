@@ -75,11 +75,12 @@ const NAV = [
 // Faqat yuqori paneldagi qo'ng'iroqcha orqali ochiladigan sahifalar (sarlavha uchun)
 const EXTRA_TITLES = { notifications: 'Bildirishnomalar' };
 
-const MOBILE = ['dashboard', 'sales', 'products', 'stock'];
+// Telefondagi pastki menyu: Bosh, Sotuv, [+ Qo'shish], Mahsulotlar, Menyu
+const MOBILE = ['dashboard', 'sales', 'products'];
 
 // "+ Qo'shish" menyusi: har sahifadan bir bosishda yangi yozuv (faqat ruxsat berilganlari ko'rinadi)
 const QUICK = [
-  { label: 'Mahsulot', hint: "Yangi tovar: nomi va narxi", icon: 'box', href: '#/products/new', perms: ['products.manage'] },
+  { label: 'Yangi tovar', hint: 'Tovar, narxi, qadog\'i', icon: 'box', href: '#/products/new', perms: ['products.manage'] },
   { label: 'Sotuv', hint: 'Tovar sotish (kassa)', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
   { label: 'Yuk keldi', hint: 'Kelgan tovarni omborga kiritish', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
   { label: 'Qarz yozish', hint: 'Daftardagi eski qarz', icon: 'debt', href: '#/debts?new=1', perms: ['customers.manage'], route: 'debts' },
@@ -340,8 +341,13 @@ function renderNav(p) {
 
   const mobile = MOBILE.map((id) => NAV.flatMap((g) => g.items).find((it) => it.id === id)).filter((it) => it && navAllowed(it));
   $('#bottomnav').innerHTML = `
-    ${mobile.map((it) => `<button type="button" data-href="${it.href}" class="${active?.id === it.id ? 'active' : ''}">${icon(it.icon)}<span>${esc(it.short || it.label.split(' ')[0])}</span></button>`).join('')}
+    ${(() => {
+    const btns = mobile.map((it) => `<button type="button" data-href="${it.href}" class="${active?.id === it.id ? 'active' : ''}">${icon(it.icon)}<span>${esc(it.short || it.label.split(' ')[0])}</span></button>`);
+    if (quickActions().length) btns.splice(Math.min(2, btns.length), 0, `<button type="button" class="nav-add" data-add aria-label="Yangi qo'shish">${icon('plus')}<span>Qo'shish</span></button>`);
+    return btns.join('');
+  })()}
     <button type="button" data-menu>${icon('menu')}<span>Menyu</span></button>`;
+  $('#bottomnav [data-add]')?.addEventListener('click', (e) => openQuickAdd(e.currentTarget));
   $('#bottomnav').querySelectorAll('[data-href]').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.href; }));
   $('#bottomnav [data-menu]').addEventListener('click', () => toggleDrawer(true));
   return active;

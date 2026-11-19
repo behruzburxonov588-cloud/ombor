@@ -39,6 +39,13 @@ before(async () => {
 
 after(async () => {
   await target.end();
+  // pool.end() ulanishlar to'liq yopilishini kutmaydi: bazani o'chirishdan oldin ular uzilguncha kutamiz,
+  // aks holda "DROP ... WITH (FORCE)" yopilayotgan ulanishni uzib, kutilmagan xato beradi
+  for (let i = 0; i < 60; i += 1) {
+    const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM pg_stat_activity WHERE datname = 'ombor_test_restore'");
+    if (!rows[0].n) break;
+    await new Promise((r) => { setTimeout(r, 50); });
+  }
   await srv.close();
   await pool.query('DROP DATABASE IF EXISTS ombor_test_restore WITH (FORCE)').catch(() => {});
   await pool.end();
