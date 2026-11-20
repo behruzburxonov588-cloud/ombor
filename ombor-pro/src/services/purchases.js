@@ -6,6 +6,19 @@ import { recordCash } from './cash.js';
 import { audit } from '../audit.js';
 
 const METHODS = ['cash', 'card', 'transfer'];
+export const UNKNOWN_SUPPLIER = "Noma'lum";
+
+// «Noma'lum» yetkazib beruvchi: har do'konda bitta, kerak bo'lganda yaratiladi
+async function unknownSupplier(client) {
+  await client.query('SELECT pg_advisory_xact_lock(515152, hashtext(current_schema()))');
+  const { rows } = await client.query(
+    'SELECT id FROM suppliers WHERE name = $1 AND is_active ORDER BY id LIMIT 1',
+    [UNKNOWN_SUPPLIER],
+  );
+  if (rows[0]) return rows[0].id;
+  const r = await client.query('INSERT INTO suppliers (name) VALUES ($1) RETURNING id', [UNKNOWN_SUPPLIER]);
+  return r.rows[0].id;
+}
 
 export async function loadPurchase(db, id) {
   const { rows } = await db.query(
@@ -32,9 +45,14 @@ export async function createPurchase(client, user, body) {
     if (rows[0]) return { purchase: await loadPurchase(client, rows[0].id), duplicate: true };
   }
 
-  const supplierId = num(body.supplier_id, 'Yetkazib beruvchi', { positive: true });
-  const { rows: sup } = await client.query('SELECT id FROM suppliers WHERE id = $1 AND is_active', [supplierId]);
-  if (!sup[0]) throw new HttpError(400, 'Yetkazib beruvchi topilmadi');
+  // Yetkazib beruvchi ixtiyoriy: ko'rsatilmasa (to'liq to'langan kirim) «Noma'lum» nomiga yoziladi
+  const hasSupplier = body.supplier_id !== undefined && body.supplier_id !== null && body.supplier_id !== '' && Number(body.supplier_id) !== 0;
+  let supplierId = null;
+  if (hasSupplier) {
+    supplierId = num(body.supplier_id, 'Yetkazib beruvchi', { positive: true });
+    const { rows: sup } = await client.query('SELECT id FROM suppliers WHERE id = $1 AND is_active', [supplierId]);
+    if (!sup[0]) throw new HttpError(400, 'Yetkazib beruvchi topilmadi');
+  }
 
   const items = Array.isArray(body.items) ? body.items : [];
   if (items.length === 0) throw new HttpError(400, "Kirim uchun kamida bitta mahsulot qo'shing");
@@ -73,6 +91,12 @@ export async function createPurchase(client, user, body) {
   if (paid > total + 0.001) throw new HttpError(400, "To'langan summa jami summadan katta bo'lishi mumkin emas");
   const payMethod = paid > 0 ? (body.payment_method || 'cash') : null;
   if (payMethod && !METHODS.includes(payMethod)) throw new HttpError(400, "To'lov usuli noto'g'ri");
+  if (!hasSupplier) {
+    if (paid < total - 0.001) {
+      throw new HttpError(400, "Qarzga olgan bo'lsangiz, tovar kimdan kelganini tanlang (yetkazib beruvchi)");
+    }
+    supplierId = await unknownSupplier(client);
+  }
 
   // Yetkazib berish va chegirma har bir qatorga qiymati bo'yicha taqsimlanadi (oxirgi qator qoldiqni oladi)
   const adjust = round2(delivery - discount);

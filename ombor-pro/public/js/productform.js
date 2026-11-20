@@ -62,6 +62,8 @@ async function mountWizard(host, opts) {
     imageUrl: '',
   });
   const st = { ...fresh(), name: opts.name || '' };
+  // «Yuk keldi» ichidan ochilganda: miqdor — kelgan yuk (kirimga yoziladi), boshlang'ich qoldiq emas
+  const QTY = opts.arrival ? 'Nechta keldi' : 'Nechta bor';
 
   const factor = () => (st.packed ? toNum(st.packFactor) : 1);
   const base = () => unitName(st.baseUnitId);
@@ -141,15 +143,15 @@ async function mountWizard(host, opts) {
   function priceSection() {
     if (st.variants) {
       return `
-        ${packReady() ? `<div class="row small" style="gap:6px;flex-wrap:wrap">Kelish narxini qaysi biri uchun yozasiz: ${unitSwitch('cost')} · Nechta bor — ${unitSwitch('qty')}da</div>` : ''}
+        ${packReady() ? `<div class="row small" style="gap:6px;flex-wrap:wrap">Kelish narxini qaysi biri uchun yozasiz: ${unitSwitch('cost')} · ${QTY} — ${unitSwitch('qty')}da</div>` : ''}
         <div class="vtable">
-          <div class="vhead"><span>Hajmi yoki turi</span><span>Sotuv narxi (1 ${esc(base())})</span><span>Kelish narxi (1 ${esc(costUnit())})</span><span>Nechta bor (${esc(qtyUnit())})</span><span></span></div>
+          <div class="vhead"><span>Hajmi yoki turi</span><span>Sotuv narxi (1 ${esc(base())})</span><span>Kelish narxi (1 ${esc(costUnit())})</span><span>${QTY} (${esc(qtyUnit())})</span><span></span></div>
           ${st.rows.map((r, i) => `
             <div class="vrow">
               <input class="input" data-row="${i}" data-f="label" placeholder="${['0,5 L', '1 L', '1,5 L'][i] || '2 L'}" value="${esc(r.label)}" aria-label="Hajmi">
               <input class="input" data-row="${i}" data-f="sell" inputmode="decimal" placeholder="Sotuv narxi" value="${esc(r.sell)}" aria-label="Sotuv narxi">
               <input class="input" data-row="${i}" data-f="cost" inputmode="decimal" placeholder="Kelish narxi" value="${esc(r.cost)}" aria-label="Kelish narxi">
-              <input class="input" data-row="${i}" data-f="qty" inputmode="decimal" placeholder="Nechta bor" value="${esc(r.qty)}" aria-label="Nechta bor">
+              <input class="input" data-row="${i}" data-f="qty" inputmode="decimal" placeholder="${QTY}" value="${esc(r.qty)}" aria-label="${QTY}">
               <button class="icon-btn" type="button" data-delrow="${i}" aria-label="O'chirish" ${st.rows.length <= 1 ? 'disabled' : ''}>${icon('x', 'ico-sm')}</button>
               <div class="vhint" data-hint="${i}">${calcHint(r)}</div>
             </div>`).join('')}
@@ -164,7 +166,7 @@ async function mountWizard(host, opts) {
           <div class="money-input"><input class="input input-lg" data-f="sell" inputmode="decimal" placeholder="0" value="${esc(r.sell)}"><em>so'm · 1 ${esc(base())}</em></div></label>
         <div class="field"><span>Kelish narxi <small>(ixtiyoriy)</small></span>
           <div class="money-input"><input class="input input-lg" data-f="cost" inputmode="decimal" placeholder="0" value="${esc(r.cost)}"><em>so'm · 1 ${unitSwitch('cost')}</em></div></div>
-        <div class="field"><span>Hozir nechta bor? <small>(ixtiyoriy)</small></span>
+        <div class="field"><span>${opts.arrival ? 'Nechta keldi?' : 'Hozir nechta bor?'} <small>(ixtiyoriy)</small></span>
           <div class="money-input"><input class="input input-lg" data-f="qty" inputmode="decimal" placeholder="0" value="${esc(r.qty)}"><em>${unitSwitch('qty')}</em></div></div>
       </div>
       <div class="calc-box" data-hint="single">${calcHint(r) || "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi"}</div>`;
@@ -219,7 +221,7 @@ async function mountWizard(host, opts) {
         </div>
 
         <div class="pf-block">
-          <div class="wq">${st.variants ? 'Har bir hajm: narxi va nechta borligi' : 'Narxi va nechta bor'}</div>
+          <div class="wq">${st.variants ? `Har bir hajm: narxi va ${opts.arrival ? 'nechta kelgani' : 'nechta borligi'}` : `Narxi va ${opts.arrival ? 'nechta keldi' : 'nechta bor'}`}</div>
           <div id="prices" class="pf-prices">${priceSection()}</div>
         </div>
 
@@ -383,10 +385,10 @@ async function mountWizard(host, opts) {
         barcode: st.variants ? null : (st.barcode.trim() || null),
       };
       const q = round4(qtyBase(qty));
-      if (q > 0) body.opening_qty = q;
+      if (q > 0 && !opts.arrival) body.opening_qty = q;
       try {
         const res = await post('/products', body);
-        created.push({ id: res.id, name: body.name });
+        created.push({ id: res.id, name: body.name, arrived: q });
       } catch (err) {
         const done = created.length ? ` (${created.map((c) => c.name).join(', ')} saqlandi)` : '';
         return fail(`«${body.name}» saqlanmadi: ${err.message}${done}`);
@@ -429,7 +431,7 @@ export async function renderProductWizard(root, { name = '', onSaved, onCancel }
 }
 
 // Oyna ko'rinishi (masalan, Yuk keldi → tovar topilmasa). Saqlangan tovarlar ro'yxatini qaytaradi.
-export function openProductWizard({ name = '' } = {}) {
+export function openProductWizard({ name = '', arrival = false } = {}) {
   return new Promise((resolve) => {
     let done = false;
     const { close, el } = openModal({
@@ -440,6 +442,7 @@ export function openProductWizard({ name = '' } = {}) {
     });
     mountWizard(el.querySelector('#wizmodal'), {
       name,
+      arrival,
       modal: true,
       onSaved: (created) => { done = true; close(); resolve(created); },
       onCancel: () => close(),

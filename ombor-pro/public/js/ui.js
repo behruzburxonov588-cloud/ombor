@@ -356,6 +356,32 @@ export function productThumb(p, big = false) {
   return `<div class="${cls}" aria-hidden="true">${letter}</div>`;
 }
 
+// Rasm yo'q tovar uchun yumshoq rangli harf (har tovarga o'z rangi)
+const TINTS = ['#e8eef8', '#e7f4ee', '#fdf1e2', '#f3ecfa', '#e6f3f6', '#fbe9ec'];
+function tint(name) {
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return TINTS[h % TINTS.length];
+}
+
+export function productPhoto(p, cls = 'pc-img') {
+  const letter = esc((p.name || '?').trim().charAt(0).toUpperCase());
+  const bg = `style="background:${tint(p.name)}"`;
+  // Rasm ochilmasa (o'chirilgan fayl) — harfli rangli fon ko'rsatiladi
+  if (p.image_path) return `<div class="${cls}" ${bg}><img src="${esc(p.image_path)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('no-img');this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${letter.replace(/'/g, '')}'}))"></div>`;
+  return `<div class="${cls} no-img" ${bg} aria-hidden="true"><span>${letter}</span></div>`;
+}
+
+// Qoldiqni qadoqda ko'rsatish: 61 dona, 1 quti = 12 → «5 quti 1 dona». Qadoq bo'lmasa — bo'sh
+export function packText(qtyVal, unitName, pack) {
+  const q = Number(qtyVal) || 0;
+  const f = Number(pack?.factor);
+  if (!pack || !(f > 1) || q < f) return '';
+  const whole = Math.floor((q + 1e-9) / f);
+  const rest = Math.round((q - whole * f) * 1000) / 1000;
+  return `${num(whole, 0)} ${pack.name}${rest > 0 ? ` ${num(rest, 3)} ${unitName}` : ''}`;
+}
+
 // Takroriy yuborishdan himoya uchun noyob kalit (server bir xil kalitni ikkinchi marta yozmaydi)
 export function newKey(prefix = 'op') {
   const rand = globalThis.crypto?.randomUUID

@@ -1,17 +1,11 @@
 // Mahsulotlar: ro'yxat, tafsilot, qo'shish/tahrirlash, arxiv, rasm, konvertatsiya
 import {
   get, post, put, icon, esc, num, money, qty, dateTime, toast, errorToast, openModal, withBusy,
-  productThumb, statusBadge, emptyState, confirmBox, readForm, api, uploadProductImage,
+  productThumb, emptyState, confirmBox, readForm, api, uploadProductImage, packText, productPhoto,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { renderProductWizard } from '../productform.js';
 
-const FILTERS = [
-  { key: '', label: 'Hammasi' },
-  { key: 'low', label: 'Kam qolgan' },
-  { key: 'out', label: 'Tugagan' },
-  { key: 'archived', label: 'Arxiv' },
-];
 
 export async function render(root, params, ctx) {
   if (params.id === 'new') {
@@ -37,66 +31,132 @@ export async function render(root, params, ctx) {
   return renderList(root, params, ctx);
 }
 
-// ---------- Ro'yxat ----------
+// ---------- Ro'yxat: rasmli kartochkalar, har birida qancha qolgani ----------
+
+const PAGE = 48;
+
+const STOCK_WORD = { out: 'Tugagan', low: 'Kam qoldi', ok: '' };
+
+function productCard(p) {
+  const st = p.is_archived ? 'arch' : p.status;
+  const pk = packText(p.stock_qty, p.base_unit_name, p.pack);
+  return `
+    <a class="pc st-${st}" href="#/products/${p.id}">
+      <div class="pc-top">
+        ${productPhoto(p)}
+        ${p.is_archived ? '<span class="pc-flag arch">Arxivda</span>' : STOCK_WORD[p.status] ? `<span class="pc-flag ${p.status}">${STOCK_WORD[p.status]}</span>` : ''}
+      </div>
+      <div class="pc-body">
+        <div class="pc-name">${esc(p.name)}</div>
+        <div class="pc-left">
+          <span class="pc-label">Qoldi</span>
+          <span class="pc-qty">${num(p.stock_qty, 3)}</span><span class="pc-unit">${esc(p.base_unit_name)}</span>
+        </div>
+        <div class="pc-pack">${pk ? `= ${esc(pk)}` : '&nbsp;'}</div>
+        <div class="pc-price">${money(p.selling_price)}<small> / ${esc(p.base_unit_name)}</small></div>
+      </div>
+    </a>`;
+}
 
 async function renderList(root, params, ctx) {
-  const filter = params.query.filter || '';
-  let q = params.query.q || '';
+  let filter = params.query.filter || '';
+  let q = (params.query.q || '').trim();
+  let shown = PAGE;
   const canManage = ctx.can('products.manage');
+  const canBuy = ctx.can('purchases.create');
+  let active = [];
+  let archived = null;
 
   root.innerHTML = `
     <div class="page-head">
       <div><h1>Mahsulotlar</h1><p class="muted" id="count">Yuklanmoqda...</p></div>
-      ${canManage ? `<a class="btn" href="#/products/new">${icon('plus')} Yangi tovar</a>` : ''}
+      <div class="row">
+        ${canBuy ? `<a class="btn btn-outline" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}
+        ${canManage ? `<a class="btn" href="#/products/new">${icon('plus', 'ico-sm')} Yangi tovar</a>` : ''}
+      </div>
     </div>
-    <div class="stack">
-      <input class="input" type="search" id="q" placeholder="Nomi yoki shtrix-kodi bo'yicha qidirish" value="${esc(q)}" autocomplete="off">
-      <div class="chips" id="chips">${FILTERS.map((f) => `<button type="button" class="chip ${f.key === filter ? 'active' : ''}" data-f="${f.key}">${f.label}</button>`).join('')}</div>
+    <div class="plist-tools">
+      <div class="search-input">${icon('search', 'ico-sm')}<input class="input" type="search" id="q" placeholder="Tovar nomi yoki shtrix-kodi..." value="${esc(q)}" autocomplete="off" aria-label="Tovar qidirish"></div>
+      <div class="chips" id="chips"></div>
     </div>
-    <div class="card" style="margin-top:14px" id="list"><div class="empty">Yuklanmoqda...</div></div>`;
+    <div id="list"><div class="empty">Yuklanmoqda...</div></div>`;
 
-  const load = async () => {
-    const qs = new URLSearchParams();
-    if (q) qs.set('q', q);
-    const f = root.querySelector('.chip.active')?.dataset.f || '';
-    if (f === 'archived') qs.set('archived', '1');
-    if (f === 'low' || f === 'out') qs.set('stock', f);
-    const r = await get(`/products?${qs}`);
-    const list = root.querySelector('#list');
-    root.querySelector('#count').textContent = `${r.products.length} ta mahsulot`;
-    list.innerHTML = r.products.length
-      ? `<div class="list">${r.products.map((p) => `
-          <div class="list-item" data-id="${p.id}">
-            ${productThumb(p)}
-            <div class="meta">
-              <div class="name">${esc(p.name)}</div>
-              <div class="sub">${money(p.selling_price)} / ${esc(p.base_unit_name)} · qoldiq ${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}</div>
-            </div>
-            <div class="end">${p.is_archived ? '<span class="badge badge-muted">Arxiv</span>' : statusBadge(p.status)}</div>
-          </div>`).join('')}</div>`
-      : emptyList(q, f, canManage);
-    list.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => ctx.go(`#/products/${el.dataset.id}`)));
+  const chipsEl = root.querySelector('#chips');
+  const listEl = root.querySelector('#list');
+
+  const drawChips = () => {
+    const out = active.filter((p) => p.status === 'out').length;
+    const low = active.filter((p) => p.status === 'low').length;
+    const chips = [
+      { key: '', label: `Hammasi <b>${active.length}</b>` },
+      { key: 'out', label: `Tugagan <b>${out}</b>`, cls: out ? 'chip-bad' : '' },
+      { key: 'low', label: `Kam qolgan <b>${low}</b>`, cls: low ? 'chip-warn' : '' },
+      { key: 'archived', label: 'Arxiv' },
+    ];
+    chipsEl.innerHTML = chips.map((c) => `<button type="button" class="chip ${c.cls || ''} ${c.key === filter ? 'active' : ''}" data-f="${c.key}">${c.label}</button>`).join('');
+    const parts = [`${active.length} xil tovar`];
+    if (out) parts.push(`${out} tasi tugagan`);
+    if (low) parts.push(`${low} tasi kam qolgan`);
+    root.querySelector('#count').textContent = parts.join(' · ');
   };
 
+  const draw = () => {
+    const src = filter === 'archived' ? (archived || []) : active;
+    const text = q.toLowerCase();
+    const rows = src.filter((p) => (filter === 'out' || filter === 'low' ? p.status === filter : true)
+      && (!text || p.name.toLowerCase().includes(text) || (p.barcode && p.barcode === q)));
+    if (!rows.length) {
+      listEl.innerHTML = emptyList(q, filter, canManage);
+      return;
+    }
+    listEl.innerHTML = `
+      <div class="pc-grid">${rows.slice(0, shown).map(productCard).join('')}</div>
+      ${rows.length > shown ? `<div class="home-foot"><button class="btn btn-light" type="button" id="more">Yana ko'rsatish (${rows.length - shown} ta qoldi)</button></div>` : ''}`;
+    listEl.querySelector('#more')?.addEventListener('click', () => { shown += PAGE; draw(); });
+  };
+
+  // Manzilni yangilab qo'yamiz (orqaga qaytganda filtr va qidiruv saqlanadi)
+  const remember = () => {
+    const qs = new URLSearchParams();
+    if (filter) qs.set('filter', filter);
+    if (q) qs.set('q', q);
+    history.replaceState(null, '', `#/products${qs.toString() ? `?${qs}` : ''}`);
+  };
+
+  chipsEl.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-f]');
+    if (!b) return;
+    filter = b.dataset.f;
+    shown = PAGE;
+    if (filter === 'archived' && !archived) {
+      listEl.innerHTML = '<div class="empty">Yuklanmoqda...</div>';
+      try { archived = (await get('/products?archived=1&limit=1000')).products; } catch (err) { errorToast(err); archived = []; }
+    }
+    drawChips();
+    draw();
+    remember();
+  });
   let timer = null;
   root.querySelector('#q').addEventListener('input', (e) => {
     clearTimeout(timer);
     timer = setTimeout(() => {
       q = e.target.value.trim();
-      load().catch(errorToast);
-    }, 220);
+      shown = PAGE;
+      draw();
+      remember();
+    }, 150);
   });
-  root.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', () => {
-    root.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('active', x === b));
-    load().catch(errorToast);
-  }));
-  await load();
+
+  active = (await get('/products?limit=1000')).products;
+  if (filter === 'archived') archived = (await get('/products?archived=1&limit=1000')).products;
+  drawChips();
+  draw();
 }
 
 // Bo'sh ro'yxat: birinchi mahsulotga taklif yoki qidiruv bo'yicha yangi mahsulot qo'shish
 function emptyList(q, filter, canManage) {
   if (!q && !filter) {
-    return `<div class="empty-hero">
+    return `<div class="card empty-hero">
       <span class="hero-ico">${icon('box')}</span>
       <h2>Hali mahsulot yo'q</h2>
       <p>${canManage ? "Birinchi mahsulotingizni qo'shing: nomi va sotuv narxi kifoya. Bir daqiqa vaqt oladi." : "Mahsulot qo'shish uchun do'kon egasi yoki administratorga murojaat qiling."}</p>
@@ -104,139 +164,140 @@ function emptyList(q, filter, canManage) {
     </div>`;
   }
   if (q && canManage && filter !== 'archived') {
-    return `<div class="empty-hero">
+    return `<div class="card empty-hero">
       <span class="hero-ico">${icon('search')}</span>
       <h2>«${esc(q)}» topilmadi</h2>
       <p>Bunday mahsulot hali qo'shilmagan bo'lsa, hoziroq qo'shishingiz mumkin.</p>
       <a class="btn" href="#/products/new?name=${encodeURIComponent(q)}">${icon('plus')} «${esc(q)}» ni qo'shish</a>
     </div>`;
   }
-  const text = { archived: "Arxivda mahsulot yo'q", low: "Kam qolgan mahsulot yo'q", out: "Tugagan mahsulot yo'q" }[filter] || 'Hech narsa topilmadi';
-  return emptyState(text, 'box');
+  const text = { archived: "Arxivda mahsulot yo'q", low: "Kam qolgan mahsulot yo'q — hammasi yetarli", out: "Tugagan mahsulot yo'q — hammasi bor" }[filter] || 'Hech narsa topilmadi';
+  return `<div class="card">${emptyState(text, 'box')}</div>`;
 }
 
-// ---------- Tafsilot ----------
+// ---------- Bitta tovar sahifasi: rasm, qancha qolgani, narxi, nima keldi-ketdi ----------
+
+const MOVES = {
+  opening: { label: "Boshlang'ich qoldiq", ico: 'box' },
+  purchase: { label: 'Yuk keldi', ico: 'truck' },
+  sale: { label: 'Sotildi', ico: 'cart' },
+  return: { label: 'Mijoz qaytardi', ico: 'restore' },
+  damage: { label: "Yaroqsiz bo'ldi (zarar)", ico: 'alert' },
+  correction: { label: "Qoldiq to'g'rilandi", ico: 'edit' },
+};
+
+function moveLink(m) {
+  if (!m.reference_id) return '';
+  if (m.reference_type === 'purchase') return `#/purchases/${m.reference_id}`;
+  if (m.reference_type === 'sale' || m.reference_type === 'sale_return') return `#/sales/${m.reference_id}`;
+  return '';
+}
+
+function moveRow(m, p) {
+  const t = MOVES[m.movement_type] || { label: m.movement_type, ico: 'history' };
+  const q = Number(m.quantity);
+  const dir = q >= 0 ? 'in' : 'out';
+  const pk = packText(Math.abs(q), p.base_unit_name, p.pack);
+  const href = moveLink(m);
+  const tag = href ? 'a' : 'div';
+  const sub = [dateTime(m.created_at), m.user_name, m.note !== t.label ? m.note : ''].filter(Boolean).map(esc).join(' · ');
+  return `
+    <${tag} class="hist ${dir}" ${href ? `href="${href}"` : ''}>
+      <span class="hist-ico">${icon(t.ico, 'ico-sm')}</span>
+      <div class="hist-meta"><div class="hist-title">${esc(t.label)}</div><div class="hist-sub">${sub}</div></div>
+      <div class="hist-qty"><b>${q >= 0 ? '+' : '−'}${num(Math.abs(q), 3)} ${esc(p.base_unit_name)}</b>
+        <span>${pk ? `${esc(pk)} · ` : ''}qoldi ${num(m.balance_after, 3)}</span></div>
+    </${tag}>`;
+}
 
 async function renderDetail(root, id, ctx) {
-  const { product: p, batches } = await get(`/products/${id}`);
-  const hist = await get(`/products/${id}/history`);
+  const [{ product: p, batches }, hist] = await Promise.all([get(`/products/${id}`), get(`/products/${id}/history`)]);
   const canManage = ctx.can('products.manage');
+  const canBuy = ctx.can('purchases.create') && !p.is_archived;
   const unit = esc(p.base_unit_name);
-  const profitTone = p.profit >= 0 ? 'good' : 'bad';
   const showCost = !p.cost_hidden;
+  const st = p.is_archived ? 'arch' : p.status;
+  const pk = packText(p.stock_qty, p.base_unit_name, p.pack);
+  const cost = showCost ? (Number(p.avg_cost) > 0 ? Number(p.avg_cost) : Number(p.purchase_price)) : 0;
+  const margin = showCost && cost > 0 ? Number(p.selling_price) - cost : null;
+  const statusText = {
+    out: "Tugagan — sotish uchun yangi yuk kiriting",
+    low: `Kam qolgan${Number(p.min_stock) > 0 ? ` (${num(p.min_stock, 3)} ${unit} va undan kam qolsa ogohlantiramiz)` : ''}`,
+    ok: 'Yetarli',
+    arch: 'Arxivda — sotuvda ko\'rinmaydi',
+  }[st];
+  const moves = hist.movements;
+  const MV_SHOW = 12;
 
   root.innerHTML = `
     <div class="page-head">
-      <a class="btn btn-light btn-sm" href="#/products">${icon('back', 'ico-sm')} Ro'yxat</a>
-      <div class="row">
-        ${ctx.can('purchases.create') && !p.is_archived ? `<a class="btn" href="#/purchases/new?product=${id}" title="Shu tovardan yangi yuk keldi">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}
-        ${canManage && !p.is_archived ? `<a class="btn btn-outline" href="#/products/${id}/edit">${icon('edit', 'ico-sm')} Tahrirlash</a>` : ''}
-        ${canManage ? `<button class="btn ${p.is_archived ? 'btn-success' : 'btn-warn'}" type="button" id="btn-arch">${icon(p.is_archived ? 'restore' : 'archive', 'ico-sm')} ${p.is_archived ? 'Tiklash' : 'Arxivlash'}</button>` : ''}
-      </div>
+      <a class="btn btn-light btn-sm" href="#/products">${icon('back', 'ico-sm')} Mahsulotlar</a>
     </div>
 
-    <div class="card">
-      <div class="row" style="align-items:center">
-        ${productThumb(p, true)}
-        <div class="grow" style="min-width:0">
-          <h1 style="font-size:22px">${esc(p.name)}</h1>
-          <div class="small muted" style="margin-top:4px">${p.barcode ? `Shtrix-kod: <span class="num">${esc(p.barcode)}</span> · ` : ''}${esc(p.category_name || 'Kategoriyasiz')}${p.supplier_name ? ` · ${esc(p.supplier_name)}` : ''}</div>
-          <div style="margin-top:8px">${p.is_archived ? '<span class="badge badge-muted">Arxivlangan</span>' : statusBadge(p.status)}</div>
+    <section class="card pd-hero st-${st}">
+      <div class="pd-photo-wrap">
+        ${productPhoto(p, 'pd-photo')}
+        ${canManage ? `<label class="pd-photo-btn">${icon('camera', 'ico-sm')} ${p.image_path ? 'Rasmni almashtirish' : "Rasm qo'yish"}<input type="file" accept="image/*" id="img" hidden></label>` : ''}
+      </div>
+      <div class="pd-main">
+        <h1 class="pd-name">${esc(p.name)}</h1>
+        <div class="small muted">${esc(p.category_name || 'Kategoriyasiz')}${p.barcode ? ` · Shtrix-kod: <span class="num">${esc(p.barcode)}</span>` : ''}</div>
+        <div class="pd-stock">
+          <div class="pd-stock-label">Omborda qoldi</div>
+          <div class="pd-stock-num">${num(p.stock_qty, 3)} <span>${unit}</span></div>
+          ${pk ? `<div class="pd-stock-pack">= ${esc(pk)}</div>` : ''}
+          <div class="pd-stock-st"><span class="dot"></span>${esc(statusText)}</div>
+        </div>
+        <div class="pd-actions">
+          ${canBuy ? `<a class="btn btn-lg" href="#/purchases/new?product=${id}">${icon('truck')} Yuk keldi</a>` : ''}
+          ${canManage && !p.is_archived ? `<a class="btn btn-lg btn-outline" href="#/products/${id}/edit">${icon('edit')} O'zgartirish</a>` : ''}
         </div>
       </div>
-      ${canManage ? `<div class="row" style="margin-top:14px"><label class="btn btn-light btn-sm" style="cursor:pointer">${icon('camera', 'ico-sm')} ${p.image_path ? 'Rasmni almashtirish' : 'Rasm qo\'shish'}<input type="file" accept="image/*" id="img" hidden></label></div>` : ''}
+    </section>
+
+    <div class="pd-facts">
+      <div class="pd-fact"><span>Sotuv narxi</span><b>${money(p.selling_price)}</b><small>1 ${unit} uchun${p.pack ? ` · 1 ${esc(p.pack.name)} = ${money(Number(p.selling_price) * p.pack.factor)}` : ''}</small></div>
+      ${showCost ? `<div class="pd-fact"><span>Kelish narxi</span><b>${cost > 0 ? money(cost) : '—'}</b><small>${cost > 0 ? `1 ${unit} sizga shunga tushgan` : 'hali kiritilmagan'}</small></div>` : ''}
+      ${margin !== null ? `<div class="pd-fact ${margin >= 0 ? 'good' : 'bad'}"><span>Har biridan foyda</span><b>${money(margin)}</b><small>1 ${unit} sotsangiz</small></div>` : ''}
+      <div class="pd-fact"><span>Jami sotildi</span><b>${num(p.sold_qty, 3)} ${unit}</b><small>${money(p.sold_revenue)}ga${showCost ? ` · foyda ${money(p.profit)}` : ''}</small></div>
+      ${p.conversions.length ? `<div class="pd-fact"><span>Qadoq</span><b>${p.conversions.map((c) => `1 ${esc(c.name)} = ${num(c.factor, 4)} ${unit}`).join('<br>')}</b><small>yuk kelganda shunday hisoblanadi</small></div>` : ''}
     </div>
 
-    <div class="kpis" style="margin-top:14px">
-      <div class="kpi neutral"><div class="label">Hozirgi qoldiq</div><div class="value">${num(p.stock_qty, 3)} ${unit}</div><div class="hint">minimal: ${num(p.min_stock, 3)}</div></div>
-      <div class="kpi neutral"><div class="label">Sotilgan</div><div class="value">${num(p.sold_qty, 3)} ${unit}</div><div class="hint">qaytarishlar ayirilgan</div></div>
-      <div class="kpi neutral"><div class="label">Sotuv summasi</div><div class="value">${money(p.sold_revenue)}</div><div class="hint">sof tushum</div></div>
-      ${showCost ? `<div class="kpi ${profitTone}"><div class="label">Foyda</div><div class="value">${money(p.profit)}</div><div class="hint">kelish narxi ${money(p.sold_cost)}</div></div>` : ''}
-    </div>
+    <section class="card">
+      <div class="card-head"><h2>Nima keldi, nima ketdi</h2><span class="small muted">eng yangisi tepada</span></div>
+      ${moves.length ? `<div class="hist-list" id="mv">${moves.slice(0, MV_SHOW).map((m) => moveRow(m, p)).join('')}</div>
+        ${moves.length > MV_SHOW ? `<div class="home-foot"><button class="btn btn-ghost btn-sm" type="button" id="mv-more">Hammasini ko'rsatish (${moves.length})</button></div>` : ''}`
+        : emptyState("Hali hech narsa kelmagan va sotilmagan", 'clock')}
+    </section>
 
-    <div class="form-grid two" style="margin-top:14px;gap:14px">
-      <div class="card">
-        <div class="card-head"><h2>Narxlar</h2></div>
-        <div class="list">
-          <div class="list-item"><div class="meta"><div class="name">Sotuv narxi</div><div class="sub">1 ${unit} uchun</div></div><div class="end num"><b>${money(p.selling_price)}</b></div></div>
-          ${showCost ? `<div class="list-item"><div class="meta"><div class="name">Kirim narxi</div><div class="sub">standart</div></div><div class="end num">${money(p.purchase_price)}</div></div>
-          <div class="list-item"><div class="meta"><div class="name">Kelish narxi</div><div class="sub">o'rtacha, 1 ${unit} uchun</div></div><div class="end num">${money(p.avg_cost)}</div></div>
-          <div class="list-item"><div class="meta"><div class="name">Ombordagi qiymati</div><div class="sub">qoldiq × kelish narxi</div></div><div class="end num">${money(p.stock_value)}</div></div>` : ''}
-        </div>
+    <details class="card pd-more">
+      <summary>${icon('list', 'ico-sm')} Batafsil ma'lumot ${canManage ? "va arxivlash" : ''}</summary>
+      <div class="pd-more-body">
+        ${showCost ? `<div class="list">
+          <div class="list-item"><div class="meta"><div class="name">Ombordagi qiymati</div><div class="sub">qoldiq × kelish narxi</div></div><div class="end num">${money(p.stock_value)}</div></div>
+          <div class="list-item"><div class="meta"><div class="name">Standart kirim narxi</div><div class="sub">yangi yuk kiritganda taklif qilinadi</div></div><div class="end num">${money(p.purchase_price)}</div></div>
+          <div class="list-item"><div class="meta"><div class="name">Minimal qoldiq</div><div class="sub">shundan kam qolsa ogohlantiramiz</div></div><div class="end num">${num(p.min_stock, 3)} ${unit}</div></div>
+        </div>` : ''}
+        ${batches.length ? `
+        <h3 class="pd-sub">Omborda turgan partiyalar <span class="small muted">(avval kelgani avval sotiladi)</span></h3>
+        <div class="table-wrap cards"><table>
+          <thead><tr><th>Kelgan sana</th><th>Qayerdan</th><th class="right">Qoldi</th>${showCost ? '<th class="right">Kelish narxi</th>' : ''}</tr></thead>
+          <tbody>${batches.map((b) => `<tr>
+            <td data-label="Sana">${dateTime(b.received_at)}</td>
+            <td data-label="Qayerdan">${esc(sourceLabel(b.source_type))}</td>
+            <td data-label="Qoldi" class="right num">${num(b.qty_remaining, 4)} / ${num(b.qty_initial, 4)} ${unit}</td>
+            ${showCost ? `<td data-label="Kelish narxi" class="right num">${money(b.unit_cost)}</td>` : ''}
+          </tr>`).join('')}</tbody></table></div>` : ''}
+        ${canManage ? `<div class="row" style="margin-top:12px">
+          <button class="btn ${p.is_archived ? 'btn-success' : 'btn-light'}" type="button" id="btn-arch">${icon(p.is_archived ? 'restore' : 'archive', 'ico-sm')} ${p.is_archived ? 'Arxivdan qaytarish' : 'Arxivlash (endi sotilmaydi)'}</button>
+        </div>` : ''}
       </div>
-      <div class="card">
-        <div class="card-head"><h2>O'lchov birliklari</h2></div>
-        <div class="list">
-          <div class="list-item"><div class="meta"><div class="name">${unit}</div><div class="sub">asosiy birlik</div></div><div class="end"><span class="badge badge-info">1</span></div></div>
-          ${p.conversions.length ? p.conversions.map((c) => `
-            <div class="list-item"><div class="meta"><div class="name">${esc(c.name)}</div><div class="sub">1 ${esc(c.name)} = ${num(c.factor, 4)} ${unit}</div></div></div>`).join('')
-            : '<div class="small muted" style="padding:8px 4px">Qo\'shimcha birlik yo\'q</div>'}
-        </div>
-      </div>
-    </div>
+    </details>`;
 
-    ${batches.length ? `
-    <div class="card" style="margin-top:14px">
-      <div class="card-head"><h2>Omborga kelgan partiyalar</h2><span class="small muted">avval kelgani avval sotiladi</span></div>
-      <div class="table-wrap cards"><table>
-        <thead><tr><th>Kelgan sana</th><th>Manba</th><th class="right">Qoldiq</th>${showCost ? '<th class="right">Kelish narxi</th>' : ''}</tr></thead>
-        <tbody>${batches.map((b) => `<tr>
-          <td data-label="Sana">${dateTime(b.received_at)}</td>
-          <td data-label="Manba">${esc(sourceLabel(b.source_type))}</td>
-          <td data-label="Qoldiq" class="right num">${num(b.qty_remaining, 4)} / ${num(b.qty_initial, 4)} ${unit}</td>
-          ${showCost ? `<td data-label="Kelish narxi" class="right num">${money(b.unit_cost)}</td>` : ''}
-        </tr>`).join('')}</tbody></table></div>
-    </div>` : ''}
-
-    <div class="card" style="margin-top:14px">
-      <div class="seg" id="htabs" style="margin-bottom:12px">
-        <button type="button" class="active" data-t="mv">Ombor harakatlari</button>
-        ${showCost ? '<button type="button" data-t="pu">Kirimlar</button>' : ''}
-        <button type="button" data-t="sa">Sotuvlar</button>
-      </div>
-      <div id="hbody"></div>
-    </div>`;
-
-  const showTab = (t) => {
-    root.querySelectorAll('#htabs button').forEach((b) => b.classList.toggle('active', b.dataset.t === t));
-    const body = root.querySelector('#hbody');
-    if (t === 'mv') {
-      body.innerHTML = hist.movements.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Vaqt</th><th>Turi</th><th class="right">Miqdor</th><th class="right">Qoldiq</th>${showCost ? '<th class="right">Qiymat</th>' : ''}<th>Izoh</th></tr></thead>
-        <tbody>${hist.movements.map((m) => `<tr>
-          <td data-label="Vaqt">${dateTime(m.created_at)}</td>
-          <td data-label="Turi">${esc(movementLabel(m.movement_type))}</td>
-          <td data-label="Miqdor" class="right num ${m.quantity < 0 ? 'red' : 'green'}">${m.quantity > 0 ? '+' : ''}${num(m.quantity, 4)}</td>
-          <td data-label="Qoldiq" class="right num">${num(m.balance_after, 4)}</td>
-          ${showCost ? `<td data-label="Qiymat" class="right num">${money(m.value)}</td>` : ''}
-          <td data-label="Izoh" class="small">${esc(m.note || '')} <span class="muted">${esc(m.user_name || '')}</span></td>
-        </tr>`).join('')}</tbody></table></div>` : emptyState('Harakatlar yo\'q', 'clock');
-    } else if (t === 'pu') {
-      body.innerHTML = hist.purchases.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Sana</th><th>Kirim</th><th class="right">Miqdor</th><th class="right">Kirimdagi narx</th><th class="right" title="Yo'l kira va chegirma hisobga olingan, 1 asosiy birlik uchun">Haqiqiy kelish narxi</th></tr></thead>
-        <tbody>${hist.purchases.map((x) => `<tr class="clickable" data-pu="${x.id}">
-          <td data-label="Sana">${esc(x.purchase_date)}</td>
-          <td data-label="Kirim">${esc(x.purchase_no)}</td>
-          <td data-label="Miqdor" class="right num">${num(x.quantity, 4)} ${esc(x.unit_name)}</td>
-          <td data-label="Kirimdagi narx" class="right num">${money(x.unit_price)}</td>
-          <td data-label="Haqiqiy kelish narxi" class="right num">${money(x.unit_cost)}</td>
-        </tr>`).join('')}</tbody></table></div>` : emptyState('Kirimlar yo\'q', 'truck');
-      body.querySelectorAll('[data-pu]').forEach((tr) => tr.addEventListener('click', () => ctx.go(`#/purchases/${tr.dataset.pu}`)));
-    } else {
-      body.innerHTML = hist.sales.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Vaqt</th><th>Chek</th><th class="right">Miqdor</th><th class="right">Summa</th>${showCost ? '<th class="right">Foyda</th>' : ''}</tr></thead>
-        <tbody>${hist.sales.map((x) => `<tr class="clickable" data-sa="${x.id}">
-          <td data-label="Vaqt">${dateTime(x.created_at)}</td>
-          <td data-label="Chek">${esc(x.receipt_no)}</td>
-          <td data-label="Miqdor" class="right num">${num(x.quantity, 4)} ${esc(x.unit_name)}</td>
-          <td data-label="Summa" class="right num">${money(x.line_total)}</td>
-          ${showCost ? `<td data-label="Foyda" class="right num ${x.line_total - x.cost_total >= 0 ? 'green' : 'red'}">${money(x.line_total - x.cost_total)}</td>` : ''}
-        </tr>`).join('')}</tbody></table></div>` : emptyState('Sotuvlar yo\'q', 'cart');
-      body.querySelectorAll('[data-sa]').forEach((tr) => tr.addEventListener('click', () => ctx.go(`#/sales/${tr.dataset.sa}`)));
-    }
-  };
-  root.querySelectorAll('#htabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.t)));
-  showTab('mv');
+  root.querySelector('#mv-more')?.addEventListener('click', (e) => {
+    root.querySelector('#mv').innerHTML = moves.map((m) => moveRow(m, p)).join('');
+    e.currentTarget.remove();
+  });
 
   root.querySelector('#btn-arch')?.addEventListener('click', async (e) => {
     if (!p.is_archived) {
@@ -264,15 +325,8 @@ async function renderDetail(root, id, ctx) {
   });
 }
 
-function movementLabel(t) {
-  return {
-    opening: 'Boshlang\'ich qoldiq', purchase: 'Kirim', sale: 'Sotuv', return: 'Qaytarish',
-    damage: 'Zarar (yaroqsiz)', correction: 'Tuzatish / inventarizatsiya',
-  }[t] || t;
-}
-
 function sourceLabel(s) {
-  return { opening: 'Boshlang\'ich', purchase: 'Kirim', return: 'Qaytarish', correction: 'Tuzatish', adjustment: 'Tuzatish', inventory_count: 'Inventarizatsiya' }[s] || s;
+  return { opening: 'Boshlang\'ich', purchase: 'Yuk keldi', return: 'Qaytarilgan', correction: 'Tuzatish', adjustment: 'Tuzatish', inventory_count: 'Sanoq' }[s] || s;
 }
 
 // ---------- Qo'shish / tahrirlash formasi ----------

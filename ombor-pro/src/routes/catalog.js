@@ -86,7 +86,9 @@ const PRODUCT_SELECT = `
          COALESCE((SELECT SUM(si.base_quantity - si.returned_base_qty) FROM sale_items si WHERE si.product_id = p.id), 0) AS sold_qty,
          COALESCE((SELECT SUM(si.line_total - si.returned_amount) FROM sale_items si WHERE si.product_id = p.id), 0) AS sold_revenue,
          COALESCE((SELECT SUM(si.cost_total - si.returned_cost) FROM sale_items si WHERE si.product_id = p.id), 0) AS sold_cost,
-         COALESCE((SELECT SUM(b.qty_remaining * b.unit_cost) FROM stock_batches b WHERE b.product_id = p.id), 0) AS batch_value
+         COALESCE((SELECT SUM(b.qty_remaining * b.unit_cost) FROM stock_batches b WHERE b.product_id = p.id), 0) AS batch_value,
+         COALESCE((SELECT json_agg(json_build_object('unit_id', pu.unit_id, 'name', un.name, 'factor', pu.factor) ORDER BY pu.factor)
+                     FROM product_units pu JOIN units un ON un.id = pu.unit_id WHERE pu.product_id = p.id), '[]'::json) AS conv_json
     FROM products p
     JOIN units u ON u.id = p.base_unit_id
     LEFT JOIN categories c ON c.id = p.category_id
@@ -105,8 +107,11 @@ function hideCost(product, user) {
   return product;
 }
 
-function shapeProduct(row, conversions = []) {
+function shapeProduct(row, conversions = row.conv_json || []) {
   const stock = Number(row.stock_qty);
+  const conv = conversions.map((c) => ({ unit_id: c.unit_id, name: c.name, factor: Number(c.factor) }));
+  // Eng katta qadoq (masalan: quti, rulon) — qoldiqni «5 quti 3 dona» ko'rinishida ko'rsatish uchun
+  const pack = conv.reduce((best, c) => (c.factor > 1 && (!best || c.factor > best.factor) ? c : best), null);
   const minStock = Number(row.min_stock);
   let status = 'ok';
   if (stock <= 0) status = 'out';
@@ -137,7 +142,8 @@ function shapeProduct(row, conversions = []) {
     image_path: row.image_path,
     is_archived: row.is_archived,
     status,
-    conversions,
+    conversions: conv,
+    pack,
   };
 }
 
