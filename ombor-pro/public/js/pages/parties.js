@@ -225,6 +225,11 @@ async function renderDetail(root, cfg, id, ctx) {
 
 // ---------- Qarz to'lovi ----------
 
+// Qarzlar sahifasidan ham chaqiriladi: yetkazib beruvchiga to'lov
+export function openSupplierPayment(id, debt, onDone) {
+  openPayment(CONFIG.suppliers, id, debt, onDone);
+}
+
 function openPayment(cfg, id, debt, onDone) {
   // Bitta oyna uchun bitta kalit: tugma ikki marta bosilsa ham to'lov bir marta yoziladi
   const key = newKey('pay');

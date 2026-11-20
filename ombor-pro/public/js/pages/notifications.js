@@ -175,13 +175,15 @@ async function personal(body, ctx) {
         <section class="card">
           <div class="card-head"><div><h2>Hisobot va bosh sahifa</h2><div class="card-sub">Ochilganda qaysi davr tanlangan bo'lsin</div></div></div>
           <div class="form-grid two">
-            <label class="field"><span>Bosh sahifa davri</span><select class="input" id="drange">
-              ${[['today', 'Bugun'], ['7d', '7 kun'], ['30d', '30 kun'], ['90d', '90 kun']].map(([v, l]) => `<option value="${v}" ${prefs.dashboard.range === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+            <label class="field"><span>Bosh sahifa davri</span><select class="input" id="hrange">
+              ${[['today', 'Bugun'], ['yesterday', 'Kecha'], ['7d', '7 kun'], ['30d', '30 kun'], ['month', 'Shu oy']].map(([v, l]) => `<option value="${v}" ${prefs.dashboard.simple_range === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+            <label class="field"><span>Tahlil sahifasi davri</span><select class="input" id="drange">
+              ${[['today', 'Bugun'], ['yesterday', 'Kecha'], ['7d', '7 kun'], ['30d', '30 kun'], ['month', 'Shu oy']].map(([v, l]) => `<option value="${v}" ${prefs.dashboard.range === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
             <label class="field"><span>Hisobotlar davri</span><select class="input" id="rperiod">
               ${[['today', 'Bugun'], ['week', 'Shu hafta'], ['month', 'Shu oy'], ['year', 'Shu yil']].map(([v, l]) => `<option value="${v}" ${prefs.reports.period === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
             <label class="field"><span>Hisobot taqsimoti</span><select class="input" id="rgrain">
               ${[['daily', 'Kunlik'], ['weekly', 'Haftalik'], ['monthly', 'Oylik']].map(([v, l]) => `<option value="${v}" ${prefs.reports.grain === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-            <div class="field"><span>Vidjetlar</span><a class="btn btn-light" href="#/dashboard">${icon('sliders', 'ico-sm')} Bosh sahifada sozlash</a></div>
+            <div class="field"><span>Vidjetlar</span><a class="btn btn-light" href="#/analytics">${icon('sliders', 'ico-sm')} Tahlil sahifasida sozlash</a></div>
           </div>
         </section>
       </div>
@@ -211,7 +213,7 @@ async function personal(body, ctx) {
           browser,
           browser_levels: [...body.querySelectorAll('[data-level]')].filter((c) => c.checked).map((c) => c.dataset.level),
         },
-        dashboard: { range: body.querySelector('#drange').value },
+        dashboard: { range: body.querySelector('#drange').value, simple_range: body.querySelector('#hrange').value },
         reports: { period: body.querySelector('#rperiod').value, grain: body.querySelector('#rgrain').value },
       });
       toast('Sozlamalar saqlandi', 'ok');

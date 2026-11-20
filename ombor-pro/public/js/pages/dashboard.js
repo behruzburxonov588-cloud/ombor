@@ -2,8 +2,8 @@
 // Barcha raqamlar /api/analytics/dashboard dan (haqiqiy yozuvlar asosida) olinadi.
 import {
   get, put, esc, icon, num, compact, moneyFull, kpiMoney, deltaPill, pctText, dateTime, timeAgo, longDate,
-  shortDate, weekdayShort, deltaAmount, RANGE_PRESETS, presetRange, todayStr, openModal, toast, errorToast,
-  productThumb, emptyState,
+  shortDate, weekdayShort, deltaAmount, todayStr, openModal, toast, errorToast,
+  productThumb, emptyState, resolvePeriod, periodPicker, bindPeriod, compareText, periodQuery,
 } from '../ui.js';
 import { chart, sparkline, segbar, tableView } from '../charts.js';
 
@@ -84,24 +84,25 @@ function greeting() {
   return 'Xayrli kech';
 }
 
-function resolve(query, prefs) {
-  if (query.from && query.to) return { key: 'custom', from: query.from, to: query.to };
-  const key = RANGE_PRESETS.some((p) => p.key === query.range) ? query.range : prefs.dashboard.range;
-  return { key, ...presetRange(key) };
-}
-
-function compareLabel(r) {
-  if (r.key === 'today') return 'kechaning shu vaqtiga nisbatan';
-  if (r.key === 'custom') return 'oldingi shuncha kunga nisbatan';
-  return `oldingi ${RANGE_PRESETS.find((p) => p.key === r.key)?.days} kunga nisbatan`;
-}
+const resolve = (query, prefs) => resolvePeriod(query, prefs.dashboard.range);
+const compareLabel = (r) => compareText(r);
 function shortCompare(r) {
   if (r.key === 'today') return 'kechagiga nisbatan';
-  if (r.key === 'custom') return 'oldingi davrga nisbatan';
-  return `oldingi ${RANGE_PRESETS.find((p) => p.key === r.key)?.days} kunga nisbatan`;
+  if (r.key === 'yesterday') return 'oldingi kunga nisbatan';
+  return compareText(r);
 }
 // Grafik izohidagi nomlar: "Bugun / Kecha" yoki "Shu davr / Oldingi davr"
-const seriesNames = (r) => (r.key === 'today' ? ['Bugun', 'Kecha'] : ['Shu davr', 'Oldingi davr']);
+function seriesNames(r) {
+  if (r.key === 'today') return ['Bugun', 'Kecha'];
+  if (r.key === 'yesterday') return ['Kecha', 'Oldingi kun'];
+  return ['Shu davr', 'Oldingi davr'];
+}
+
+// Boshqa sahifaga o'tganda eski grafiklar tozalanadi
+export function destroyCharts() {
+  charts.forEach((c) => c.destroy());
+  charts = [];
+}
 
 // Yo'riqnoma (yangi do'kon) HTML — oddiy bosh sahifa uchun
 async function onboardingHtml(ctx) {
@@ -120,26 +121,17 @@ function bindOnboardingHide(host) {
   });
 }
 
-function setMode(mode, root, ctx) {
-  prefsCache.dashboard.mode = mode;
-  put('/me/preferences', { dashboard: { mode } }).catch(() => {});
-  history.replaceState(null, '', '#/dashboard');
-  window.scrollTo(0, 0);
-  render(root, { query: {} }, ctx).catch(errorToast);
-}
-
+// #/dashboard — Bosh sahifa (home.js); #/analytics — batafsil tahlil (vidjetlar, prognoz, foyda hisobi)
 export async function render(root, params, ctx) {
   if (!prefsCache) prefsCache = (await get('/me/preferences')).prefs;
-  // Odatiy: oddiy bosh sahifa (ombor, keldi-ketdi, pul). Grafiklar — «Batafsil tahlil»
-  if (prefsCache.dashboard.mode !== 'detailed') {
+  if (params.key !== 'analytics') {
     const { renderHome } = await import('./home.js');
     return renderHome(root, ctx, {
       prefs: prefsCache,
-      rangeKey: prefsCache.dashboard.simple_range,
+      query: params.query,
       actionTiles,
       onboarding: () => onboardingHtml(ctx),
       afterMount: bindOnboardingHide,
-      onDetailed: () => setMode('detailed', root, ctx),
     });
   }
   const range = resolve(params.query, prefsCache);
@@ -172,8 +164,7 @@ async function load(host, range, ctx, first = false) {
     if (!first) return errorToast(err);
     throw err;
   }
-  charts.forEach((c) => c.destroy());
-  charts = [];
+  destroyCharts();
 
   const sections = {
     assistant: () => brief && assistantCard(brief),
@@ -217,47 +208,23 @@ async function load(host, range, ctx, first = false) {
         <div class="muted small" style="margin-top:2px">${longDate()} · <span title="${esc(dateTime(d.generated_at))}">yangilandi ${esc(timeAgo(d.generated_at))}</span></div>
       </div>
       <div class="filterbar no-print">
-        <div class="seg" role="tablist" aria-label="Davr">
-          ${RANGE_PRESETS.map((p) => `<button type="button" role="tab" data-range="${p.key}" class="${range.key === p.key ? 'active' : ''}" aria-selected="${range.key === p.key}">${p.label}</button>`).join('')}
-          <button type="button" data-range="custom" class="${range.key === 'custom' ? 'active' : ''}">${icon('calendar', 'ico-xs')} Boshqa</button>
-        </div>
-        <div class="range-custom" ${range.key === 'custom' ? '' : 'hidden'}>
-          <input class="input" type="date" id="df" value="${esc(range.from)}" max="${todayStr()}" aria-label="Boshlanish sanasi">
-          <span class="muted">–</span>
-          <input class="input" type="date" id="dt" value="${esc(range.to)}" max="${todayStr()}" aria-label="Tugash sanasi">
-        </div>
+        ${periodPicker(range)}
         <button class="btn btn-light btn-sm" type="button" id="widgets" title="Vidjetlarni sozlash">${icon('sliders', 'ico-sm')}<span class="mobile-hide">Vidjetlar</span></button>
-        <button class="btn btn-sm" type="button" id="to-simple" title="Ombor, keldi-ketdi va pul — oddiy ko'rinish">${icon('back', 'ico-sm')}<span class="mobile-hide">Oddiy ko'rinish</span></button>
+        <a class="btn btn-light btn-sm" href="#/dashboard?${periodQuery(range)}" title="Bosh sahifaga qaytish">${icon('home', 'ico-sm')}<span class="mobile-hide">Bosh sahifa</span></a>
       </div>
     </div>
     <div class="dash">${body || `<div class="w-full card">${emptyState("Barcha vidjetlar yashirilgan. «Vidjetlar» tugmasi orqali yoqing", 'sliders')}</div>`}</div>`;
 
   // Davr tanlash: sahifani qayta yuklamasdan yangilaydi (ramka saqlanadi)
-  host.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.range === 'custom') {
-      host.querySelector('.range-custom').hidden = false;
-      host.querySelectorAll('[data-range]').forEach((x) => x.classList.toggle('active', x === b));
-      host.querySelector('#df').focus();
-      return;
+  bindPeriod(host, (next) => {
+    history.replaceState(null, '', `#/analytics?${periodQuery(next)}`);
+    if (next.key !== 'custom') {
+      prefsCache.dashboard.range = next.key;
+      put('/me/preferences', { dashboard: { range: next.key } }).catch(() => {});
     }
-    const next = { key: b.dataset.range, ...presetRange(b.dataset.range) };
-    history.replaceState(null, '', `#/dashboard?range=${next.key}`);
-    prefsCache.dashboard.range = next.key;
-    put('/me/preferences', { dashboard: { range: next.key } }).catch(() => {});
     load(host, next, ctx);
-  }));
-  const applyCustom = () => {
-    const f = host.querySelector('#df').value;
-    const t = host.querySelector('#dt').value;
-    if (!f || !t) return;
-    if (f > t) return toast("Boshlanish sanasi tugash sanasidan oldin bo'lishi kerak", 'warn');
-    history.replaceState(null, '', `#/dashboard?from=${f}&to=${t}`);
-    load(host, { key: 'custom', from: f, to: t }, ctx);
-  };
-  host.querySelector('#df').addEventListener('change', applyCustom);
-  host.querySelector('#dt').addEventListener('change', applyCustom);
+  });
   host.querySelector('#widgets').addEventListener('click', () => openWidgetSettings(() => load(host, range, ctx)));
-  host.querySelector('#to-simple')?.addEventListener('click', () => setMode('simple', host.parentElement, ctx));
   host.querySelector('#onb-hide')?.addEventListener('click', () => {
     prefsCache.dashboard.onboarding_hidden = true;
     host.querySelector('[data-widget="onboarding"]')?.remove();
@@ -332,7 +299,7 @@ function assistantCard(b) {
 
 // ---------- KPI kartochkalari ----------
 
-function kpiCards(d, range) {
+export function kpiCards(d, range, { cash = null, home = false } = {}) {
   const k = d.kpis;
   const q = `from=${range.from}&to=${range.to}`;
   const cmp = compareLabel(range);
@@ -368,19 +335,43 @@ function kpiCards(d, range) {
     label: 'Cheklar soni', kpi: k.sales_count, href: `#/sales/history?${q}`, valueHtml: `${num(k.sales_count.value, 0)}<span class="cur">ta</span>`,
     unit: 'ta', note: k.sales_count.value ? `o'rtacha chek ${compact(k.sales_count.avg_order)}` : '', hint: 'Nechta xaridor xarid qildi (yakunlangan cheklar)',
   }));
+  // Davrga bog'liq bo'lmagan «hozirgi holat» kartasi (grafiksiz)
+  const nowCard = ({ label, value, href, note, hint, tone = '' }) => `
+    <a class="stat" href="${href}" title="${esc(hint || '')}">
+      <div class="stat-label">${esc(label)}<span class="stat-tag">hozir</span><span class="go">${icon('arrowUpRight', 'ico-xs')}</span></div>
+      <div class="stat-value ${tone || (value < 0 ? 'neg' : '')}" title="${esc(`${moneyFull(value)} so'm`)}">${kpiMoney(value)}</div>
+      <div class="spark-ph"></div>
+      <div class="stat-foot"><span class="stat-note">${note}</span></div>
+    </a>`;
+  if (home && cash) {
+    const b = cash.balances;
+    cards.push(nowCard({
+      label: 'Kassadagi pul', value: b.total, href: '#/cash?tab=cash',
+      note: `naqd ${compact(b.cash)} · karta ${compact(b.card)}${b.transfer ? ` · o'tkazma ${compact(b.transfer)}` : ''}`,
+      hint: "Hozir qo'lingizdagi pul: naqd, karta va o'tkazma hisoblari (barcha kirim va chiqimlardan keyin)",
+    }));
+  }
   if (k.inventory_value) {
     cards.push(card({
-      label: 'Ombordagi tovar', kpi: k.inventory_value, href: '#/reports?tab=inventory', snapshot: true, color: C.cost,
-      note: 'kelish narxida', hint: "Ombordagi barcha tovarlar kelish narxida qancha turadi",
+      label: 'Ombordagi tovar', kpi: k.inventory_value, href: home ? '#/stock' : '#/reports?tab=inventory', snapshot: true, color: C.cost,
+      note: home && d.stock ? `${d.stock.products} xil${d.stock.out ? ` · ${d.stock.out} ta tugagan` : ''}` : 'kelish narxida',
+      hint: "Ombordagi barcha tovarlar kelish narxida qancha turadi",
     }));
   }
   if (k.customer_debt) {
     cards.push(card({
       label: 'Mijozlar qarzi', kpi: k.customer_debt, href: '#/debts', snapshot: true, goodWhenUp: false, color: C.warn,
-      note: 'nasiya, jami', hint: "Mijozlarning hali to'lanmagan nasiyasi",
+      note: home ? 'sizga qaytarishlari kerak' : 'nasiya, jami', hint: "Mijozlarning hali to'lanmagan nasiyasi",
     }));
   }
-  return `<div class="stats ${cards.length <= 3 ? 'three' : cards.length === 4 ? 'four' : ''}">${cards.join('')}</div>`;
+  if (home && d.access.debts !== false && d.supplier_debt !== undefined && d.supplier_debt !== null) {
+    cards.push(nowCard({
+      label: 'Sizning qarzingiz', value: d.supplier_debt, href: '#/debts?tab=suppliers', tone: d.supplier_debt > 0 ? 'warn' : '',
+      note: "yetkazib beruvchilarga to'lashingiz kerak", hint: "Yuk olib, hali to'lanmagan summa (yetkazib beruvchilarga qarz)",
+    }));
+  }
+  const cls = home ? (cards.length > 4 ? 'four' : cards.length === 3 ? 'three' : 'four') : (cards.length <= 3 ? 'three' : cards.length === 4 ? 'four' : '');
+  return `<div class="stats ${cls}">${cards.join('')}</div>`;
 }
 
 // ---------- Savdo grafigi ----------
@@ -392,7 +383,7 @@ const METRICS = [
   { key: 'avg_order', label: "O'rtacha chek", money: true },
 ];
 
-function salesCard(d, range) {
+export function salesCard(d, range) {
   const metrics = METRICS.filter((m) => !m.financial || d.access.financial);
   const [curName, prevName] = seriesNames(range);
   const sub = d.chart.grain === 'hour'
@@ -418,7 +409,7 @@ function pctFrom(cur, prev) {
   return ((cur - prev) / Math.abs(prev)) * 100;
 }
 
-function mountSalesChart(host, d, range) {
+export function mountSalesChart(host, d, range) {
   const box = host.querySelector('[data-chart="sales"]');
   if (!box) return;
   const hourly = d.chart.grain === 'hour';
@@ -517,7 +508,7 @@ const TOP_TABS = [
   { key: 'zero', label: 'Sotilmagan', value: (p) => [compact(p.stock_value, { unit: true }), 'omborda turibdi'] },
 ];
 
-function topCard(d) {
+export function topCard(d) {
   return `
     <section class="card" style="height:100%">
       <div class="card-head" style="margin-bottom:8px"><div><h2>Qaysi tovarlar yaxshi sotilmoqda</h2><div class="card-sub">Tanlangan davr bo'yicha</div></div>
@@ -527,7 +518,7 @@ function topCard(d) {
     </section>`;
 }
 
-function mountTop(host, d) {
+export function mountTop(host, d) {
   const list = host.querySelector('[data-top-list]');
   if (!list) return;
   const show = (key) => {

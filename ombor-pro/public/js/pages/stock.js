@@ -1,7 +1,8 @@
 // Ombor: umumiy holat, harakatlar, zarar/tuzatish, inventarizatsiya va nomuvofiqliklar
 import {
   get, post, put, icon, esc, qty, money, dateTime, toast, errorToast, openModal, withBusy,
-  emptyState, statusBadge, todayStr, monthStartStr, confirmBox,
+  emptyState, statusBadge, todayStr, confirmBox,
+  resolvePeriod, periodPicker, bindPeriod, periodQuery,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 
@@ -24,14 +25,11 @@ const toNum = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-function periodCard(from, to, note = '') {
+function periodCard(range, note = '') {
   return `
-    <div class="card" style="margin-bottom:14px">
-      ${note ? `<div class="small muted" style="margin-bottom:8px">${esc(note)}</div>` : ''}
-      <div class="form-grid two" style="gap:10px">
-        <label class="field"><span>Qaysi sanadan</span><input class="input" type="date" data-from value="${esc(from)}"></label>
-        <label class="field"><span>Qaysi sanagacha</span><input class="input" type="date" data-to value="${esc(to)}"></label>
-      </div>
+    <div class="toolbar-row">
+      ${periodPicker(range)}
+      ${note ? `<div class="small muted" style="max-width:520px">${esc(note)}</div>` : ''}
     </div>`;
 }
 
@@ -72,14 +70,14 @@ export async function render(root, params, ctx) {
 // ---------- Umumiy ----------
 
 async function tabOverview(body, q, ctx) {
-  const from = q.from || monthStartStr();
-  const to = q.to || todayStr();
+  const range = resolvePeriod(q, 'month');
+  const { from, to } = range;
   const r = await get(`/stock/overview?from=${from}&to=${to}`);
   const t = r.totals;
   const items = r.items.filter((i) => !i.archived || i.current > 0);
 
   body.innerHTML = `
-    ${periodCard(from, to, "«Keldi» va «Sotildi» ustunlari shu davr uchun hisoblanadi. «Hozir bor» — bugungi qoldiq.")}
+    ${periodCard(range, "«Keldi» va «Sotildi» ustunlari tanlangan davr uchun. «Hozir bor» — bugungi qoldiq.")}
     <div class="kpis">
       <div class="kpi neutral"><div class="label">Ombordagi tovar qiymati</div><div class="value">${money(t.inventory_value)}</div>
         <div class="hint">kelish narxida hisoblangan</div></div>
@@ -108,9 +106,7 @@ async function tabOverview(body, q, ctx) {
         : emptyState("Mahsulot yo'q", 'layers')}
     </div>`;
 
-  const apply = () => ctx.go(`#/stock?tab=overview&from=${body.querySelector('[data-from]').value}&to=${body.querySelector('[data-to]').value}`);
-  body.querySelector('[data-from]').addEventListener('change', apply);
-  body.querySelector('[data-to]').addEventListener('change', apply);
+  bindPeriod(body, (next) => ctx.go(`#/stock?tab=overview&${periodQuery(next)}`));
 
   body.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', () => {
     body.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('active', x === b));
@@ -124,21 +120,17 @@ async function tabOverview(body, q, ctx) {
 // ---------- Harakatlar ----------
 
 async function tabMovements(body, q, ctx) {
-  const from = q.from || monthStartStr();
-  const to = q.to || todayStr();
+  const range = resolvePeriod(q, 'month');
+  const { from, to } = range;
   const type = q.type || '';
   const params = new URLSearchParams({ from, to, limit: '300' });
   if (type) params.set('type', type);
   const { movements } = await get(`/stock/movements?${params}`);
 
   body.innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      <div class="form-grid two" style="gap:10px">
-        <label class="field"><span>Boshlanish</span><input class="input" type="date" data-from value="${esc(from)}"></label>
-        <label class="field"><span>Tugash</span><input class="input" type="date" data-to value="${esc(to)}"></label>
-        <label class="field" style="grid-column:1/-1"><span>Turi</span>
-          <select class="input" data-type>${MOVEMENT_TYPES.map((t) => `<option value="${t}" ${t === type ? 'selected' : ''}>${t ? MOVEMENT_LABELS[t] : 'Hammasi'}</option>`).join('')}</select></label>
-      </div>
+    <div class="toolbar-row">
+      ${periodPicker(range)}
+      <div class="chips">${MOVEMENT_TYPES.map((t) => `<button type="button" class="chip ${t === type ? 'active' : ''}" data-type="${t}">${t ? MOVEMENT_LABELS[t] : 'Hammasi'}</button>`).join('')}</div>
     </div>
     <div class="card">
       ${movements.length ? `<div class="table-wrap cards"><table>
@@ -155,10 +147,8 @@ async function tabMovements(body, q, ctx) {
         : emptyState("Harakatlar yo'q", 'clock')}
     </div>`;
 
-  const apply = () => ctx.go(`#/stock?tab=movements&from=${body.querySelector('[data-from]').value}&to=${body.querySelector('[data-to]').value}&type=${body.querySelector('[data-type]').value}`);
-  body.querySelector('[data-from]').addEventListener('change', apply);
-  body.querySelector('[data-to]').addEventListener('change', apply);
-  body.querySelector('[data-type]').addEventListener('change', apply);
+  bindPeriod(body, (next) => ctx.go(`#/stock?tab=movements&${periodQuery(next)}&type=${type}`));
+  body.querySelectorAll('[data-type]').forEach((b) => b.addEventListener('click', () => ctx.go(`#/stock?tab=movements&${periodQuery(range)}&type=${b.dataset.type}`)));
 }
 
 // ---------- Zarar / tuzatish ----------

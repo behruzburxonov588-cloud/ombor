@@ -91,6 +91,10 @@ export async function createPurchase(client, user, body) {
   if (paid > total + 0.001) throw new HttpError(400, "To'langan summa jami summadan katta bo'lishi mumkin emas");
   const payMethod = paid > 0 ? (body.payment_method || 'cash') : null;
   if (payMethod && !METHODS.includes(payMethod)) throw new HttpError(400, "To'lov usuli noto'g'ri");
+  // Qarzni to'lash muddati: faqat qarz qolsa ma'noli (to'liq to'langan kirimda saqlanmaydi)
+  let dueDate = body.due_date ? dateStr(body.due_date, "To'lov muddati") : null;
+  if (dueDate && dueDate < purchaseDate) throw new HttpError(400, "To'lov muddati kirim sanasidan oldin bo'lishi mumkin emas");
+  if (paid >= total - 0.001) dueDate = null;
   if (!hasSupplier) {
     if (paid < total - 0.001) {
       throw new HttpError(400, "Qarzga olgan bo'lsangiz, tovar kimdan kelganini tanlang (yetkazib beruvchi)");
@@ -117,10 +121,10 @@ export async function createPurchase(client, user, body) {
   const { rows: pr } = await client.query(
     `INSERT INTO purchases
        (purchase_no, supplier_id, purchase_date, subtotal, delivery_cost, discount, total,
-        paid_amount, remaining_debt, note, idempotency_key, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $7, $8, $9, $10) RETURNING id`,
+        paid_amount, remaining_debt, note, idempotency_key, created_by, due_date)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $7, $8, $9, $10, $11) RETURNING id`,
     [purchaseNo, supplierId, purchaseDate, subtotal, delivery, discount, total,
-      body.note ? String(body.note).slice(0, 500) : null, key, user.id],
+      body.note ? String(body.note).slice(0, 500) : null, key, user.id, dueDate],
   );
   const purchaseId = pr[0].id;
 

@@ -102,10 +102,34 @@ test("kassir: pul va kelish narxlarini ko'rmaydi, tovar harakatini ko'radi", asy
 test("bosh sahifa ko'rinishi sozlamada saqlanadi (oddiy / batafsil)", async () => {
   let p = (await owner.get('/api/me/preferences')).body.prefs.dashboard;
   assert.equal(p.mode, 'simple');
-  assert.equal(p.simple_range, '7d');
+  assert.equal(p.simple_range, 'today', 'bosh sahifa odatda bugungi kunni ko\'rsatadi');
   p = (await owner.put('/api/me/preferences', { dashboard: { mode: 'detailed', simple_range: '30d' } })).body.prefs.dashboard;
   assert.equal(p.mode, 'detailed');
   assert.equal(p.simple_range, '30d');
+  // Yangi davr tugmalari: Kecha va Shu oy
+  p = (await owner.put('/api/me/preferences', { dashboard: { simple_range: 'yesterday', range: 'month' } })).body.prefs.dashboard;
+  assert.equal(p.simple_range, 'yesterday');
+  assert.equal(p.range, 'month');
+  p = (await owner.put('/api/me/preferences', { dashboard: { simple_range: '5y' } })).body.prefs.dashboard;
+  assert.equal(p.simple_range, 'yesterday', "noma'lum davr e'tiborga olinmaydi");
   p = (await owner.put('/api/me/preferences', { dashboard: { mode: 'boshqa' } })).body.prefs.dashboard;
   assert.equal(p.mode, 'detailed', "noto'g'ri qiymat e'tiborga olinmaydi");
+});
+
+test("oylik natija: joriy oy «Foyda va zarar» bilan bir xil, kassirga yopiq", async () => {
+  const r = await owner.get('/api/analytics/monthly?months=3');
+  assert.equal(r.status, 200);
+  const ms = r.body.months;
+  assert.equal(ms.length, 3);
+  const cur = ms[ms.length - 1];
+  assert.equal(cur.month, today.slice(0, 7));
+  assert.equal(cur.partial, true);
+  assert.equal(cur.to, today);
+  const pnl = (await owner.get(`/api/analytics/overview?from=${cur.from}&to=${cur.to}`)).body.money;
+  assert.equal(cur.revenue, pnl.revenue);
+  assert.equal(cur.net_profit, pnl.net_profit);
+  assert.equal(cur.sales_count, 2);
+  // Oylar ketma-ket va o'sish tartibida
+  assert.ok(ms[0].month < ms[1].month && ms[1].month < ms[2].month);
+  assert.equal((await cashier.get('/api/analytics/monthly')).status, 403);
 });

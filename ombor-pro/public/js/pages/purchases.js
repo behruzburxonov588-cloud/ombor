@@ -1,7 +1,8 @@
 // Kirimlar: ro'yxat, ko'p qatorli yangi kirim, tafsilot va yetkazib beruvchiga to'lov
 import {
   get, post, icon, esc, num, money, dateOnly, toast, errorToast, openModal, withBusy,
-  emptyState, todayStr, monthStartStr, productPhoto, packText,
+  emptyState, todayStr, productPhoto, packText,
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { openProductWizard } from '../productform.js';
@@ -23,47 +24,81 @@ export async function render(root, params, ctx) {
 // ---------- Ro'yxat ----------
 
 async function renderList(root, params, ctx) {
-  const from = params.query.from || monthStartStr();
-  const to = params.query.to || todayStr();
-  const { purchases: rows } = await get(`/purchases?from=${from}&to=${to}&limit=500`);
+  const range = resolvePeriod(params.query, 'month');
+  const word = periodWord(range);
+  const { purchases: rows } = await get(`/purchases?from=${range.from}&to=${range.to}&limit=500`);
   const total = round2(rows.reduce((s, p) => s + Number(p.total), 0));
+  const paid = round2(rows.reduce((s, p) => s + Number(p.paid_amount), 0));
   const debt = round2(rows.reduce((s, p) => s + Number(p.remaining_debt), 0));
+  const today = todayStr();
+  let q = '';
+  let only = '';
 
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Kirimlar</h1><p class="muted">${rows.length} ta kirim</p></div>
-      ${ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('plus')} Yuk keldi — kiritish</a>` : ''}
-    </div>
-    <div class="card" style="margin-bottom:14px">
-      <div class="form-grid two" style="gap:10px">
-        <label class="field"><span>Boshlanish</span><input class="input" type="date" id="df" value="${esc(from)}"></label>
-        <label class="field"><span>Tugash</span><input class="input" type="date" id="dt" value="${esc(to)}"></label>
+      <div><h1>Kirimlar</h1><p class="muted">${esc(word)}: omborga kelgan yuklar va ular uchun to'lovlar</p></div>
+      <div class="filterbar">
+        ${periodPicker(range)}
+        ${ctx.can('purchases.create') ? `<a class="btn btn-sm" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}
       </div>
     </div>
-    <div class="kpis">
-      <div class="kpi neutral"><div class="label">Kirimlar summasi</div><div class="value">${money(total)}</div><div class="hint">${rows.length} ta kirim</div></div>
-      <div class="kpi ${debt > 0 ? 'warn' : 'good'}"><div class="label">Yetkazib beruvchilarga qarz</div><div class="value">${money(debt)}</div><div class="hint">shu davr kirimlari bo'yicha</div></div>
+    <div class="sum-row">
+      <div class="sum-cell"><span>Kirimlar</span><b>${rows.length} ta</b><small>${esc(word)}</small></div>
+      <div class="sum-cell"><span>Yuk summasi</span><b>${money(total)}</b></div>
+      <div class="sum-cell good"><span>To'langan</span><b>${money(paid)}</b></div>
+      <div class="sum-cell ${debt > 0 ? 'warn' : ''}"><span>Qarz qolgan</span><b>${money(debt)}</b>${debt > 0 ? '<small><a href="#/debts?tab=suppliers">Hamma qarzlar ›</a></small>' : ''}</div>
     </div>
     <div class="card" style="margin-top:14px">
-      ${rows.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Raqam</th><th>Sana</th><th>Yetkazib beruvchi</th><th class="right">Jami</th><th class="right">To'langan</th><th class="right">Qarz</th></tr></thead>
-        <tbody>${rows.map((p) => `
-          <tr class="clickable" data-id="${p.id}">
-            <td data-label="Raqam"><b>${esc(p.purchase_no)}</b></td>
-            <td data-label="Sana">${dateOnly(p.purchase_date)}</td>
-            <td data-label="Yetkazib beruvchi">${esc(p.supplier_name)}</td>
-            <td data-label="Jami" class="right num">${money(p.total)}</td>
-            <td data-label="To'langan" class="right num">${money(p.paid_amount)}</td>
-            <td data-label="Qarz" class="right num ${Number(p.remaining_debt) > 0 ? 'amber' : ''}">${money(p.remaining_debt)}</td>
-          </tr>`).join('')}
-        </tbody></table></div>`
-        : emptyState("Bu davrda kirim yo'q", 'truck')}
+      <div class="list-tools">
+        <div class="search-input">${icon('search', 'ico-sm')}<input class="input" id="pq2" type="search" placeholder="Kirim raqami yoki yetkazib beruvchi" autocomplete="off"></div>
+        <div class="chips" id="ponly">
+          <button type="button" class="chip active" data-only="">Hammasi</button>
+          <button type="button" class="chip" data-only="debt">Qarzi borlar</button>
+          <button type="button" class="chip" data-only="paid">To'langanlar</button>
+        </div>
+      </div>
+      <div id="plist"></div>
     </div>`;
 
-  const apply = () => ctx.go(`#/purchases?from=${root.querySelector('#df').value}&to=${root.querySelector('#dt').value}`);
-  root.querySelector('#df').addEventListener('change', apply);
-  root.querySelector('#dt').addEventListener('change', apply);
-  root.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => ctx.go(`#/purchases/${tr.dataset.id}`)));
+  const draw = () => {
+    const t = q.toLowerCase();
+    const list = rows.filter((p) => (!only || (only === 'debt' ? Number(p.remaining_debt) > 0 : Number(p.remaining_debt) <= 0))
+      && (!t || p.purchase_no.toLowerCase().includes(t) || (p.supplier_name || '').toLowerCase().includes(t)));
+    root.querySelector('#plist').innerHTML = list.length ? `<div class="table-wrap cards"><table>
+        <thead><tr><th>Raqam</th><th>Sana</th><th>Yetkazib beruvchi</th><th class="right">Summa</th><th class="right">To'langan</th><th class="right">Qarz</th><th>To'lov muddati</th></tr></thead>
+        <tbody>${list.map((p) => {
+          const owes = Number(p.remaining_debt) > 0;
+          const due = p.due_date ? p.due_date.slice(0, 10) : null;
+          return `
+          <tr class="clickable" data-id="${p.id}">
+            <td data-label="Raqam"><b>${esc(p.purchase_no)}</b><div class="small muted">${p.items_count ? `${p.items_count} xil tovar` : ''}</div></td>
+            <td data-label="Sana">${dateOnly(p.purchase_date)}</td>
+            <td data-label="Yetkazib beruvchi">${esc(p.supplier_name)}</td>
+            <td data-label="Summa" class="right num"><b>${money(p.total)}</b></td>
+            <td data-label="To'langan" class="right num">${money(p.paid_amount)}</td>
+            <td data-label="Qarz" class="right num ${owes ? 'amber' : 'muted'}">${owes ? money(p.remaining_debt) : '—'}</td>
+            <td data-label="To'lov muddati">${owes ? (due ? `${dateOnly(due)} ${due < today ? '<span class="badge badge-out">o\'tgan</span>' : ''}` : '<span class="muted">belgilanmagan</span>') : '<span class="badge badge-ok">To\'langan</span>'}</td>
+          </tr>`;
+        }).join('')}
+        </tbody></table></div>`
+      : (rows.length ? emptyState("Bu filtr bo'yicha kirim yo'q", 'truck') : `<div class="empty-hero">
+          <span class="hero-ico">${icon('truck')}</span>
+          <h2>${esc(word)} yuk kelmagan</h2>
+          <p>Omborga tovar kelsa — «Yuk keldi» tugmasini bosing. Qoldiq o'zi ko'payadi.</p>
+          ${ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('truck')} Yuk keldi — kiritish</a>` : ''}
+        </div>`);
+    root.querySelectorAll('#plist tr[data-id]').forEach((tr) => tr.addEventListener('click', () => ctx.go(`#/purchases/${tr.dataset.id}`)));
+  };
+  draw();
+  bindPeriod(root, (next) => ctx.go(`#/purchases?${periodQuery(next)}`));
+  root.querySelector('#pq2').addEventListener('input', (e) => { q = e.target.value.trim(); draw(); });
+  root.querySelector('#ponly').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-only]');
+    if (!b) return;
+    only = b.dataset.only;
+    root.querySelectorAll('#ponly [data-only]').forEach((x) => x.classList.toggle('active', x === b));
+    draw();
+  });
 }
 
 // ---------- Yuk keldi: tovarni bosing → nechta keldi → saqlang ----------
@@ -138,6 +173,10 @@ async function renderNew(root, ctx, preselect = null) {
           <div id="part-box" hidden style="margin-top:10px">
             <label class="field"><span>Qancha to'ladingiz?</span>
               <div class="money-input"><input class="input" id="paid" inputmode="decimal" placeholder="0"><em>so'm</em></div></label>
+          </div>
+          <div id="due-box" hidden style="margin-top:10px">
+            <label class="field"><span>Qachongacha to'laysiz? <small>(ixtiyoriy — muddat yaqinlashganda eslatamiz)</small></span>
+              <input class="input" type="date" id="due" min="${todayStr()}"></label>
           </div>
           <div class="chips" id="method" style="margin-top:10px">
             <span class="small muted">Qanday:</span>
@@ -288,6 +327,7 @@ async function renderNew(root, ctx, preselect = null) {
     $('#rem').textContent = money(remaining);
     $('#method').hidden = pay === 'debt';
     $('#part-box').hidden = pay !== 'part';
+    $('#due-box').hidden = pay === 'full';
 
     const bar = $('#cartbar');
     bar.querySelector('[data-count]').textContent = lines.length;
@@ -605,6 +645,7 @@ async function renderNew(root, ctx, preselect = null) {
       discount: toNum($('#dsc').value),
       paid_amount: paid,
       payment_method: method,
+      due_date: pay !== 'full' && $('#due').value ? $('#due').value : null,
       idempotency_key: key,
     };
     withBusy(e.currentTarget, async () => {
@@ -649,7 +690,7 @@ async function renderDetail(root, id, ctx) {
           <h1 style="font-size:22px">${esc(p.purchase_no)}</h1>
           <div class="small muted" style="margin-top:4px">${dateOnly(p.purchase_date)} · ${esc(p.supplier_name)}</div>
         </div>
-        ${hasDebt ? `<span class="badge badge-low">Qarz: ${money(p.remaining_debt)}</span>` : '<span class="badge badge-ok">To\'liq to\'langan</span>'}
+        <div style="text-align:right">${hasDebt ? `<span class="badge badge-low">Qarz: ${money(p.remaining_debt)}</span>${p.due_date ? `<div class="small muted" style="margin-top:6px">To'lov muddati: <b class="${p.due_date.slice(0, 10) < todayStr() ? 'red' : ''}">${dateOnly(p.due_date)}</b></div>` : ''}` : '<span class="badge badge-ok">To\'liq to\'langan</span>'}</div>
       </div>
       ${p.note ? `<p class="small" style="margin-top:10px">${esc(p.note)}</p>` : ''}
     </div>

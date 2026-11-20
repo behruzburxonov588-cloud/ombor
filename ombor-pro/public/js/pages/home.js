@@ -1,14 +1,20 @@
-// Oddiy bosh sahifa: do'kon egasining asosiy savollariga javob
-//   1) Pul nima bo'ldi? — qancha tushdi, tovar o'zingizga qanchaga tushdi, xarajatlar, foyda yoki zarar
-//   2) Tovar: nima keldi (yuk), nima ketdi (sotildi)
-//   3) Omborda nima bor
-// Grafiklar va batafsil tahlil «Batafsil tahlil» tugmasi ortida (dashboard.js).
+// Bosh sahifa: do'kon egasi 5 soniyada tushunadigan asosiy raqamlar.
+//   1) Tez amallar (Sotish, Yuk keldi, ...)
+//   2) 8 ta asosiy raqam: savdo, sof foyda, xarajat, cheklar, kassadagi pul, ombor, mijozlar qarzi, sizning qarzingiz
+//      (har biri bosilsa — tegishli bo'lim ochiladi)
+//   3) Savdo grafigi va tugayotgan tovarlar
+//   4) Eng ko'p sotilganlar va so'nggi savdolar
+//   5) Pul nima bo'ldi? (oddiy so'zlar bilan), nima keldi va nima ketdi
+//   6) Oylik natija (so'nggi 6 oy)
+// Hamma raqamlar haqiqiy yozuvlardan: /api/analytics/dashboard, /overview, /cash/summary, /sales, /analytics/monthly.
 import {
-  get, put, esc, icon, num, compact, moneyFull, RANGE_PRESETS, presetRange, longDate, errorToast,
+  get, put, esc, icon, num, compact, moneyFull, longDate, errorToast, dateTime, timeAgo, emptyState,
+  periodPicker, bindPeriod, resolvePeriod, periodWord, periodQuery, monthName,
 } from '../ui.js';
+import { kpiCards, salesCard, mountSalesChart, topCard, mountTop, destroyCharts } from './dashboard.js';
 
-const PERIOD_WORD = { today: 'Bugun', '7d': '7 kunda', '30d': '30 kunda', '90d': '90 kunda' };
 const SHOW = 8;
+const qtyText = (q, unit) => `${num(q, 3)} ${unit}`;
 
 function greeting() {
   const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hour12: false }).format(new Date()));
@@ -17,103 +23,155 @@ function greeting() {
   return 'Xayrli kech';
 }
 
-const qtyText = (q, unit) => `${num(q, 3)} ${unit}`;
-
-// opts: { prefs, rangeKey, actionTiles(ctx), onboarding: async () => html, onDetailed() }
+// opts: { prefs, query, actionTiles(ctx), onboarding: async () => html, afterMount(root) }
 export async function renderHome(root, ctx, opts) {
-  const rangeKey = RANGE_PRESETS.some((p) => p.key === opts.rangeKey) ? opts.rangeKey : '7d';
-  const range = presetRange(rangeKey);
-  const [d, onbHtml] = await Promise.all([
-    get(`/analytics/overview?from=${range.from}&to=${range.to}`),
+  const range = resolvePeriod(opts.query || {}, opts.prefs.dashboard.simple_range || 'today');
+  const q = `from=${range.from}&to=${range.to}`;
+  const canSales = ctx.canAny(['sales.view', 'reports.view']);
+  const [d, ov, cash, sales, onbHtml] = await Promise.all([
+    get(`/analytics/dashboard?${q}`),
+    get(`/analytics/overview?${q}`),
+    ctx.canAny(['cash.view', 'cash.shift']) ? get('/cash/summary').catch(() => null) : null,
+    canSales ? get(`/sales?${q}&limit=6`).catch(() => null) : null,
     opts.onboarding ? opts.onboarding().catch(() => '') : '',
   ]);
-  const word = PERIOD_WORD[rangeKey];
+  const word = periodWord(range);
   const canBuy = ctx.can('purchases.create');
   const canSell = ctx.can('sales.create');
+  destroyCharts();
 
   root.innerHTML = `
     <div class="dash-head">
       <div>
         <div class="hello">${greeting()}, ${esc(ctx.user.full_name.split(' ')[0])}</div>
         <h1>${esc(d.store_name)}</h1>
-        <div class="muted small" style="margin-top:2px">${longDate()}</div>
+        <div class="muted small" style="margin-top:2px">${longDate()} · <span title="${esc(dateTime(d.generated_at))}">yangilandi ${esc(timeAgo(d.generated_at))}</span></div>
       </div>
       <div class="filterbar no-print">
-        <div class="seg" role="tablist" aria-label="Davr">
-          ${RANGE_PRESETS.map((p) => `<button type="button" role="tab" data-range="${p.key}" class="${p.key === rangeKey ? 'active' : ''}" aria-selected="${p.key === rangeKey}">${p.label}</button>`).join('')}
-        </div>
-        <button class="btn btn-light btn-sm" type="button" id="to-detailed" title="Grafiklar, prognoz, reyting">${icon('chart', 'ico-sm')}<span class="mobile-hide">Batafsil tahlil</span></button>
+        ${periodPicker(range)}
+        ${d.access.financial ? `<a class="btn btn-light btn-sm hide-sm" href="#/analytics?${periodQuery(range)}" title="Grafiklar, prognoz, reyting">${icon('chart', 'ico-sm')}<span class="mobile-hide">Batafsil tahlil</span></a>` : ''}
       </div>
     </div>
     <div class="home">
       ${opts.actionTiles(ctx)}
       ${onbHtml || ''}
-      ${moneySection(d, word)}
-      ${movesSection(d, word, { canBuy, canSell })}
-      ${stockSection(d, canBuy)}
-      <div class="home-foot no-print">
-        <button class="btn btn-light" type="button" id="to-detailed-2">${icon('chart', 'ico-sm')} Grafiklar, prognoz va batafsil tahlil</button>
+      ${kpiCards(d, range, { cash, home: true })}
+      <div class="home-row wide-narrow">
+        ${salesCard(d, range)}
+        ${lowStockCard(ov, canBuy)}
       </div>
+      <div class="home-row halves">
+        ${d.access.financial ? topCard(d) : ''}
+        ${sales ? recentSalesCard(sales.sales, word, canSell) : ''}
+      </div>
+      ${moneySection(ov, word)}
+      ${movesSection(ov, word, { canBuy, canSell })}
+      ${d.access.financial ? `<section class="card" id="monthly"><div class="card-head"><div><h2>Oylik natija</h2><div class="card-sub">So'nggi 6 oy: savdo, xarajat va sof foyda</div></div></div><div class="empty small">Yuklanmoqda…</div></section>` : ''}
+      ${d.access.financial ? `<div class="home-foot no-print"><a class="btn btn-light" href="#/analytics?${periodQuery(range)}">${icon('chart', 'ico-sm')} Grafiklar, prognoz va batafsil tahlil</a></div>` : ''}
     </div>`;
 
-  // Davr
-  root.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => {
-    opts.prefs.dashboard.simple_range = b.dataset.range;
-    put('/me/preferences', { dashboard: { simple_range: b.dataset.range } }).catch(() => {});
-    renderHome(root, ctx, { ...opts, rangeKey: b.dataset.range }).catch(errorToast);
-  }));
-  root.querySelector('#to-detailed').addEventListener('click', opts.onDetailed);
-  root.querySelector('#to-detailed-2').addEventListener('click', opts.onDetailed);
+  bindPeriod(root, (next) => {
+    opts.prefs.dashboard.simple_range = next.key === 'custom' ? opts.prefs.dashboard.simple_range : next.key;
+    if (next.key !== 'custom') put('/me/preferences', { dashboard: { simple_range: next.key } }).catch(() => {});
+    history.replaceState(null, '', `#/dashboard?${periodQuery(next)}`);
+    renderHome(root, ctx, { ...opts, query: next.key === 'custom' ? { from: next.from, to: next.to } : { range: next.key } }).catch(errorToast);
+  });
   opts.afterMount?.(root);
+  mountSalesChart(root, d, range);
+  mountTop(root, d);
 
-  // "Hammasini ko'rsatish"
+  // «Hammasini ko'rsatish»
   root.querySelectorAll('[data-more]').forEach((b) => b.addEventListener('click', () => {
     root.querySelectorAll(`[data-list="${b.dataset.more}"] [data-extra]`).forEach((x) => { x.hidden = false; });
     b.remove();
   }));
-  // Ombor: qidiruv va holat bo'yicha saralash
-  const stockList = root.querySelector('[data-list="stock"]');
-  if (stockList) {
-    let filter = '';
-    let q = '';
-    const apply = () => {
-      const rows = stockList.querySelectorAll('[data-sname]');
-      let shown = 0;
-      rows.forEach((r) => {
-        const match = (!filter || r.dataset.st === filter) && (!q || r.dataset.sname.includes(q));
-        const visible = match && (q || filter || shown < SHOW || stockList.dataset.all === '1');
-        r.hidden = !visible;
-        if (visible) shown += 1;
-      });
-      const empty = root.querySelector('#stock-empty');
-      if (empty) empty.hidden = shown > 0;
-    };
-    root.querySelector('#stock-q')?.addEventListener('input', (e) => { q = e.target.value.trim().toLowerCase(); apply(); });
-    root.querySelectorAll('[data-sf]').forEach((b) => b.addEventListener('click', () => {
-      filter = b.dataset.sf;
-      root.querySelectorAll('[data-sf]').forEach((x) => x.classList.toggle('active', x === b));
-      apply();
-    }));
-    root.querySelector('[data-more-stock]')?.addEventListener('click', (e) => {
-      stockList.dataset.all = '1';
-      e.currentTarget.remove();
-      apply();
-    });
-    stockList.querySelectorAll('[data-go]').forEach((r) => r.addEventListener('click', () => ctx.go(r.dataset.go)));
-  }
   root.querySelectorAll('.mv-row[data-go]').forEach((r) => r.addEventListener('click', () => ctx.go(r.dataset.go)));
+
+  // Oylik natija — sahifa ochilgandan keyin yuklanadi (asosiy raqamlarni kutdirmaslik uchun)
+  const mBox = root.querySelector('#monthly');
+  if (mBox) {
+    get('/analytics/monthly?months=6')
+      .then((r) => {
+        if (!mBox.isConnected) return;
+        mBox.outerHTML = monthlyCard(r.months);
+        root.querySelectorAll('#monthly [data-href]').forEach((tr) => tr.addEventListener('click', () => ctx.go(tr.dataset.href)));
+      })
+      .catch(() => { if (mBox.isConnected) mBox.remove(); });
+  }
 }
 
-// ---------- 1) Pul ----------
+// ---------- Tugayotgan tovarlar ----------
+function lowStockCard(ov, canBuy) {
+  const s = ov.stock;
+  const items = s.items.filter((x) => x.status !== 'ok')
+    .sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'out' ? -1 : 1));
+  const rows = items.slice(0, 7);
+  return `
+    <section class="card home-card">
+      <div class="card-head">
+        <div><h2>Tugayotgan tovarlar</h2><div class="card-sub">${s.out} ta tugagan · ${s.low} ta kam qolgan</div></div>
+        ${items.length ? `<a class="link-btn" href="#/products?filter=${s.out ? 'out' : 'low'}">Hammasi ${icon('right', 'ico-xs')}</a>` : ''}
+      </div>
+      ${rows.length ? `<div class="ls-list">${rows.map((x) => `
+        <a class="ls-row" href="#/products/${x.id}">
+          <span class="ls-dot ${x.status}"></span>
+          <span class="ls-name">${esc(x.name)}</span>
+          <span class="ls-qty ${x.status === 'out' ? 'red' : 'amber'}">${esc(qtyText(x.qty, x.unit))}</span>
+        </a>`).join('')}</div>
+        ${canBuy ? `<a class="btn btn-sm btn-block" href="#/purchases/new" style="margin-top:12px">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a>` : ''}`
+    : `<div class="ok-state">${icon('check')}<div><b>Hamma tovar yetarli</b><span>${s.products} xil tovar omborda bor</span></div></div>`}
+    </section>`;
+}
+
+// ---------- So'nggi savdolar ----------
+const PAY = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya', mixed: 'Aralash' };
+function recentSalesCard(rows, word, canSell) {
+  return `
+    <section class="card home-card">
+      <div class="card-head">
+        <div><h2>So'nggi savdolar</h2><div class="card-sub">${esc(word)}</div></div>
+        <a class="link-btn" href="#/sales/history">Hammasi ${icon('right', 'ico-xs')}</a>
+      </div>
+      ${rows.length ? `<div class="rs-list">${rows.map((s) => `
+        <a class="rs-row" href="#/sales/${s.id}">
+          <span class="rs-ico">${icon('receipt', 'ico-sm')}</span>
+          <span class="rs-meta"><b>${esc(s.receipt_no)}</b><span>${esc(timeAgo(s.created_at))}${s.customer_name ? ` · ${esc(s.customer_name)}` : ''}${s.cashier_name ? ` · ${esc(s.cashier_name)}` : ''}</span></span>
+          <span class="rs-sum"><b>${moneyFull(s.total)}</b><span class="${Number(s.balance_due) > 0 ? 'amber' : ''}">${Number(s.balance_due) > 0 ? `qarz ${compact(s.balance_due)}` : esc(PAY[s.payment_method] || '')}</span></span>
+        </a>`).join('')}</div>`
+    : `${emptyState(`${word} savdo bo'lmadi`, 'cart')}${canSell ? '<div style="text-align:center"><a class="btn btn-sm" href="#/sales">Sotish</a></div>' : ''}`}
+    </section>`;
+}
+
+// ---------- Oylik natija ----------
+function monthlyCard(all) {
+  // Do'kon ochilishidan oldingi bo'sh oylar ko'rsatilmaydi
+  const first = all.findIndex((m) => m.sales_count > 0 || m.expenses > 0 || m.losses !== 0);
+  const months = first < 0 ? all.slice(-1) : all.slice(first);
+  const max = Math.max(1, ...months.map((m) => Math.max(m.revenue, Math.abs(m.net_profit))));
+  const label = (m) => `${monthName(m.month.slice(5))} ${m.month.slice(0, 4)}`;
+  return `
+    <section class="card" id="monthly">
+      <div class="card-head"><div><h2>Oylik natija</h2><div class="card-sub">Har oy: savdo, xarajat va sof foyda (joriy oy — bugungacha). Oyni bossangiz — batafsil hisobot</div></div>
+        <a class="link-btn" href="#/reports?tab=pnl">Foyda va zarar ${icon('right', 'ico-xs')}</a></div>
+      <div class="table-wrap cards"><table class="month-table">
+        <thead><tr><th>Oy</th><th class="right">Savdo</th><th class="right">Savdo foydasi</th><th class="right">Xarajat</th><th class="right">Sof natija</th><th class="mt-bar-h"></th></tr></thead>
+        <tbody>${months.slice().reverse().map((m) => `
+          <tr class="clickable" data-href="#/reports?tab=pnl&from=${m.from}&to=${m.to}">
+            <td data-label="Oy"><b>${esc(label(m))}</b>${m.partial ? ' <span class="badge badge-info">hozirgi</span>' : ''}<div class="small muted">${m.sales_count} ta savdo</div></td>
+            <td data-label="Savdo" class="right num">${moneyFull(m.revenue)}</td>
+            <td data-label="Savdo foydasi" class="right num">${moneyFull(m.gross_profit)}</td>
+            <td data-label="Xarajat" class="right num">${moneyFull(m.expenses + m.losses)}</td>
+            <td data-label="Sof natija" class="right num ${m.net_profit < 0 ? 'red' : 'green'}"><b>${m.net_profit < 0 ? '−' : '+'}${moneyFull(Math.abs(m.net_profit))}</b></td>
+            <td class="mt-bar" aria-hidden="true"><span class="mt-rev" style="width:${(m.revenue / max) * 100}%"></span><span class="mt-net ${m.net_profit < 0 ? 'neg' : ''}" style="width:${(Math.abs(m.net_profit) / max) * 100}%"></span></td>
+          </tr>`).join('')}</tbody></table></div>
+      <div class="mt-legend small muted"><span><i class="mt-rev"></i>Savdo</span><span><i class="mt-net"></i>Sof foyda</span><span><i class="mt-net neg"></i>Zarar</span></div>
+    </section>`;
+}
+
+// ---------- Pul nima bo'ldi? ----------
 function moneySection(d, word) {
   const m = d.money;
-  if (!d.access.financial) {
-    return `
-      <section class="card home-card">
-        <div class="hc-head"><span class="hc-ico">${icon('money')}</span><div><h2>Pul</h2><div class="card-sub">${word}</div></div></div>
-        <div class="money-grid one"><div class="mcell"><div class="ml">Sotuvdan tushdi</div><div class="mv">${moneyFull(m.revenue)} <small>so'm</small></div><div class="mh">${m.sales_count} ta savdo</div></div></div>
-      </section>`;
-  }
+  if (!d.access.financial) return '';
   const profit = m.net_profit;
   const loss = profit < 0;
   const parts = [
@@ -132,14 +190,8 @@ function moneySection(d, word) {
     <section class="card home-card">
       <div class="hc-head">
         <span class="hc-ico">${icon('money')}</span>
-        <div><h2>Pul nima bo'ldi?</h2><div class="card-sub">${word}: qancha tushdi, qayerga ketdi, qancha qoldi</div></div>
+        <div><h2>Pul nima bo'ldi?</h2><div class="card-sub">${esc(word)}: qancha tushdi, qayerga ketdi, qancha qoldi</div></div>
         <a class="link-btn" href="#/reports?tab=pnl&from=${d.range.from}&to=${d.range.to}">Batafsil ${icon('right', 'ico-xs')}</a>
-      </div>
-      <div class="money-grid">
-        <div class="mcell"><div class="ml">Sotuvdan tushdi</div><div class="mv">${moneyFull(m.revenue)} <small>so'm</small></div><div class="mh">${m.sales_count} ta savdo${m.credit_sales > 0 ? ` · nasiyaga ${compact(m.credit_sales)}` : ''}</div></div>
-        <div class="mcell"><div class="ml">Tovar o'zingizga tushgan narx</div><div class="mv">${moneyFull(m.cogs)} <small>so'm</small></div><div class="mh">sotilgan tovarlarning kelish narxi</div></div>
-        <div class="mcell"><div class="ml">Xarajatlar</div><div class="mv">${moneyFull(m.expenses + m.losses)} <small>so'm</small></div><div class="mh">${m.losses > 0 ? `shundan buzilgan tovar ${compact(m.losses)}` : 'ijara, maosh, svet va boshqalar'}</div></div>
-        <div class="mcell ${loss ? 'neg' : 'pos'}"><div class="ml">${loss ? 'Zarar (minus)' : 'Sof foyda'}</div><div class="mv">${loss ? '−' : ''}${moneyFull(Math.abs(profit))} <small>so'm</small></div><div class="mh">${loss ? "xarajatlar foydadan ko'p bo'ldi" : "qo'lingizda qolgan pul"}</div></div>
       </div>
       <p class="money-sentence">${sentence}</p>
       ${m.revenue > 0 ? `<div class="flowbar" role="img" aria-label="Savdo pulining taqsimoti">${parts.filter((p) => p.value > 0).map((p) => `<i class="${p.cls}" style="width:${(p.value / total) * 100}%" title="${esc(p.label)}: ${moneyFull(p.value)} so'm"></i>`).join('')}</div>
@@ -147,12 +199,12 @@ function moneySection(d, word) {
       <div class="money-foot">
         <span>${icon('truck', 'ico-xs')} Yuk keldi: <b>${m.purchases_count} ta</b>, ${moneyFull(m.purchases_total)} so'm${m.purchases_unpaid > 0 ? ` <span class="amber">(to'lanmagan ${moneyFull(m.purchases_unpaid)})</span>` : ''}</span>
         <span>${icon('wallet', 'ico-xs')} Yetkazib beruvchilarga to'landi: <b>${moneyFull(m.paid_suppliers)} so'm</b></span>
-        ${m.debt_collected > 0 ? `<span>${icon('debt', 'ico-xs')} Qarzdorlar to'ladi: <b>${moneyFull(m.debt_collected)} so'm</b></span>` : ''}
+        ${m.debt_collected > 0 ? `<span>${icon('debt', 'ico-xs')} Qarzdorlar to'ladi: <b>${moneyFull(m.debt_collected)} so'm</b> <span class="muted">(savdoga qo'shilmaydi)</span></span>` : ''}
       </div>
     </section>`;
 }
 
-// ---------- 2) Tovar: nima keldi, nima ketdi ----------
+// ---------- Nima keldi, nima ketdi ----------
 function moveList(key, rows, render) {
   if (!rows.length) return '';
   return `<div class="mv-list" data-list="${key}">
@@ -169,63 +221,24 @@ function movesSection(d, word, { canBuy, canSell }) {
       <section class="card home-card">
         <div class="hc-head">
           <span class="hc-ico in">${icon('truck')}</span>
-          <div><h2>Nima keldi? (yuk)</h2><div class="card-sub">${word}: ${mv.in.length} xil tovar${costs && mv.in_value !== null ? ` · ${moneyFull(mv.in_value)} so'mlik` : ''}</div></div>
+          <div><h2>Nima keldi? (yuk)</h2><div class="card-sub">${esc(word)}: ${mv.in.length} xil tovar${costs && mv.in_value !== null ? ` · ${moneyFull(mv.in_value)} so'mlik` : ''}</div></div>
         </div>
         ${mv.in.length ? moveList('in', mv.in, (r) => `
           <span class="mv-name">${esc(r.name)}</span>
           <span class="mv-qty green">+${esc(qtyText(r.qty, r.unit))}</span>
           ${costs ? `<span class="mv-sum">${moneyFull(r.value)}</span>` : ''}`)
-    : `<div class="empty small">${word.toLowerCase()} yuk kelmadi${canBuy ? `<div style="margin-top:10px"><a class="btn btn-sm" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a></div>` : ''}</div>`}
+    : `<div class="empty small">${esc(word)} yuk kelmadi${canBuy ? `<div style="margin-top:10px"><a class="btn btn-sm" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a></div>` : ''}</div>`}
       </section>
       <section class="card home-card">
         <div class="hc-head">
           <span class="hc-ico out">${icon('cart')}</span>
-          <div><h2>Nima ketdi? (sotildi)</h2><div class="card-sub">${word}: ${mv.out.length} xil tovar · ${moneyFull(mv.out_amount)} so'mlik</div></div>
+          <div><h2>Nima ketdi? (sotildi)</h2><div class="card-sub">${esc(word)}: ${mv.out.length} xil tovar · ${moneyFull(mv.out_amount)} so'mlik</div></div>
         </div>
         ${mv.out.length ? moveList('out', mv.out, (r) => `
           <span class="mv-name">${esc(r.name)}</span>
           <span class="mv-qty">−${esc(qtyText(r.qty, r.unit))}</span>
           <span class="mv-sum">${moneyFull(r.amount)}</span>`)
-    : `<div class="empty small">${word.toLowerCase()} sotuv bo'lmadi${canSell ? `<div style="margin-top:10px"><a class="btn btn-sm" href="#/sales">${icon('cart', 'ico-sm')} Sotish</a></div>` : ''}</div>`}
+    : `<div class="empty small">${esc(word)} sotuv bo'lmadi${canSell ? `<div style="margin-top:10px"><a class="btn btn-sm" href="#/sales">${icon('cart', 'ico-sm')} Sotish</a></div>` : ''}</div>`}
       </section>
     </div>`;
 }
-
-// ---------- 3) Omborda nima bor ----------
-function stockSection(d, canBuy) {
-  const s = d.stock;
-  const costs = d.access.costs;
-  const order = { out: 0, low: 1, ok: 2 };
-  const items = [...s.items].sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
-  const badge = { out: '<span class="badge badge-out">Tugagan</span>', low: '<span class="badge badge-low">Kam qolgan</span>', ok: '<span class="badge badge-ok">Bor</span>' };
-  return `
-    <section class="card home-card">
-      <div class="hc-head">
-        <span class="hc-ico">${icon('warehouse')}</span>
-        <div><h2>Omborda nima bor?</h2><div class="card-sub">${s.products} xil tovar${costs && s.value !== null ? ` · jami ${moneyFull(s.value)} so'mlik (kelish narxida)` : ''} · sotsangiz ≈ ${compact(s.retail_value)} so'm</div></div>
-        ${canBuy ? `<a class="btn btn-sm" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}
-      </div>
-      ${s.products ? `
-      <div class="stock-tools">
-        <div class="search-input">${icon('search', 'ico-sm')}<input class="input input-sm" id="stock-q" type="search" placeholder="Tovar nomi"></div>
-        <div class="chips">
-          <button type="button" class="chip active" data-sf="">Hammasi ${s.products}</button>
-          <button type="button" class="chip ${s.out ? 'chip-bad' : ''}" data-sf="out">Tugagan ${s.out}</button>
-          <button type="button" class="chip ${s.low ? 'chip-warn' : ''}" data-sf="low">Kam qolgan ${s.low}</button>
-        </div>
-      </div>
-      <div class="stock-list" data-list="stock">
-        <div class="sl-head"><span>Tovar</span><span>Qoldiq</span>${costs ? '<span>Qiymati</span>' : ''}<span>Holat</span></div>
-        ${items.map((x, i) => `<div class="sl-row" data-go="#/products/${x.id}" data-sname="${esc(x.name.toLowerCase())}" data-st="${x.status}" ${i >= SHOW ? 'hidden' : ''}>
-          <span class="sl-name">${esc(x.name)}</span>
-          <span class="sl-qty ${x.status === 'out' ? 'red' : x.status === 'low' ? 'amber' : ''}">${esc(qtyText(x.qty, x.unit))}</span>
-          ${costs ? `<span class="sl-val">${moneyFull(x.value)}</span>` : ''}
-          <span>${badge[x.status]}</span>
-        </div>`).join('')}
-        <div class="empty small" id="stock-empty" hidden>Hech narsa topilmadi</div>
-      </div>
-      ${items.length > SHOW ? `<button class="btn btn-ghost btn-sm" type="button" data-more-stock>Hammasini ko'rsatish (${items.length})</button>` : ''}`
-    : `<div class="empty small">Hali tovar yo'q. <a href="#/products/new">Yangi tovar qo'shing</a></div>`}
-    </section>`;
-}
-

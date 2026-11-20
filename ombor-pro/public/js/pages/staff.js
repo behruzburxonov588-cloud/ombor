@@ -1,7 +1,7 @@
 // Xodimlar samaradorligi: har bir xodimning savdosi, cheklari, tendensiyasi va amallar tarixi.
 // Rahbar (xodimlarni boshqarish yoki hisobot huquqi) hammani ko'radi; boshqalar faqat o'zini.
 import {
-  get, esc, icon, num, compact, moneyFull, deltaPill, pctText, initials, RANGE_PRESETS, presetRange, rangeLabel,
+  get, esc, icon, num, compact, moneyFull, deltaPill, pctText, initials, resolvePeriod, periodPicker, bindPeriod, periodQuery, rangeLabel,
   todayStr, dateTime, openModal, download, withBusy, errorToast, emptyState, toast, shortDate,
 } from '../ui.js';
 import { chart, sparkline } from '../charts.js';
@@ -20,8 +20,7 @@ const ACTIONS = {
 
 export async function render(root, params, ctx) {
   const q = params.query;
-  const key = q.from && q.to ? 'custom' : (RANGE_PRESETS.some((p) => p.key === q.range) ? q.range : '30d');
-  const range = key === 'custom' ? { from: q.from, to: q.to } : presetRange(key);
+  const range = resolvePeriod(q, '30d');
   const d = await get(`/analytics/staff?from=${range.from}&to=${range.to}`);
   const self = d.scope === 'self';
   const fin = ctx.can('reports.view');
@@ -33,10 +32,7 @@ export async function render(root, params, ctx) {
     <div class="page-head">
       <div><h1>${self ? 'Mening natijalarim' : 'Xodimlar samaradorligi'}</h1><p class="muted">${esc(rangeLabel(range.from, range.to))} · savdo, cheklar va faollik</p></div>
       <div class="filterbar">
-        <div class="seg">${RANGE_PRESETS.map((p) => `<button type="button" data-range="${p.key}" class="${key === p.key ? 'active' : ''}">${p.label}</button>`).join('')}
-          <button type="button" data-range="custom" class="${key === 'custom' ? 'active' : ''}">${icon('calendar', 'ico-xs')} Boshqa</button></div>
-        <div class="range-custom" ${key === 'custom' ? '' : 'hidden'}>
-          <input class="input" type="date" id="df" value="${range.from}" max="${todayStr()}"><span class="muted">–</span><input class="input" type="date" id="dt" value="${range.to}" max="${todayStr()}"></div>
+        ${periodPicker(range)}
         ${!self && ctx.can('reports.export') ? `<button class="btn btn-light btn-sm" type="button" data-export="xlsx">${icon('xlsx', 'ico-sm')} Excel</button>
           <button class="btn btn-light btn-sm" type="button" data-export="pdf">${icon('pdf', 'ico-sm')} PDF</button>` : ''}
       </div>
@@ -83,19 +79,7 @@ export async function render(root, params, ctx) {
       ariaLabel: 'Xodimlar kunlik savdosi',
     });
   }
-  const go = (r) => ctx.go(`#/staff?${new URLSearchParams(r)}`);
-  root.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.range === 'custom') { root.querySelector('.range-custom').hidden = false; return; }
-    go({ range: b.dataset.range });
-  }));
-  const applyCustom = () => {
-    const f = root.querySelector('#df').value;
-    const t = root.querySelector('#dt').value;
-    if (f && t && f <= t) go({ from: f, to: t });
-    else if (f && t) toast("Boshlanish sanasi tugash sanasidan oldin bo'lishi kerak", 'warn');
-  };
-  root.querySelector('#df')?.addEventListener('change', applyCustom);
-  root.querySelector('#dt')?.addEventListener('change', applyCustom);
+  bindPeriod(root, (next) => ctx.go(`#/staff?${periodQuery(next)}`));
   root.querySelectorAll('[data-export]').forEach((b) => b.addEventListener('click', () => withBusy(b, () => download(`/reports/export?report=staff&format=${b.dataset.export}&from=${range.from}&to=${range.to}`).catch(errorToast))));
   if (ctx.can('history.view')) {
     root.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => openActivity(staff.find((s) => String(s.id) === tr.dataset.id), range)));

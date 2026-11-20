@@ -21,8 +21,9 @@ router.get('/purchases', requirePerm('purchases.view'), async (req, res) => {
   }
   const { limit, offset } = paging(req.query, { limit: 100, max: 500 });
   const { rows } = await pool.query(
-    `SELECT p.id, p.purchase_no, p.purchase_date, p.total, p.paid_amount, p.remaining_debt, p.created_at,
-            s.name AS supplier_name, u.full_name AS created_by_name
+    `SELECT p.id, p.purchase_no, p.purchase_date, p.total, p.paid_amount, p.remaining_debt, p.created_at, p.due_date,
+            s.name AS supplier_name, u.full_name AS created_by_name,
+            (SELECT COUNT(*)::int FROM purchase_items pi WHERE pi.purchase_id = p.id) AS items_count
        FROM purchases p
        JOIN suppliers s ON s.id = p.supplier_id
        LEFT JOIN users u ON u.id = p.created_by

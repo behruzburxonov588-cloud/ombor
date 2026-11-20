@@ -21,6 +21,7 @@ export const TYPE_GROUPS = {
   monthly_summary: { label: 'Oylik hisobot', hint: "O'tgan oy natijalari", audience: ['reports.view'] },
   low_stock: { label: 'Kam qolgan va tugagan mahsulotlar', hint: 'Minimal qoldiqdan kamaygan yoki tugagan mahsulotlar', audience: ['stock.view', 'products.view', 'purchases.create'] },
   debt_reminder: { label: 'Qarz eslatmalari', hint: "Muddati o'tgan va yaqinlashgan mijoz qarzlari", audience: ['customers.view', 'payments.create'] },
+  supplier_due: { label: "Yetkazib beruvchiga to'lov", hint: "Yetkazib beruvchiga qarzni to'lash muddati yaqin yoki o'tgan", audience: ['suppliers.view', 'purchases.view'] },
   expense_spike: { label: "G'ayrioddiy xarajatlar", hint: "Haftalik xarajat odatdagidan sezilarli ko'p bo'lsa", audience: ['reports.view', 'expenses.view'] },
   sales_decline: { label: "Savdo pasayishi va marja o'zgarishi", hint: 'Umumiy savdo, alohida mahsulotlar yoki foyda marjasi pasaysa', audience: ['reports.view'] },
   inventory_change: { label: "Muhim ombor o'zgarishlari", hint: "Katta zarar/tuzatish, yo'qotishlar o'sishi, qoldiq nomuvofiqligi", audience: ['stock.view', 'reports.view'] },
@@ -386,6 +387,58 @@ async function checkDebts(db, cfg, settings, today) {
   return created;
 }
 
+// Yetkazib beruvchiga qarz: muddati o'tgan (har N kunda bir marta) va yaqinlashgan (har kirim uchun bir marta)
+async function checkSupplierDue(db, cfg, settings, today) {
+  const created = [];
+  const { rows: overdue } = await db.query(
+    `SELECT s.id, s.name, SUM(p.remaining_debt) AS debt, MIN(p.due_date) AS since
+       FROM purchases p JOIN suppliers s ON s.id = p.supplier_id
+      WHERE p.remaining_debt > 0 AND p.due_date < $1::date
+      GROUP BY s.id, s.name ORDER BY SUM(p.remaining_debt) DESC`,
+    [today],
+  );
+  if (overdue.length) {
+    const total = overdue.reduce((sum, r) => sum + Number(r.debt), 0);
+    const bucket = Math.floor(epochDay(today) / cfg.thresholds.debt_reminder_days);
+    const row = await createNotification(db, cfg, {
+      kind: 'supplier_overdue',
+      type_group: 'supplier_due',
+      level: 'critical',
+      title: `Yetkazib beruvchiga to'lov muddati o'tgan: ${money(total)}`,
+      body: `${overdue.slice(0, 8).map((r) => `• ${r.name}: ${money(r.debt)} (muddat ${dmy(r.since)})`).join('\n')}${overdue.length > 8 ? `\n… va yana ${overdue.length - 8} ta` : ''}`,
+      link: '#/debts?tab=suppliers',
+      data: { supplier_ids: overdue.map((r) => r.id), total: round2(total) },
+      dedup_key: `supplier_overdue:${bucket}`,
+    });
+    if (row) created.push(row);
+  }
+  const warnDays = Number(settings.debt_warning_days) || 3;
+  const { rows: soon } = await db.query(
+    `SELECT p.id, p.purchase_no, p.remaining_debt, p.due_date, s.name
+       FROM purchases p JOIN suppliers s ON s.id = p.supplier_id
+      WHERE p.remaining_debt > 0 AND p.due_date >= $1::date AND p.due_date <= $2::date
+      ORDER BY p.due_date, p.id`,
+    [today, addDays(today, warnDays)],
+  );
+  const seen = await recentlyAlerted(db, 'supplier_due', 'purchase_ids', 60);
+  const fresh = soon.filter((r) => !seen.has(String(r.id)));
+  if (fresh.length) {
+    const ids = fresh.map((r) => r.id);
+    const row = await createNotification(db, cfg, {
+      kind: 'supplier_due',
+      type_group: 'supplier_due',
+      level: 'warning',
+      title: `Yetkazib beruvchiga to'lov yaqin: ${fresh.length} ta`,
+      body: fresh.slice(0, 8).map((r) => `• ${r.name}: ${money(r.remaining_debt)} — ${dmy(r.due_date)} gacha (${r.purchase_no})`).join('\n'),
+      link: '#/debts?tab=suppliers',
+      data: { purchase_ids: ids },
+      dedup_key: `supplier_due:${today}:${hash(ids.join(','))}`,
+    });
+    if (row) created.push(row);
+  }
+  return created;
+}
+
 async function checkInsights(db, cfg, today) {
   const created = [];
   const wantSales = cfg.types.sales_decline.enabled;
@@ -619,6 +672,7 @@ export async function runCycle(db, { now = new Date() } = {}) {
     const steps = [
       () => (cfg.types.low_stock.enabled ? checkStock(db, cfg, clock.date) : []),
       () => (cfg.types.debt_reminder.enabled ? checkDebts(db, cfg, settings, clock.date) : []),
+      () => (cfg.types.supplier_due.enabled ? checkSupplierDue(db, cfg, settings, clock.date) : []),
       () => checkInsights(db, cfg, clock.date),
       () => (cfg.types.inventory_change.enabled ? checkInventoryChanges(db, cfg, clock.date) : []),
       () => (cfg.types.business_event.enabled ? checkEvents(db, cfg) : []),
@@ -657,10 +711,12 @@ export function resetFreshness() {
 
 // ---------- Foydalanuvchi uchun ro'yxat ----------
 
+// Davr tugmalari: Bugun, Kecha, 7 kun, 30 kun, Shu oy (90 kun — eski sozlamalar uchun)
+const RANGE_KEYS = ['today', 'yesterday', '7d', '30d', 'month', '90d'];
 export const WIDGETS = ['assistant', 'kpis', 'sales_chart', 'pnl', 'top_products', 'forecast', 'inventory', 'recent'];
 export const PREF_DEFAULTS = {
   // mode: 'simple' — oddiy bosh sahifa (ombor, keldi-ketdi, pul); 'detailed' — grafiklar va batafsil tahlil
-  dashboard: { widgets: WIDGETS.map((id) => ({ id, visible: true })), range: 'today', onboarding_hidden: false, mode: 'simple', simple_range: '7d' },
+  dashboard: { widgets: WIDGETS.map((id) => ({ id, visible: true })), range: 'today', onboarding_hidden: false, mode: 'simple', simple_range: 'today' },
   reports: { period: 'month', grain: 'daily' },
   notifications: { muted: [], browser: false, browser_levels: ['critical', 'warning', 'info', 'success'] },
 };
@@ -677,10 +733,10 @@ export function mergePrefs(raw, base = PREF_DEFAULTS) {
     for (const id of WIDGETS) if (!seen.has(id)) list.push({ id, visible: true });
     p.dashboard.widgets = list;
   }
-  if (['today', '7d', '30d', '90d'].includes(raw.dashboard?.range)) p.dashboard.range = raw.dashboard.range;
+  if (RANGE_KEYS.includes(raw.dashboard?.range)) p.dashboard.range = raw.dashboard.range;
   if (typeof raw.dashboard?.onboarding_hidden === 'boolean') p.dashboard.onboarding_hidden = raw.dashboard.onboarding_hidden;
   if (['simple', 'detailed'].includes(raw.dashboard?.mode)) p.dashboard.mode = raw.dashboard.mode;
-  if (['today', '7d', '30d', '90d'].includes(raw.dashboard?.simple_range)) p.dashboard.simple_range = raw.dashboard.simple_range;
+  if (RANGE_KEYS.includes(raw.dashboard?.simple_range)) p.dashboard.simple_range = raw.dashboard.simple_range;
   if (['today', 'week', 'month', 'year'].includes(raw.reports?.period)) p.reports.period = raw.reports.period;
   if (['daily', 'weekly', 'monthly'].includes(raw.reports?.grain)) p.reports.grain = raw.reports.grain;
   if (Array.isArray(raw.notifications?.muted)) p.notifications.muted = raw.notifications.muted.filter((k) => TYPE_GROUPS[k]);

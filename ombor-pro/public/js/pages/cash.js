@@ -1,8 +1,8 @@
 // Kassa: balanslar, smena, kirim-chiqim, kassa harakatlari va xarajatlar
 import {
   get, post, icon, esc, num, money, dateTime, dateOnly, toast, errorToast, openModal, withBusy,
-  emptyState, todayStr, monthStartStr, newKey,
-  takeNewFlag,
+  emptyState, todayStr, newKey, takeNewFlag, compact, monthName,
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
 } from '../ui.js';
 
 const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
@@ -36,7 +36,7 @@ export async function render(root, params, ctx) {
   const tab = allowed.find((t) => t.key === params.query.tab) || allowed[0];
 
   root.innerHTML = `
-    <div class="page-head"><div><h1>Kassa va xarajatlar</h1><p class="muted">Pul harakati, smena va xarajatlar</p></div></div>
+    <div class="page-head"><div><h1>${tab.key === 'cash' ? 'Kassa' : 'Xarajatlar'}</h1><p class="muted">${tab.key === 'cash' ? "Qo'lingizdagi pul, smena va har bir kirgan-chiqqan pul" : 'Ijara, maosh, kommunal va boshqa chiqimlar'}</p></div></div>
     ${allowed.length > 1 ? `<div class="seg" style="margin-bottom:14px">
       ${allowed.map((t) => `<button type="button" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}">${t.label}</button>`).join('')}
     </div>` : ''}
@@ -47,21 +47,15 @@ export async function render(root, params, ctx) {
   const body = root.querySelector('#tabbody');
   if (tab.key === 'cash') await tabCash(body, params.query, ctx, refresh);
   else await tabExpenses(body, params.query, ctx, refresh);
-  // "+ Qo'shish" menyusidan kelinganda: yangi xarajat formasiga o'tkazadi
-  if (tab.key === 'expenses' && takeNewFlag(params)) {
-    const amount = root.querySelector('#ef [name=amount]');
-    if (amount) {
-      amount.closest('.card').scrollIntoView({ block: 'center' });
-      amount.focus();
-    }
-  }
+  // "+ Qo'shish" menyusidan kelinganda: yangi xarajat oynasi darhol ochiladi
+  if (tab.key === 'expenses' && takeNewFlag(params)) root.querySelector('#exp-new')?.click();
 }
 
 // ---------- Kassa ----------
 
 async function tabCash(body, q, ctx, refresh) {
-  const from = q.from || todayStr();
-  const to = q.to || todayStr();
+  const range = resolvePeriod(q, 'today');
+  const { from, to } = range;
   const method = q.method || '';
   const txParams = new URLSearchParams({ from, to, limit: '300' });
   if (method) txParams.set('method', method);
@@ -82,16 +76,21 @@ async function tabCash(body, q, ctx, refresh) {
   body.innerHTML = `
     <div class="card" id="shiftcard"></div>
 
-    <div class="section-title"><h2>Pul qayerda</h2><span class="muted small">hozirgi qoldiq</span></div>
-    <div class="kpis">
-      <div class="kpi neutral"><div class="label">Naqd pul</div><div class="value">${money(b.cash)}</div><div class="hint">kassa qutisida bo'lishi kerak</div></div>
-      <div class="kpi neutral"><div class="label">Karta orqali</div><div class="value">${money(b.card)}</div><div class="hint">kartaga tushgan minus kartadan to'langan</div></div>
-      <div class="kpi neutral"><div class="label">Bank o'tkazmasi</div><div class="value">${money(b.transfer)}</div><div class="hint">${b.transfer < 0 ? "minus — o'tkazma bilan tushgandan ko'p to'langan" : "o'tkazma bilan tushgan minus to'langan"}</div></div>
-      <div class="kpi ${b.total >= 0 ? 'good' : 'bad'}"><div class="label">Hammasi</div><div class="value">${money(b.total)}</div><div class="hint">naqd + karta + o'tkazma</div></div>
+    <div class="section-title"><h2>Pul qayerda</h2><span class="muted small">hozirgi qoldiq — barcha kirim va chiqimlardan keyin</span></div>
+    <div class="sum-row">
+      <div class="sum-cell ${b.cash < 0 ? 'bad' : ''}"><span>Naqd pul</span><b>${money(b.cash)}</b><small>kassa qutisida bo'lishi kerak</small></div>
+      <div class="sum-cell ${b.card < 0 ? 'bad' : ''}"><span>Karta</span><b>${money(b.card)}</b><small>kartaga tushgan − kartadan to'langan</small></div>
+      <div class="sum-cell ${b.transfer < 0 ? 'bad' : ''}"><span>Bank o'tkazmasi</span><b>${money(b.transfer)}</b><small>hisob raqamga tushgan − to'langan</small></div>
+      <div class="sum-cell ${b.total < 0 ? 'bad' : 'good'}"><span>Hammasi</span><b>${money(b.total)}</b><small>naqd + karta + o'tkazma</small></div>
     </div>
-    <div class="kpis" style="margin-top:12px">
-      <div class="kpi good"><div class="label">Bugun kirdi</div><div class="value">${money(todayIn)}</div><div class="hint">savdo va boshqa tushumlar</div></div>
-      <div class="kpi bad"><div class="label">Bugun chiqdi</div><div class="value">${money(todayOut)}</div><div class="hint">to'lovlar, xarajatlar, qaytarishlar</div></div>
+    ${b.cash < 0 || b.card < 0 || b.transfer < 0 ? `<div class="alert alert-info small" style="margin-top:10px">${icon('info', 'ico-sm')}
+      <span><b>Minus nimani bildiradi?</b> Bu hisobdan tushgan puldan ko'proq to'lov yozilgan. Ko'pincha to'lov boshqa puldan (masalan, o'z cho'ntagingizdan) qilingan,
+      lekin dasturda shu hisobdan deb yozilgan. To'g'rilash uchun shu summani «Kassaga pul qo'yish» orqali kiriting.</span></div>` : ''}
+    <div class="section-title"><h2>Bugun</h2></div>
+    <div class="sum-row three">
+      <div class="sum-cell good"><span>Kirdi</span><b>+${money(todayIn)}</b><small>savdo, qarz to'lovlari va boshqa tushumlar</small></div>
+      <div class="sum-cell bad"><span>Chiqdi</span><b>−${money(todayOut)}</b><small>xarajatlar, yetkazib beruvchiga to'lov, qaytarishlar</small></div>
+      <div class="sum-cell ${todayIn - todayOut < 0 ? 'bad' : ''}"><span>Farq</span><b>${money(todayIn - todayOut, { sign: true })}</b><small>bugun pul shuncha ${todayIn - todayOut < 0 ? 'kamaydi' : "ko'paydi"}</small></div>
     </div>
 
     ${ctx.can('cash.manage') ? `<div class="row" style="margin-top:14px;flex-wrap:wrap">
@@ -101,11 +100,8 @@ async function tabCash(body, q, ctx, refresh) {
 
     ${canView ? `
     <div class="card" style="margin-top:14px">
-      <div class="card-head"><div><h2>Pul harakati</h2><div class="card-sub">Har bir kirgan va chiqqan pul</div></div></div>
-      <div class="form-grid two" style="gap:10px;margin-bottom:12px">
-        <label class="field"><span>Boshlanish</span><input class="input" type="date" data-from value="${esc(from)}"></label>
-        <label class="field"><span>Tugash</span><input class="input" type="date" data-to value="${esc(to)}"></label>
-      </div>
+      <div class="card-head" style="flex-wrap:wrap;gap:10px"><div><h2>Pul harakati</h2><div class="card-sub">${esc(periodWord(range))}: har bir kirgan va chiqqan pul${tx.transactions.length ? ` · kirdi <b class="green">+${money(tx.transactions.filter((t) => t.direction === 'in').reduce((x, t) => x + Number(t.amount), 0))}</b>, chiqdi <b class="red">−${money(tx.transactions.filter((t) => t.direction === 'out').reduce((x, t) => x + Number(t.amount), 0))}</b>` : ''}</div></div>
+        ${periodPicker(range, { id: 'tx' })}</div>
       <div class="chips" style="margin-bottom:12px">
         ${[['', 'Hammasi'], ['cash', 'Naqd'], ['card', 'Karta'], ['transfer', "O'tkazma"]]
     .map(([k, l]) => `<button type="button" class="chip ${k === method ? 'active' : ''}" data-m="${k}">${l}</button>`).join('')}
@@ -172,11 +168,9 @@ async function tabCash(body, q, ctx, refresh) {
   body.querySelector('#wd')?.addEventListener('click', () => openMovement('withdrawal', refresh));
 
   if (canView) {
-    const apply = () => ctx.go(`#/cash?tab=cash&from=${body.querySelector('[data-from]').value}&to=${body.querySelector('[data-to]').value}&method=${method}`);
-    body.querySelector('[data-from]').addEventListener('change', apply);
-    body.querySelector('[data-to]').addEventListener('change', apply);
+    bindPeriod(body, (next) => ctx.go(`#/cash?tab=cash&${periodQuery(next)}&method=${method}`), { id: 'tx' });
     body.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => {
-      ctx.go(`#/cash?tab=cash&from=${from}&to=${to}&method=${b.dataset.m}`);
+      ctx.go(`#/cash?tab=cash&${periodQuery(range)}&method=${b.dataset.m}`);
     }));
   }
 }
@@ -276,79 +270,148 @@ function openMovement(kind, refresh) {
 // ---------- Xarajatlar ----------
 
 async function tabExpenses(body, q, ctx, refresh) {
-  const from = q.from || monthStartStr();
-  const to = q.to || todayStr();
-  const { expenses, by_category, total, categories } = await get(`/expenses?from=${from}&to=${to}`);
+  const range = resolvePeriod(q, 'month');
+  const word = periodWord(range);
+  const { expenses, by_category, total, categories } = await get(`/expenses?from=${range.from}&to=${range.to}`);
   const canManage = ctx.can('expenses.manage');
+  const days = Math.round((Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / 86400000) + 1;
+  const cats = [...by_category].sort((x, y) => Number(y.total) - Number(x.total));
+  const top = cats[0];
+  let cat = '';
+  let text = '';
 
   body.innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      <div class="form-grid two" style="gap:10px">
-        <label class="field"><span>Boshlanish</span><input class="input" type="date" data-from value="${esc(from)}"></label>
-        <label class="field"><span>Tugash</span><input class="input" type="date" data-to value="${esc(to)}"></label>
-      </div>
+    <div class="toolbar-row">
+      ${periodPicker(range)}
+      ${canManage ? `<button class="btn" type="button" id="exp-new">${icon('plus', 'ico-sm')} Xarajat qo'shish</button>` : ''}
     </div>
-    <div class="kpis">
-      <div class="kpi bad"><div class="label">Jami xarajat</div><div class="value">${money(total)}</div><div class="hint">${expenses.length} ta yozuv</div></div>
-      ${by_category.map((c) => `<div class="kpi neutral"><div class="label">${esc(EXPENSE_LABELS[c.category] || c.category)}</div><div class="value">${money(c.total)}</div></div>`).join('')}
+    <div class="sum-row">
+      <div class="sum-cell bad"><span>Jami xarajat</span><b>${money(total)}</b><small>${esc(word)}</small></div>
+      <div class="sum-cell"><span>Yozuvlar</span><b>${expenses.length} ta</b></div>
+      <div class="sum-cell"><span>Kuniga o'rtacha</span><b>${money(days > 0 ? total / days : 0)}</b><small>${days} kun</small></div>
+      <div class="sum-cell"><span>Eng katta turkum</span><b>${top ? esc(EXPENSE_LABELS[top.category] || top.category) : '—'}</b>${top ? `<small>${money(top.total)}</small>` : ''}</div>
     </div>
 
-    ${canManage ? `<div class="card" style="margin-top:14px">
-      <div class="card-head"><h2>Yangi xarajat</h2></div>
-      <form id="ef" class="form-grid two" style="gap:10px" novalidate>
-        <label class="field"><span>Turkum *</span>
-          <select class="input" name="category">${categories.map((c) => `<option value="${c}">${esc(EXPENSE_LABELS[c] || c)}</option>`).join('')}</select></label>
-        <label class="field"><span>Summa (so'm) *</span><input class="input" name="amount" inputmode="decimal" placeholder="0"></label>
-        <label class="field"><span>Qayerga / qayerdan</span>
-          <select class="input" name="method"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
-        <label class="field"><span>Sana</span><input class="input" type="date" name="expense_date" value="${todayStr()}"></label>
-        <label class="field" style="grid-column:1/-1"><span>Izoh</span><input class="input" name="description" maxlength="200" placeholder="Masalan: oylik ijara"></label>
-        <div id="eerr" style="grid-column:1/-1"></div>
-        <button class="btn btn-lg" type="submit" style="grid-column:1/-1">${icon('check')} Xarajatni saqlash</button>
-      </form>
-    </div>` : ''}
+    <div class="home-row halves" style="margin-top:14px">
+      <section class="card">
+        <div class="card-head"><div><h2>Pul nimaga ketdi?</h2><div class="card-sub">${esc(word)}: turkumlar bo'yicha</div></div></div>
+        ${cats.length ? `<div class="cat-bars">${cats.map((c) => {
+          const share = total > 0 ? (Number(c.total) / total) * 100 : 0;
+          return `<button type="button" class="cat-bar" data-cat="${esc(c.category)}">
+            <span class="cb-top"><b>${esc(EXPENSE_LABELS[c.category] || c.category)}</b><span class="num">${money(c.total)} <small class="muted">${Math.round(share)}%</small></span></span>
+            <span class="cb-track"><i style="width:${share}%"></i></span>
+          </button>`;
+        }).join('')}</div>` : emptyState(`${word} xarajat yo'q`, 'wallet')}
+      </section>
+      ${ctx.can('reports.view') ? `<section class="card" id="exp-months"><div class="card-head"><div><h2>Oylar bo'yicha</h2><div class="card-sub">So'nggi 6 oy xarajatlari</div></div></div><div class="empty small">Yuklanmoqda…</div></section>` : ''}
+    </div>
 
     <div class="card" style="margin-top:14px">
       <div class="card-head"><h2>Xarajatlar ro'yxati</h2></div>
-      ${expenses.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Sana</th><th>Turkum</th><th>Izoh</th><th>Usul</th><th class="right">Summa</th><th>Kim</th></tr></thead>
-        <tbody>${expenses.map((e) => `<tr>
-          <td data-label="Sana">${dateOnly(e.expense_date)}</td>
-          <td data-label="Turkum">${esc(EXPENSE_LABELS[e.category] || e.category)}</td>
-          <td data-label="Izoh">${esc(e.description || '')}</td>
-          <td data-label="Usul">${esc(METHOD_LABELS[e.method] || e.method)}</td>
-          <td data-label="Summa" class="right num">${money(e.amount)}</td>
-          <td data-label="Kim" class="small">${esc(e.user_name || '')}</td>
-        </tr>`).join('')}</tbody></table></div>`
-        : emptyState("Bu davrda xarajat yo'q", 'wallet')}
+      <div class="list-tools">
+        <div class="search-input">${icon('search', 'ico-sm')}<input class="input" id="eq" type="search" placeholder="Izoh bo'yicha qidirish" autocomplete="off"></div>
+        <div class="chips" id="ecats"><button type="button" class="chip active" data-ec="">Hammasi</button>${cats.map((c) => `<button type="button" class="chip" data-ec="${esc(c.category)}">${esc(EXPENSE_LABELS[c.category] || c.category)}</button>`).join('')}</div>
+      </div>
+      <div id="elist"></div>
     </div>`;
 
-  const apply = () => ctx.go(`#/cash?tab=expenses&from=${body.querySelector('[data-from]').value}&to=${body.querySelector('[data-to]').value}`);
-  body.querySelector('[data-from]').addEventListener('change', apply);
-  body.querySelector('[data-to]').addEventListener('change', apply);
+  const draw = () => {
+    const t = text.toLowerCase();
+    const rows = expenses.filter((e) => (!cat || e.category === cat) && (!t || (e.description || '').toLowerCase().includes(t)));
+    body.querySelector('#elist').innerHTML = rows.length ? `<div class="table-wrap cards"><table>
+        <thead><tr><th>Sana</th><th>Turkum</th><th>Izoh</th><th>Qayerdan</th><th class="right">Summa</th><th>Kim yozdi</th></tr></thead>
+        <tbody>${rows.map((e) => `<tr>
+          <td data-label="Sana">${dateOnly(e.expense_date)}</td>
+          <td data-label="Turkum"><span class="badge badge-muted">${esc(EXPENSE_LABELS[e.category] || e.category)}</span></td>
+          <td data-label="Izoh">${esc(e.description || '—')}</td>
+          <td data-label="Qayerdan">${esc(METHOD_LABELS[e.method] || e.method)}</td>
+          <td data-label="Summa" class="right num"><b>${money(e.amount)}</b></td>
+          <td data-label="Kim yozdi" class="small muted">${esc(e.user_name || '')}</td>
+        </tr>`).join('')}</tbody>
+        ${rows.length > 1 ? `<tfoot><tr><td colspan="4"><b>Jami</b></td><td class="right num"><b>${money(rows.reduce((x, e) => x + Number(e.amount), 0))}</b></td><td></td></tr></tfoot>` : ''}
+      </table></div>`
+      : emptyState(expenses.length ? "Bu filtr bo'yicha xarajat yo'q" : `${word} xarajat yo'q`, 'wallet');
+  };
+  draw();
 
+  bindPeriod(body, (next) => ctx.go(`#/cash?tab=expenses&${periodQuery(next)}`));
+  const pickCat = (c) => {
+    cat = c;
+    body.querySelectorAll('[data-ec]').forEach((x) => x.classList.toggle('active', x.dataset.ec === c));
+    draw();
+  };
+  body.querySelector('#ecats').addEventListener('click', (e) => { const b = e.target.closest('[data-ec]'); if (b) pickCat(b.dataset.ec); });
+  body.querySelectorAll('[data-cat]').forEach((b) => b.addEventListener('click', () => {
+    pickCat(b.dataset.cat);
+    body.querySelector('#elist').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  body.querySelector('#eq').addEventListener('input', (e) => { text = e.target.value.trim(); draw(); });
+  body.querySelector('#exp-new')?.addEventListener('click', () => openExpense(categories, refresh));
+
+  const mBox = body.querySelector('#exp-months');
+  if (mBox) {
+    get('/analytics/monthly?months=6').then(({ months }) => {
+      if (!mBox.isConnected) return;
+      const list = months.slice(months.findIndex((m) => m.sales_count > 0 || m.expenses > 0)).filter(Boolean);
+      const shown = list.length ? list : months.slice(-1);
+      const max = Math.max(1, ...shown.map((m) => m.expenses));
+      mBox.innerHTML = `<div class="card-head"><div><h2>Oylar bo'yicha</h2><div class="card-sub">Har oyning xarajati (joriy oy — bugungacha)</div></div></div>
+        <div class="cat-bars">${shown.slice().reverse().map((m) => `
+          <a class="cat-bar" href="#/cash?tab=expenses&from=${m.from}&to=${m.to}">
+            <span class="cb-top"><b>${esc(monthName(m.month.slice(5)))} ${m.month.slice(0, 4)}</b><span class="num">${money(m.expenses)}${m.revenue > 0 ? ` <small class="muted">savdoning ${Math.round((m.expenses / m.revenue) * 100)}%</small>` : ''}</span></span>
+            <span class="cb-track"><i class="exp" style="width:${(m.expenses / max) * 100}%"></i></span>
+          </a>`).join('')}</div>`;
+    }).catch(() => mBox.remove());
+  }
+}
+
+// Yangi xarajat oynasi
+function openExpense(categories, refresh) {
   const expenseKey = newKey('exp');
-  body.querySelector('#ef')?.addEventListener('submit', async (e) => {
+  const { close, el } = openModal({
+    title: "Xarajat qo'shish",
+    body: `<form id="ef" class="form-grid two" style="gap:12px" novalidate>
+        <div class="field" style="grid-column:1/-1"><span>Nimaga ketdi? *</span>
+          <div class="chips" id="ef-cats">${categories.map((c, i) => `<button type="button" class="chip ${i === 0 ? 'active' : ''}" data-c="${c}">${esc(EXPENSE_LABELS[c] || c)}</button>`).join('')}</div></div>
+        <label class="field"><span>Summa *</span><div class="money-input"><input class="input input-lg" name="amount" inputmode="decimal" placeholder="0" autocomplete="off"><em>so'm</em></div></label>
+        <label class="field"><span>Qayerdan to'landi?</span>
+          <select class="input" name="method"><option value="cash">Naqd (kassadan)</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
+        <label class="field"><span>Sana</span><input class="input" type="date" name="expense_date" value="${todayStr()}" max="${todayStr()}"></label>
+        <label class="field"><span>Izoh <small>(ixtiyoriy)</small></span><input class="input" name="description" maxlength="200" placeholder="Masalan: noyabr ijarasi"></label>
+        <div id="eerr" style="grid-column:1/-1"></div>
+      </form>`,
+    foot: `<button class="btn btn-outline" type="button" data-close>Bekor</button><button class="btn" type="submit" form="ef">${icon('check', 'ico-sm')} Saqlash</button>`,
+  });
+  let category = categories[0];
+  el.querySelector('#ef-cats').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-c]');
+    if (!b) return;
+    category = b.dataset.c;
+    el.querySelectorAll('#ef-cats [data-c]').forEach((x) => x.classList.toggle('active', x === b));
+  });
+  const form = el.querySelector('#ef');
+  if (window.matchMedia('(min-width: 720px)').matches) form.amount.focus();
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const err = body.querySelector('#eerr');
+    const err = el.querySelector('#eerr');
     const amount = toNum(form.amount.value);
     if (!(amount > 0)) {
       err.innerHTML = '<div class="alert alert-warn">Summani kiriting</div>';
+      form.amount.focus();
       return;
     }
-    const btn = form.querySelector('button[type=submit]');
-    await withBusy(btn, async () => {
+    await withBusy(el.querySelector('[type=submit]'), async () => {
       try {
         await post('/expenses', {
-          category: form.category.value,
+          category,
           amount,
           method: form.querySelector('[name=method]').value,
           expense_date: form.expense_date.value,
           description: form.description.value.trim() || null,
           idempotency_key: expenseKey,
         });
-        toast('Xarajat saqlandi', 'ok');
+        close();
+        toast(`Xarajat saqlandi: ${money(amount)}`, 'ok');
         refresh();
       } catch (ex) {
         err.innerHTML = `<div class="alert alert-bad">${esc(ex.message)}</div>`;

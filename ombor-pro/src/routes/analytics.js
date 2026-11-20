@@ -5,7 +5,7 @@ import { requirePerm, can } from '../auth.js';
 import { HttpError } from '../util.js';
 import { getSettings } from '../services/settings.js';
 import {
-  dashboard, overview, salesAnalytics, pnlReport, productStats, topLists, filterSortPage, resolveRange,
+  dashboard, overview, monthly, salesAnalytics, pnlReport, productStats, topLists, filterSortPage, resolveRange,
   inventoryAnalytics, weeklyReport, forecast, customerDebts, staffPerformance, assertRange,
 } from '../services/analytics.js';
 import { briefing } from '../services/insights.js';
@@ -82,6 +82,10 @@ router.get('/analytics/inventory', requirePerm('stock.view', 'reports.view'), as
 router.get('/analytics/weekly', requirePerm('reports.view'), async (req, res) => {
   const settings = await getSettings(pool);
   res.json(await weeklyReport(pool, req.query, settings.costing_method));
+});
+
+router.get('/analytics/monthly', requirePerm('reports.view'), async (req, res) => {
+  res.json(await monthly(pool, req.query));
 });
 
 router.get('/analytics/forecast', requirePerm('reports.view'), async (req, res) => {

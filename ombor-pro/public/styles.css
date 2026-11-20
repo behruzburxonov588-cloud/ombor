@@ -1205,3 +1205,119 @@ a.hist:hover { background: var(--surface-2); text-decoration: none; }
   .rcv { grid-template-columns: minmax(0, 1fr) 420px; }
   .rcv-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* ---------- Davr tanlash (hamma sahifada bir xil) ---------- */
+.period { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.period-custom { display: flex; gap: 6px; align-items: center; }
+.period-custom .input { width: 142px; }
+@media (max-width: 559px) {
+  .period { width: 100%; }
+  .period .seg { width: 100%; display: grid; grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
+  .period .seg button { padding: 0 6px; }
+  .hide-sm { display: none !important; }
+  .period-custom { width: 100%; }
+  .period-custom .input { flex: 1; width: auto; min-width: 0; }
+}
+
+/* ---------- Bosh sahifa ---------- */
+/* Tez amallar — ixcham: belgi chapda, nomi va izohi o'ngda */
+.action-tile { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; row-gap: 1px; align-items: center; min-height: 0; padding: 11px 12px; }
+.action-tile .at-ico { grid-row: 1 / span 2; }
+.action-tile b { margin: 0; font-size: 14.5px; align-self: end; }
+.action-tile > span:not(.at-ico) { align-self: start; }
+.actions-card { padding: 14px 16px 16px; }
+.actions-title { margin-bottom: 10px; }
+@media (max-width: 459px) {
+  .action-tile { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; justify-items: center; text-align: center; padding: 10px 6px; row-gap: 6px; min-height: 0; }
+  .action-tile .at-ico { grid-row: auto; }
+  .action-tile b { font-size: 13px; }
+}
+.stat .stat-tag { font-size: 10.5px; font-weight: 600; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; line-height: 16px; }
+.stat .spark-ph { height: 28px; margin: 2px 0; border-bottom: 1px dashed var(--border); }
+.stat .stat-value.warn { color: var(--warn); }
+.home-row { display: grid; gap: 16px; align-items: stretch; }
+.home-row:empty { display: none; }
+.home-row > .card { margin: 0; min-width: 0; }
+@media (min-width: 960px) {
+  .home-row.wide-narrow { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .home-row.halves { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+}
+/* Tugayotgan tovarlar */
+.ls-list { display: grid; }
+.ls-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; border-radius: 6px; }
+.ls-row:last-child { border-bottom: 0; }
+.ls-row:hover { background: var(--surface-2); text-decoration: none; }
+.ls-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.ls-dot.out { background: var(--neg); }
+.ls-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-qty { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13.5px; }
+.ok-state { display: flex; gap: 12px; align-items: center; padding: 14px; border-radius: 12px; background: var(--pos-bg); color: var(--pos); }
+.ok-state > .ico { width: 24px; height: 24px; flex: none; }
+.ok-state div { display: grid; }
+.ok-state span { color: var(--text-2); font-size: 13px; }
+/* So'nggi savdolar */
+.rs-list { display: grid; }
+.rs-row { display: flex; gap: 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; border-radius: 6px; }
+.rs-row:last-child { border-bottom: 0; }
+.rs-row:hover { background: var(--surface-2); text-decoration: none; }
+.rs-ico { width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+.rs-meta { flex: 1; min-width: 0; display: grid; }
+.rs-meta span { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-sum { display: grid; text-align: right; flex: none; }
+.rs-sum b { font-variant-numeric: tabular-nums; }
+.rs-sum span { font-size: 12px; color: var(--muted); }
+.rs-sum span.amber { color: var(--warn); }
+/* Oylik natija */
+.month-table td { vertical-align: middle; }
+.month-table .mt-bar-h { width: 22%; }
+.mt-bar { display: grid; gap: 3px; min-width: 120px; }
+.mt-bar span { display: block; height: 7px; border-radius: 4px; min-width: 2px; }
+.mt-rev, .mt-legend i.mt-rev { background: #a9b8cf; }
+.mt-net, .mt-legend i.mt-net { background: var(--series-2); }
+.mt-net.neg, .mt-legend i.mt-net.neg { background: var(--neg); }
+.mt-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+.mt-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.mt-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+@media (max-width: 719px) { .mt-bar, .month-table .mt-bar-h { display: none; } }
+
+/* ---------- Qisqa xulosa qatori (ro'yxat sahifalari tepasida) ---------- */
+.sum-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
+.sum-cell { padding: 12px 16px; display: grid; gap: 2px; align-content: start; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); min-width: 0; }
+.sum-cell > span { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.sum-cell > b { font-size: 19px; font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sum-cell > small { font-size: 12px; color: var(--muted); }
+.sum-cell.warn > b { color: var(--warn); }
+.sum-cell.bad > b { color: var(--neg); }
+.sum-cell.good > b { color: var(--pos); }
+a.sum-cell { color: inherit; text-decoration: none; }
+a.sum-cell:hover { background: var(--surface-2); text-decoration: none; }
+@media (min-width: 720px) {
+  .sum-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .sum-row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sum-cell { border-bottom: 0; }
+  .sum-cell:last-child { border-right: 0; }
+}
+@media (max-width: 719px) {
+  .sum-cell:nth-child(2n) { border-right: 0; }
+}
+/* Ro'yxat ustidagi qidiruv va filtrlar */
+.list-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.list-tools .search-input { flex: 1 1 240px; min-width: 0; }
+.list-tools .search-input .input { min-height: 38px; }
+
+/* ---------- Xarajatlar: turkum chiziqlari ---------- */
+.toolbar-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
+.cat-bars { display: grid; gap: 4px; }
+.cat-bar { display: grid; gap: 6px; padding: 9px 8px; border: 0; background: none; border-radius: 8px; text-align: left; cursor: pointer; font: inherit; color: inherit; text-decoration: none; width: 100%; }
+.cat-bar:hover { background: var(--surface-2); text-decoration: none; }
+.cb-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.cb-top b { font-weight: 600; }
+.cb-top .num { font-weight: 600; white-space: nowrap; }
+.cb-track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.cb-track i { display: block; height: 100%; border-radius: 4px; background: #d08a0d; min-width: 2px; }
+.cb-track i.exp { background: #c9a35b; }
+.alert .ico-sm { vertical-align: -3px; margin-right: 6px; }
+tfoot td { border-top: 2px solid var(--border); background: var(--surface-2); }
+.debt-tabs button small { font-weight: 500; color: var(--muted); margin-left: 4px; }
+.debt-tabs button .ico-xs { vertical-align: -2px; margin-right: 4px; }
+@media (max-width: 559px) { .debt-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; } .debt-tabs button small { display: none; } }

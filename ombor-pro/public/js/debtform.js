@@ -31,7 +31,8 @@ const TEXT = {
     listKey: 'suppliers',
     create: (body) => post('/suppliers', body).then((r) => r.supplier),
     path: (id) => `/suppliers/${id}/debts`,
-    due: false,
+    due: true,
+    dueLabel: "Qachongacha to'laysiz? (ixtiyoriy)",
     done: 'Qarz yozildi',
   },
 };
@@ -55,7 +56,7 @@ export async function openDebtForm({ kind = 'customer', party = null, onDone = (
         <label class="field"><span>Qarz summasi (so'm) *</span><input class="input" id="damount" inputmode="decimal" placeholder="0"></label>
         <div class="form-grid two" style="gap:10px">
           <label class="field"><span>Qarz qachon paydo bo'lgan?</span><input class="input" type="date" id="ddate" value="${today}" max="${today}"></label>
-          ${t.due ? `<label class="field"><span>Qachon to'lashi kerak? (ixtiyoriy)</span><input class="input" type="date" id="ddue"></label>` : '<div></div>'}
+          ${t.due ? `<label class="field"><span>${t.dueLabel || "Qachon to'lashi kerak? (ixtiyoriy)"}</span><input class="input" type="date" id="ddue"></label>` : '<div></div>'}
         </div>
         <label class="field"><span>Izoh (ixtiyoriy)</span><input class="input" id="dnote" maxlength="200" placeholder="${kind === 'customer' ? 'Masalan: daftardan, 2 qop un' : 'Masalan: sentabr oyidan qolgan'}"></label>
         <div id="derr"></div>

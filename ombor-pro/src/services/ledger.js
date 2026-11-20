@@ -56,9 +56,9 @@ export async function addSupplierDebt(client, user, supplierId, body) {
   const { rows: no } = await client.query("SELECT 'QK-' || lpad(nextval('supplier_debt_seq')::text, 6, '0') AS no");
   const { rows } = await client.query(
     `INSERT INTO purchases (purchase_no, supplier_id, purchase_date, subtotal, delivery_cost, discount, total, paid_amount,
-                            remaining_debt, note, idempotency_key, created_by, kind)
-     VALUES ($1, $2, $3, $4, 0, 0, $4, 0, $4, $5, $6, $7, 'debt') RETURNING id, purchase_no`,
-    [no[0].no, supplierId, input.date || todayLocal(), input.amount, input.note, input.key, user.id],
+                            remaining_debt, note, idempotency_key, created_by, kind, due_date)
+     VALUES ($1, $2, $3, $4, 0, 0, $4, 0, $4, $5, $6, $7, 'debt', $8) RETURNING id, purchase_no`,
+    [no[0].no, supplierId, input.date || todayLocal(), input.amount, input.note, input.key, user.id, input.due],
   );
   await audit(client, user.id, 'supplier.debt', 'supplier', supplierId, { amount: input.amount, doc: rows[0].purchase_no, note: input.note });
   return { id: rows[0].id, doc_no: rows[0].purchase_no, amount: input.amount, debt: await supplierDebt(client, supplierId) };

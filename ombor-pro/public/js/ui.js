@@ -564,16 +564,93 @@ export function openPopover(anchor, html, { className = '', align = 'right', onM
 }
 
 // Davr tanlash (bosh sahifa va hisobotlar uchun umumiy)
+// ---------- Davr tanlash (hamma sahifada bir xil) ----------
+// Bugun, Kecha, 7 kun, 30 kun, Shu oy va «Boshqa» (o'zingiz tanlaysiz)
 export const RANGE_PRESETS = [
-  { key: 'today', label: 'Bugun', days: 1 },
-  { key: '7d', label: '7 kun', days: 7 },
-  { key: '30d', label: '30 kun', days: 30 },
-  { key: '90d', label: '90 kun', days: 90 },
+  { key: 'today', label: 'Bugun', word: 'Bugun' },
+  { key: 'yesterday', label: 'Kecha', word: 'Kecha' },
+  { key: '7d', label: '7 kun', days: 7, word: '7 kunda' },
+  { key: '30d', label: '30 kun', days: 30, word: '30 kunda' },
+  { key: 'month', label: 'Shu oy', word: 'Shu oyda' },
 ];
+const LEGACY_PRESETS = { '90d': { days: 90, word: '90 kunda' } };
 export function presetRange(key) {
   const today = todayStr();
-  const p = RANGE_PRESETS.find((x) => x.key === key) || RANGE_PRESETS[0];
-  return { from: addDaysStr(today, -(p.days - 1)), to: today };
+  if (key === 'yesterday') {
+    const y = addDaysStr(today, -1);
+    return { from: y, to: y };
+  }
+  if (key === 'month') return { from: monthStartStr(today), to: today };
+  const p = RANGE_PRESETS.find((x) => x.key === key) || LEGACY_PRESETS[key] || { days: 1 };
+  return { from: addDaysStr(today, -((p.days || 1) - 1)), to: today };
+}
+const isDay = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+// Manzildagi ?range= yoki ?from=&to= dan davr: { key, from, to }
+export function resolvePeriod(query = {}, fallback = 'today') {
+  if (isDay(query.from) && isDay(query.to)) {
+    const [from, to] = query.from <= query.to ? [query.from, query.to] : [query.to, query.from];
+    const hit = RANGE_PRESETS.find((p) => { const r = presetRange(p.key); return r.from === from && r.to === to; });
+    return hit ? { key: hit.key, from, to } : { key: 'custom', from, to };
+  }
+  const key = RANGE_PRESETS.some((p) => p.key === query.range) || LEGACY_PRESETS[query.range] ? query.range : fallback;
+  return { key, ...presetRange(key) };
+}
+// «Bugun», «7 kunda», «01.11 – 15.11 oralig'ida»
+export function periodWord(r) {
+  const p = RANGE_PRESETS.find((x) => x.key === r.key) || LEGACY_PRESETS[r.key];
+  if (p) return p.word;
+  return r.from === r.to ? dateOnly(r.from) : `${dateOnly(r.from)} – ${dateOnly(r.to)}`;
+}
+// Solishtirish izohi: «kechagiga nisbatan», «oldingi 7 kunga nisbatan»
+export function compareText(r) {
+  if (r.key === 'today') return 'kechaning shu vaqtiga nisbatan';
+  if (r.key === 'yesterday') return 'undan oldingi kunga nisbatan';
+  const days = Math.round((Date.parse(`${r.to}T00:00:00Z`) - Date.parse(`${r.from}T00:00:00Z`)) / 86400000) + 1;
+  return `oldingi ${days} kunga nisbatan`;
+}
+// Davr tugmalari (HTML). Bir sahifada bir nechta bo'lsa — id bilan ajratiladi
+export function periodPicker(r, { id = 'period', custom = true } = {}) {
+  return `
+    <div class="period" data-period="${id}">
+      <div class="seg" role="tablist" aria-label="Davr">
+        ${RANGE_PRESETS.map((p) => `<button type="button" role="tab" data-pkey="${p.key}" class="${r.key === p.key ? 'active' : ''}" aria-selected="${r.key === p.key}">${p.label}</button>`).join('')}
+        ${custom ? `<button type="button" data-pkey="custom" class="${r.key === 'custom' ? 'active' : ''}">${icon('calendar', 'ico-xs')} Boshqa</button>` : ''}
+      </div>
+      ${custom ? `<div class="period-custom" ${r.key === 'custom' ? '' : 'hidden'}>
+        <input class="input input-sm" type="date" data-pf value="${esc(r.from)}" max="${todayStr()}" aria-label="Qaysi sanadan">
+        <span class="muted">–</span>
+        <input class="input input-sm" type="date" data-pt value="${esc(r.to)}" max="${todayStr()}" aria-label="Qaysi sanagacha">
+      </div>` : ''}
+    </div>`;
+}
+// Tugmalarni ulaydi: tanlanganda onChange({ key, from, to }) chaqiriladi
+export function bindPeriod(host, onChange, { id = 'period' } = {}) {
+  const box = host.querySelector(`[data-period="${id}"]`);
+  if (!box) return;
+  const custom = box.querySelector('.period-custom');
+  box.querySelectorAll('[data-pkey]').forEach((b) => b.addEventListener('click', () => {
+    box.querySelectorAll('[data-pkey]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-selected', String(x === b)); });
+    if (b.dataset.pkey === 'custom') {
+      custom.hidden = false;
+      custom.querySelector('[data-pf]').focus();
+      return;
+    }
+    if (custom) custom.hidden = true;
+    onChange({ key: b.dataset.pkey, ...presetRange(b.dataset.pkey) });
+  }));
+  if (!custom) return;
+  const apply = () => {
+    const from = custom.querySelector('[data-pf]').value;
+    const to = custom.querySelector('[data-pt]').value;
+    if (!from || !to) return;
+    if (from > to) { toast("Boshlanish sanasi tugash sanasidan oldin bo'lishi kerak", 'warn'); return; }
+    onChange({ key: 'custom', from, to });
+  };
+  custom.querySelectorAll('input').forEach((i) => i.addEventListener('change', apply));
+}
+// Manzilga yoziladigan qism: range=7d yoki from=..&to=..
+export function periodQuery(r) {
+  return r.key === 'custom' ? `from=${r.from}&to=${r.to}` : `range=${r.key}`;
 }
 export function rangeLabel(from, to) {
   if (from === to) return from === todayStr() ? 'bugun' : dateOnly(from);

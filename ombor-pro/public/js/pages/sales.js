@@ -1,5 +1,6 @@
 // Sotuv (POS): qidirish, shtrix-kod, savatcha, to'lov, chek, savdolar tarixi va qaytarish
 import {
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
   get, post, icon, esc, num, money, dateTime, dateOnly, readForm, toast, errorToast,
   openModal, closeModal, withBusy, productThumb, emptyState, confirmBox, todayStr,
 } from '../ui.js';
@@ -566,49 +567,91 @@ function openScanner() {
 // ---------- Savdolar tarixi va qaytarish ----------
 
 async function renderHistory(root, ctx, query = {}) {
-  const day = todayStr();
-  const from = /^\d{4}-\d{2}-\d{2}$/.test(query.from || '') ? query.from : day;
-  const to = /^\d{4}-\d{2}-\d{2}$/.test(query.to || '') ? query.to : from;
-  const r = await get(`/sales?from=${from}&to=${to}&limit=500`);
-  const rows = r.sales;
-  const total = rows.reduce((s, x) => s + Number(x.total) - Number(x.refunded_total || 0), 0);
-  const title = from === to && from === day ? 'Bugungi savdolar' : 'Savdolar tarixi';
+  const range = resolvePeriod(query, 'today');
+  const r = await get(`/sales?from=${range.from}&to=${range.to}&limit=500`);
+  const all = r.sales;
+  const word = periodWord(range);
+  let q = '';
+  let pay = '';
+  let cashier = '';
+  const cashiers = [...new Set(all.map((x) => x.cashier_name).filter(Boolean))];
+
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>${title}</h1><p class="muted">${from === to ? dateOnly(from) : `${dateOnly(from)} – ${dateOnly(to)}`} · ${rows.length} ta savdo · ${num(total)} so'm (qaytarishlar ayirilgan)</p></div>
+      <div><h1>Savdolar tarixi</h1><p class="muted">${esc(word)} · barcha cheklar, qaytarish va chekni qayta chiqarish</p></div>
       <div class="filterbar">
-        <div class="range-custom"><input class="input" type="date" id="hf" value="${from}" max="${day}" aria-label="Boshlanish"><span class="muted">–</span><input class="input" type="date" id="ht" value="${to}" max="${day}" aria-label="Tugash"></div>
+        ${periodPicker(range)}
         ${ctx.can('sales.create') ? `<a class="btn btn-sm" href="#/sales">${icon('plus', 'ico-sm')} Yangi sotuv</a>` : ''}
       </div>
     </div>
-    ${rows.length >= 500 ? '<div class="alert alert-info" style="margin-bottom:12px">Faqat oxirgi 500 ta savdo ko\'rsatildi. Davrni qisqartiring.</div>' : ''}
-    <div class="card">
-      ${rows.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Chek</th><th>Vaqt</th><th>Mijoz</th><th>To'lov</th><th class="right">Summa</th><th>Holat</th><th></th></tr></thead>
+    <div class="sum-row" id="sum"></div>
+    ${all.length >= 500 ? '<div class="alert alert-info" style="margin:12px 0">Faqat oxirgi 500 ta savdo ko\'rsatildi. Davrni qisqartiring.</div>' : ''}
+    <div class="card" style="margin-top:14px">
+      <div class="list-tools">
+        <div class="search-input">${icon('search', 'ico-sm')}<input class="input" id="hq" type="search" placeholder="Chek raqami yoki mijoz ismi" autocomplete="off"></div>
+        <div class="chips" id="hpay">
+          ${[['', 'Hammasi'], ['cash', 'Naqd'], ['card', 'Karta'], ['transfer', "O'tkazma"], ['credit', 'Nasiya'], ['mixed', 'Aralash']]
+            .map(([k, l]) => `<button type="button" class="chip ${k === '' ? 'active' : ''}" data-pay="${k}">${l}</button>`).join('')}
+        </div>
+        ${cashiers.length > 1 ? `<select class="input input-sm" id="hcash" aria-label="Sotuvchi" style="max-width:200px"><option value="">Barcha sotuvchilar</option>${cashiers.map((c) => `<option>${esc(c)}</option>`).join('')}</select>` : ''}
+      </div>
+      <div id="hlist"></div>
+    </div>`;
+
+  const draw = () => {
+    const text = q.toLowerCase();
+    const rows = all.filter((s) => (!pay || s.payment_method === pay)
+      && (!cashier || s.cashier_name === cashier)
+      && (!text || s.receipt_no.toLowerCase().includes(text) || (s.customer_name || '').toLowerCase().includes(text)));
+    const net = rows.reduce((sum, x) => sum + Number(x.total) - Number(x.refunded_total || 0), 0);
+    const debt = rows.reduce((sum, x) => sum + Number(x.balance_due || 0), 0);
+    const returned = rows.reduce((sum, x) => sum + Number(x.refunded_total || 0), 0);
+    root.querySelector('#sum').innerHTML = `
+      <div class="sum-cell"><span>Cheklar</span><b>${rows.length} ta</b></div>
+      <div class="sum-cell"><span>Savdo summasi</span><b>${money(net)}</b><small>qaytarishlar ayirilgan</small></div>
+      <div class="sum-cell"><span>O'rtacha chek</span><b>${money(rows.length ? net / rows.length : 0)}</b></div>
+      <div class="sum-cell ${debt > 0 ? 'warn' : ''}"><span>Nasiyada qolgan</span><b>${money(debt)}</b>${returned > 0 ? `<small>qaytarilgan ${money(returned)}</small>` : ''}</div>`;
+    root.querySelector('#hlist').innerHTML = rows.length ? `<div class="table-wrap cards"><table>
+        <thead><tr><th>Chek</th><th>Vaqt</th><th>Mijoz</th><th>Sotuvchi</th><th>To'lov</th><th class="right">Summa</th><th>Holat</th><th></th></tr></thead>
         <tbody>${rows.map((s) => `
-          <tr>
+          <tr class="clickable" data-view="${s.id}">
             <td data-label="Chek"><b>${esc(s.receipt_no)}</b></td>
             <td data-label="Vaqt">${dateTime(s.created_at)}</td>
-            <td data-label="Mijoz">${esc(s.customer_name || 'Naqd mijoz')}</td>
+            <td data-label="Mijoz">${esc(s.customer_name || 'Oddiy xaridor')}</td>
+            <td data-label="Sotuvchi">${esc(s.cashier_name || '—')}</td>
             <td data-label="To'lov">${esc(payLabel(s.payment_method))}</td>
             <td data-label="Summa" class="right num"><b>${money(s.total)}</b>${Number(s.balance_due) ? `<div class="small amber">qarz ${num(s.balance_due)}</div>` : ''}</td>
             <td data-label="Holat">${s.status === 'completed' ? '<span class="badge badge-ok">Yakunlangan</span>' : s.status === 'returned' ? '<span class="badge badge-muted">Qaytarilgan</span>' : '<span class="badge badge-low">Qisman qaytarilgan</span>'}</td>
             <td class="no-label" style="text-align:right;white-space:nowrap">
-              <button class="btn btn-sm btn-light" data-view="${s.id}">Chek</button>
-              ${ctx.can('sales.return') && s.status !== 'returned' ? `<button class="btn btn-sm btn-outline" data-return="${s.id}">Qaytarish</button>` : ''}
+              <button class="btn btn-sm btn-light" type="button" data-view="${s.id}">Chek</button>
+              ${ctx.can('sales.return') && s.status !== 'returned' ? `<button class="btn btn-sm btn-outline" type="button" data-return="${s.id}">Qaytarish</button>` : ''}
             </td>
           </tr>`).join('')}
-        </tbody></table></div>` : emptyState(from === day && to === day ? 'Bugun hali savdo bo\'lmagan' : "Bu davrda savdo yo'q", 'cart')}
-    </div>`;
-  const applyRange = () => {
-    const f = root.querySelector('#hf').value;
-    const t = root.querySelector('#ht').value;
-    if (f && t && f <= t) ctx.go(`#/sales/history?from=${f}&to=${t}`);
+        </tbody></table></div>`
+      : emptyState(all.length ? 'Bu filtr bo\'yicha savdo topilmadi' : `${word} savdo bo'lmagan`, 'cart');
   };
-  root.querySelector('#hf').addEventListener('change', applyRange);
-  root.querySelector('#ht').addEventListener('change', applyRange);
-  root.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => showReceipt({ id: b.dataset.view }, ctx)));
-  root.querySelectorAll('[data-return]').forEach((b) => b.addEventListener('click', () => openReturn(Number(b.dataset.return), ctx, () => renderHistory(root, ctx, query))));
+  draw();
+
+  bindPeriod(root, (next) => ctx.go(`#/sales/history?${periodQuery(next)}`));
+  root.querySelector('#hq').addEventListener('input', (e) => { q = e.target.value.trim(); draw(); });
+  root.querySelector('#hpay').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pay]');
+    if (!b) return;
+    pay = b.dataset.pay;
+    root.querySelectorAll('#hpay [data-pay]').forEach((x) => x.classList.toggle('active', x === b));
+    draw();
+  });
+  root.querySelector('#hcash')?.addEventListener('change', (e) => { cashier = e.target.value; draw(); });
+  root.querySelector('#hlist').addEventListener('click', (e) => {
+    const ret = e.target.closest('[data-return]');
+    if (ret) {
+      e.stopPropagation();
+      openReturn(Number(ret.dataset.return), ctx, () => renderHistory(root, ctx, query)).catch(errorToast);
+      return;
+    }
+    const v = e.target.closest('[data-view]');
+    if (v) showReceipt({ id: v.dataset.view }, ctx);
+  });
 }
 
 function payLabel(m) {

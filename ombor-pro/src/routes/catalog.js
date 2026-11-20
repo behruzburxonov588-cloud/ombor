@@ -122,6 +122,7 @@ function shapeProduct(row, conversions = row.conv_json || []) {
     id: row.id,
     name: row.name,
     barcode: row.barcode,
+    sku: row.sku || null,
     category_id: row.category_id,
     category_name: row.category_name,
     supplier_id: row.supplier_id,
@@ -156,7 +157,7 @@ router.get('/products', requirePerm('products.view', 'sales.create', 'purchases.
   where.push(`p.is_archived = $${params.length}`);
   if (q) {
     params.push(q);
-    where.push(`(p.name ILIKE '%' || $${params.length} || '%' OR p.barcode = $${params.length})`);
+    where.push(`(p.name ILIKE '%' || $${params.length} || '%' OR p.barcode = $${params.length} OR lower(p.sku) = lower($${params.length}))`);
   }
   if (req.query.category_id) {
     params.push(Number(req.query.category_id));
@@ -200,6 +201,16 @@ router.get('/products/:id', requirePerm('products.view', 'stock.view'), async (r
 async function validateProductBody(client, body, existingId = null) {
   const name = str(body.name, 'Mahsulot nomi', { required: true, max: 150 });
   const barcode = str(body.barcode, 'Shtrix-kod', { max: 64 });
+  // Artikul (SKU): yuborilmasa — o'zgarmaydi; bo'sh satr — o'chiriladi
+  const skuGiven = body.sku !== undefined;
+  const sku = skuGiven ? (str(body.sku, 'Artikul (SKU)', { max: 64 }) || null) : null;
+  if (sku) {
+    const { rows: dupSku } = await client.query(
+      'SELECT id, name FROM products WHERE lower(sku) = lower($1) AND ($2::int IS NULL OR id <> $2)',
+      [sku, existingId],
+    );
+    if (dupSku[0]) throw new HttpError(409, `Bu artikul "${dupSku[0].name}" mahsulotida allaqachon bor`);
+  }
   const baseUnitId = num(body.base_unit_id, "Asosiy o'lchov birligi", { positive: true });
   const { rows: unit } = await client.query('SELECT id FROM units WHERE id = $1', [baseUnitId]);
   if (!unit[0]) throw new HttpError(400, "Asosiy birlik topilmadi");
@@ -222,6 +233,8 @@ async function validateProductBody(client, body, existingId = null) {
   return {
     name,
     barcode,
+    sku,
+    skuGiven,
     categoryId: body.category_id ? num(body.category_id, 'Kategoriya', { positive: true }) : null,
     supplierId: body.supplier_id ? num(body.supplier_id, 'Yetkazib beruvchi', { positive: true }) : null,
     baseUnitId,
@@ -249,9 +262,9 @@ router.post('/products', requirePerm('products.manage'), async (req, res) => {
     const opening = round4(num(body.opening_qty, 'Boshlang\'ich qoldiq', { min: 0, optional: true }));
     const { rows } = await client.query(
       `INSERT INTO products
-         (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock],
+         (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock, sku)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku],
     );
     const id = rows[0].id;
     await saveConversions(client, id, v.conversions);
@@ -282,9 +295,10 @@ router.put('/products/:id', requirePerm('products.manage'), async (req, res) => 
     }
     await client.query(
       `UPDATE products SET name = $2, barcode = $3, category_id = $4, supplier_id = $5,
-              base_unit_id = $6, purchase_price = $7, selling_price = $8, min_stock = $9, updated_at = now()
+              base_unit_id = $6, purchase_price = $7, selling_price = $8, min_stock = $9,
+              sku = CASE WHEN $11 THEN $10 ELSE sku END, updated_at = now()
         WHERE id = $1`,
-      [id, v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock],
+      [id, v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.skuGiven],
     );
     await saveConversions(client, id, v.conversions);
     await audit(client, req.user.id, 'product.update', 'product', id, {

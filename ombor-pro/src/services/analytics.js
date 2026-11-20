@@ -160,6 +160,34 @@ export async function pnlTotals(db, fromTs, toTs, fromDate, toDate) {
   };
 }
 
+// ---------- Oylik natija: so'nggi N oy (joriy oy — bugungacha) ----------
+
+export async function monthly(db, query = {}) {
+  const count = Math.min(Math.max(Number(query.months) || 6, 1), 12);
+  const today = todayLocal();
+  const [y, m] = today.split('-').map(Number);
+  const months = [];
+  for (let i = count - 1; i >= 0; i -= 1) {
+    const start = new Date(Date.UTC(y, m - 1 - i, 1));
+    const from = start.toISOString().slice(0, 10);
+    let to = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+    const partial = to > today;
+    if (partial) to = today;
+    // Har oy uchun aynan «Foyda va zarar» hisobidagi formula ishlatiladi (natijalar bir xil chiqishi uchun)
+    const t = await pnlTotals(db, tsStart(from), tsStart(addDays(to, 1)), from, to);
+    months.push({
+      month: from.slice(0, 7), from, to, partial,
+      sales_count: t.sales_count,
+      revenue: t.net_revenue,
+      gross_profit: t.gross_profit,
+      expenses: t.expenses,
+      losses: t.losses,
+      net_profit: t.net_profit,
+    });
+  }
+  return { months };
+}
+
 function emptyDay(day) {
   return {
     day, sales_count: 0, gross_revenue: 0, discounts: 0, returns: 0, net_revenue: 0, cogs: 0,

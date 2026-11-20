@@ -7,6 +7,7 @@ import {
 // Marshrut -> sahifa moduli
 const ROUTES = {
   dashboard: { perms: ['dashboard.view'], load: () => import('./pages/dashboard.js') },
+  analytics: { perms: ['reports.view'], load: () => import('./pages/dashboard.js') },
   assistant: { perms: ['dashboard.view', 'reports.view'], load: () => import('./pages/assistant.js') },
   notifications: { perms: [], load: () => import('./pages/notifications.js') },
   sales: { perms: ['sales.create', 'sales.view'], load: () => import('./pages/sales.js') },
@@ -32,7 +33,6 @@ const NAV = [
     items: [
       { id: 'dashboard', label: 'Bosh sahifa', short: 'Bosh', icon: 'dashboard', href: '#/dashboard', tip: "Bugungi savdo, foyda va muhim ogohlantirishlar" },
       { id: 'sales', label: 'Sotuv (kassa)', short: 'Sotuv', icon: 'cart', href: '#/sales', perms: ['sales.create'], match: (p) => p.key === 'sales' && p.id !== 'history', tip: 'Xaridorga tovar sotish' },
-      { id: 'assistant', label: 'Maslahatlar', icon: 'sparkles', href: '#/assistant', tip: "Do'koningiz bo'yicha tayyor xulosa va maslahatlar" },
     ],
   },
   {
@@ -40,7 +40,7 @@ const NAV = [
     items: [
       { id: 'sales-history', label: 'Savdolar tarixi', icon: 'receipt', href: '#/sales/history', route: 'sales', perms: ['sales.view', 'sales.create'], match: (p) => p.key === 'sales' && p.id === 'history', tip: 'Barcha cheklar, qaytarish' },
       { id: 'customers', label: 'Mijozlar', icon: 'users', href: '#/customers', tip: "Doimiy xaridorlar ro'yxati" },
-      { id: 'debts', label: 'Qarzdor mijozlar', icon: 'debt', href: '#/debts', tip: 'Kim qancha qarz va qachon qaytarishi kerak' },
+      { id: 'debts', label: 'Qarzlar', icon: 'debt', href: '#/debts', tip: "Mijozlar sizga qarzi va siz yetkazib beruvchilarga qarzingiz" },
     ],
   },
   {
@@ -58,7 +58,14 @@ const NAV = [
     items: [
       { id: 'cash', label: 'Kassa', icon: 'wallet', href: '#/cash?tab=cash', perms: ['cash.view', 'cash.shift'], match: (p) => p.key === 'cash' && p.query.tab !== 'expenses', tip: 'Kassadagi pul, smena ochish va yopish' },
       { id: 'expenses', label: 'Xarajatlar', icon: 'expense', href: '#/cash?tab=expenses', route: 'cash', perms: ['expenses.view', 'reports.view'], match: (p) => p.key === 'cash' && p.query.tab === 'expenses', tip: 'Ijara, maosh, kommunal va boshqa chiqimlar' },
-      { id: 'reports', label: 'Hisobotlar', icon: 'chart', href: '#/reports', tip: "Foyda, savdo va ombor hisobotlari, Excel/PDF" },
+    ],
+  },
+  {
+    group: 'Hisobot va tahlil',
+    items: [
+      { id: 'reports', label: 'Hisobotlar', icon: 'table', href: '#/reports', tip: "Kunlik, haftalik, oylik hisobotlar: foyda, savdo, ombor. Excel va PDF" },
+      { id: 'analytics', label: 'Tahlil', icon: 'chart', href: '#/analytics', tip: 'Grafiklar, eng foydali tovarlar, prognoz' },
+      { id: 'assistant', label: 'Maslahatlar', icon: 'sparkles', href: '#/assistant', tip: "Do'koningiz bo'yicha tayyor xulosa va maslahatlar" },
     ],
   },
   {
@@ -67,6 +74,7 @@ const NAV = [
       { id: 'employees', label: 'Xodimlar', icon: 'userCog', href: '#/employees', tip: "Sotuvchilar uchun login va ruxsatlar" },
       { id: 'staff', label: 'Xodimlar natijasi', icon: 'staff', href: '#/staff', tip: 'Kim qancha sotdi' },
       { id: 'history', label: 'Amallar tarixi', icon: 'history', href: '#/history', tip: 'Kim, qachon, nima qildi' },
+      { id: 'notifications', label: 'Bildirishnomalar', icon: 'bell', href: '#/notifications', tip: 'Kunlik xulosa, kam qolgan tovar, qarz eslatmalari va ularning sozlamalari' },
       { id: 'settings', label: 'Sozlamalar', icon: 'gear', href: '#/settings', tip: "Do'kon ma'lumotlari, parol, zaxira nusxa" },
     ],
   },
