@@ -25,14 +25,15 @@ export const TERMS = {
 const HELP = {
   dashboard: {
     title: 'Bosh sahifa',
-    what: "Do'koningizning bugungi holati bir qarashda: qancha sotildi, qancha foyda qoldi, nimaga e'tibor berish kerak.",
+    what: "Do'koningiz holati uchta savolda: pul nima bo'ldi, qanday tovar keldi va ketdi, omborda nima bor.",
     steps: [
       "Tepadagi «Bugun / 7 kun / 30 kun» tugmalari bilan davrni tanlang.",
-      "Raqamli kartochkalarni bossangiz, batafsil hisobot ochiladi.",
-      "«Diqqat talab qiladi» qismida tugayotgan tovarlar va qarzlar ko'rsatiladi.",
-      "Bo'limlarni yashirish yoki tartibini o'zgartirish uchun «Vidjetlar» tugmasini bosing.",
+      "«Pul nima bo'ldi?» — qancha savdo bo'ldi, tovar o'zingizga qanchaga tushdi, xarajatlar va natija: foyda (yashil) yoki zarar (qizil, minus).",
+      "«Nima keldi?» — davr ichida kelgan yuk; «Nima ketdi?» — sotilgan tovarlar. Tovarni bossangiz, uning sahifasi ochiladi.",
+      "«Omborda nima bor?» — har bir tovardan qancha qolgani. «Tugagan» va «Kam qolgan» tugmalari olib kelish kerak bo'lganlarini ko'rsatadi.",
+      "Grafiklar, prognoz va reyting — «Batafsil tahlil» tugmasida.",
     ],
-    terms: ['tushum', 'sof_foyda', 'savdo_foyda', 'tannarx', 'marja', 'foiz', 'taxmin'],
+    terms: ['tushum', 'tannarx', 'sof_foyda', 'qoldiq', 'min_qoldiq'],
   },
   sales: {
     title: 'Sotuv (kassa)',

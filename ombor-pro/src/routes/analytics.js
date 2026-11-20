@@ -5,7 +5,7 @@ import { requirePerm, can } from '../auth.js';
 import { HttpError } from '../util.js';
 import { getSettings } from '../services/settings.js';
 import {
-  dashboard, salesAnalytics, pnlReport, productStats, topLists, filterSortPage, resolveRange,
+  dashboard, overview, salesAnalytics, pnlReport, productStats, topLists, filterSortPage, resolveRange,
   inventoryAnalytics, weeklyReport, forecast, customerDebts, staffPerformance, assertRange,
 } from '../services/analytics.js';
 import { briefing } from '../services/insights.js';
@@ -32,6 +32,11 @@ router.get('/onboarding', async (req, res) => {
       (SELECT COUNT(*) FROM sales WHERE kind = 'sale')::int AS sales,
       (SELECT COUNT(*) FROM users WHERE is_active)::int AS users`);
   res.json(rows[0]);
+});
+
+// Oddiy bosh sahifa: omborda nima bor, nima keldi, nima ketdi, pul nima bo'ldi
+router.get('/analytics/overview', requirePerm('dashboard.view'), async (req, res) => {
+  res.json(await overview(pool, req.user, req.query));
 });
 
 router.get('/analytics/dashboard', requirePerm('dashboard.view'), async (req, res) => {

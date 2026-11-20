@@ -103,11 +103,49 @@ function shortCompare(r) {
 // Grafik izohidagi nomlar: "Bugun / Kecha" yoki "Shu davr / Oldingi davr"
 const seriesNames = (r) => (r.key === 'today' ? ['Bugun', 'Kecha'] : ['Shu davr', 'Oldingi davr']);
 
+// Yo'riqnoma (yangi do'kon) HTML — oddiy bosh sahifa uchun
+async function onboardingHtml(ctx) {
+  const steps = prefsCache.dashboard.onboarding_hidden ? [] : ONB_STEPS.filter((st) => ctx.can(st.perm));
+  if (!steps.length) return '';
+  const o = await get('/onboarding');
+  return onboardingCard(steps, o);
+}
+
+function bindOnboardingHide(host) {
+  host.querySelector('#onb-hide')?.addEventListener('click', () => {
+    prefsCache.dashboard.onboarding_hidden = true;
+    host.querySelector('#onb-hide').closest('section')?.remove();
+    put('/me/preferences', { dashboard: { onboarding_hidden: true } }).catch(() => {});
+    toast("Yo'riqnoma yashirildi. Yangi narsa qo'shish uchun yuqoridagi «Qo'shish» tugmasini bosing");
+  });
+}
+
+function setMode(mode, root, ctx) {
+  prefsCache.dashboard.mode = mode;
+  put('/me/preferences', { dashboard: { mode } }).catch(() => {});
+  history.replaceState(null, '', '#/dashboard');
+  window.scrollTo(0, 0);
+  render(root, { query: {} }, ctx).catch(errorToast);
+}
+
 export async function render(root, params, ctx) {
   if (!prefsCache) prefsCache = (await get('/me/preferences')).prefs;
+  // Odatiy: oddiy bosh sahifa (ombor, keldi-ketdi, pul). Grafiklar — «Batafsil tahlil»
+  if (prefsCache.dashboard.mode !== 'detailed') {
+    const { renderHome } = await import('./home.js');
+    return renderHome(root, ctx, {
+      prefs: prefsCache,
+      rangeKey: prefsCache.dashboard.simple_range,
+      actionTiles,
+      onboarding: () => onboardingHtml(ctx),
+      afterMount: bindOnboardingHide,
+      onDetailed: () => setMode('detailed', root, ctx),
+    });
+  }
   const range = resolve(params.query, prefsCache);
   root.innerHTML = `<div id="dash-root"></div>`;
   await load(root.querySelector('#dash-root'), range, ctx, true);
+  return undefined;
 }
 
 async function load(host, range, ctx, first = false) {
@@ -189,6 +227,7 @@ async function load(host, range, ctx, first = false) {
           <input class="input" type="date" id="dt" value="${esc(range.to)}" max="${todayStr()}" aria-label="Tugash sanasi">
         </div>
         <button class="btn btn-light btn-sm" type="button" id="widgets" title="Vidjetlarni sozlash">${icon('sliders', 'ico-sm')}<span class="mobile-hide">Vidjetlar</span></button>
+        <button class="btn btn-sm" type="button" id="to-simple" title="Ombor, keldi-ketdi va pul — oddiy ko'rinish">${icon('back', 'ico-sm')}<span class="mobile-hide">Oddiy ko'rinish</span></button>
       </div>
     </div>
     <div class="dash">${body || `<div class="w-full card">${emptyState("Barcha vidjetlar yashirilgan. «Vidjetlar» tugmasi orqali yoqing", 'sliders')}</div>`}</div>`;
@@ -218,6 +257,7 @@ async function load(host, range, ctx, first = false) {
   host.querySelector('#df').addEventListener('change', applyCustom);
   host.querySelector('#dt').addEventListener('change', applyCustom);
   host.querySelector('#widgets').addEventListener('click', () => openWidgetSettings(() => load(host, range, ctx)));
+  host.querySelector('#to-simple')?.addEventListener('click', () => setMode('simple', host.parentElement, ctx));
   host.querySelector('#onb-hide')?.addEventListener('click', () => {
     prefsCache.dashboard.onboarding_hidden = true;
     host.querySelector('[data-widget="onboarding"]')?.remove();

@@ -854,6 +854,123 @@ export async function pnlReport(db, query) {
 }
 
 // Pul oqimi: kassaga kirgan va chiqqan pul (savdo, qarz to'lovlari, xarajatlar, yetkazib beruvchilarga to'lov)
+// ---------- Oddiy ko'rinish: omborda nima bor, nima keldi, nima ketdi, pul nima bo'ldi ----------
+// Bosh sahifaning asosiy savollariga bitta so'rov bilan javob beradi. Pul va tannarx faqat ruxsati borlarga.
+export async function overview(db, user, query) {
+  const can = (k) => Boolean(user.permissions?.[k]);
+  const financial = can('reports.view');
+  const costs = financial || can('products.manage') || can('purchases.view') || can('stock.view');
+  const range = resolveRange(query);
+  const settings = await getSettings(db);
+
+  const [pnl, incoming, outgoing, stock, flow, purchases, invValue] = await Promise.all([
+    pnlTotals(db, range.fromTs, range.toTs, range.from, range.to),
+    // Kelgan tovar (yuk): kirim va boshlang'ich qoldiq
+    db.query(
+      `SELECT p.id, p.name, un.name AS unit, SUM(m.quantity) AS qty, SUM(m.value) AS value
+         FROM stock_movements m JOIN products p ON p.id = m.product_id JOIN units un ON un.id = p.base_unit_id
+        WHERE m.movement_type IN ('purchase', 'opening') AND m.quantity > 0 AND m.created_at >= $1 AND m.created_at < $2
+        GROUP BY p.id, un.name ORDER BY SUM(m.value) DESC, p.name`,
+      [range.fromTs, range.toTs],
+    ),
+    // Ketgan tovar (sotilgan, qaytarilgani ayirilgan)
+    db.query(
+      `WITH sold AS (
+          SELECT si.product_id, SUM(si.base_quantity) AS qty, SUM(si.line_total) AS amount
+            FROM sale_items si JOIN sales s ON s.id = si.sale_id
+           WHERE s.created_at >= $1 AND s.created_at < $2 AND s.kind = 'sale' GROUP BY si.product_id),
+        ret AS (
+          SELECT product_id, SUM(base_quantity) AS qty, SUM(amount) AS amount
+            FROM sale_returns WHERE created_at >= $1 AND created_at < $2 GROUP BY product_id)
+       SELECT p.id, p.name, un.name AS unit,
+              COALESCE(sold.qty, 0) - COALESCE(ret.qty, 0) AS qty,
+              COALESCE(sold.amount, 0) - COALESCE(ret.amount, 0) AS amount
+         FROM products p JOIN units un ON un.id = p.base_unit_id
+         LEFT JOIN sold ON sold.product_id = p.id LEFT JOIN ret ON ret.product_id = p.id
+        WHERE sold.product_id IS NOT NULL OR ret.product_id IS NOT NULL
+        ORDER BY 5 DESC, p.name`,
+      [range.fromTs, range.toTs],
+    ),
+    // Omborda hozir nima bor
+    db.query(
+      `SELECT p.id, p.name, un.name AS unit, p.stock_qty, p.min_stock, p.selling_price, p.avg_cost
+         FROM products p JOIN units un ON un.id = p.base_unit_id
+        WHERE NOT p.is_archived ORDER BY p.name`,
+    ),
+    financial ? cashFlow(db, range) : null,
+    financial
+      ? db.query(
+        `SELECT COUNT(*)::int AS cnt, COALESCE(SUM(total), 0) AS total, COALESCE(SUM(remaining_debt), 0) AS unpaid
+           FROM purchases WHERE kind = 'purchase' AND purchase_date BETWEEN $1::date AND $2::date`,
+        [range.from, range.to],
+      )
+      : null,
+    costs ? inventoryValueNow(db, settings.costing_method) : null,
+  ]);
+
+  const inItems = incoming.rows.map((r) => ({
+    id: r.id, name: r.name, unit: r.unit, qty: round4(r.qty), ...(costs ? { value: round2(r.value) } : {}),
+  }));
+  const outItems = outgoing.rows.filter((r) => n(r.qty) > 0 || n(r.amount) > 0).map((r) => ({
+    id: r.id, name: r.name, unit: r.unit, qty: round4(r.qty), amount: round2(r.amount),
+  }));
+  let stockValue = 0;
+  let retailValue = 0;
+  const stockItems = stock.rows.map((r) => {
+    const qty = n(r.stock_qty);
+    const min = n(r.min_stock);
+    stockValue += qty * n(r.avg_cost);
+    retailValue += qty * n(r.selling_price);
+    return {
+      id: r.id, name: r.name, unit: r.unit, qty: round4(qty), min: round4(min),
+      status: qty <= 0 ? 'out' : min > 0 && qty <= min ? 'low' : 'ok',
+      ...(costs ? { value: round2(qty * n(r.avg_cost)) } : {}),
+    };
+  });
+  const byCat = (cat) => round2((flow?.by_category || []).filter((c) => c.category === cat).reduce((s, c) => s + n(c.amount), 0));
+  const pu = purchases?.rows[0];
+
+  return {
+    range: { from: range.from, to: range.to, days: range.days },
+    store_name: settings.store_name,
+    access: { financial, costs },
+    money: financial ? {
+      revenue: pnl.net_revenue,
+      sales_count: pnl.sales_count,
+      cogs: pnl.cogs,
+      gross_profit: pnl.gross_profit,
+      expenses: pnl.expenses,
+      losses: pnl.losses,
+      net_profit: pnl.net_profit,
+      discounts: pnl.discounts,
+      returns: pnl.returns,
+      credit_sales: pnl.credit_sales,
+      debt_collected: pnl.debt_collected,
+      paid_suppliers: byCat('supplier_payment'),
+      cash_in: flow.inflow,
+      cash_out: flow.outflow,
+      purchases_count: pu.cnt,
+      purchases_total: round2(pu.total),
+      purchases_unpaid: round2(pu.unpaid),
+    } : { revenue: pnl.net_revenue, sales_count: pnl.sales_count },
+    moves: {
+      in: inItems,
+      out: outItems,
+      in_value: costs ? round2(inItems.reduce((s, x) => s + x.value, 0)) : null,
+      out_amount: round2(outItems.reduce((s, x) => s + x.amount, 0)),
+    },
+    stock: {
+      products: stockItems.length,
+      in_stock: stockItems.filter((x) => x.qty > 0).length,
+      low: stockItems.filter((x) => x.status === 'low').length,
+      out: stockItems.filter((x) => x.status === 'out').length,
+      value: costs ? round2(invValue ?? stockValue) : null,
+      retail_value: round2(retailValue),
+      items: stockItems,
+    },
+  };
+}
+
 export async function cashFlow(db, range) {
   const [{ rows }, bal] = await Promise.all([
     db.query(

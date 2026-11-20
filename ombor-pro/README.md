@@ -7,6 +7,7 @@ Do'konlar uchun ombor, sotuv, kirim, hisob-kitob va biznes tahlili tizimi. Inter
 - **Mahsulotlar**: bir nechta o'lchov birligi va konvertatsiya (masalan, 1 quti = 12 dona), shtrix-kod orqali kiritish va kamera orqali skanerlash
 - **Yangi tovar (savol-javob)**: «Qanday sotasiz?» (dona, kg, litr, metr), «Optomda qanday keladi?» (1 rulon ichida 100 metr), «Har xil hajmi bormi?» (Pepsi 0,5 L / 1 L — bitta formada bir nechta tovar). Kelish narxi qadoq (rulon, blok) uchun yozilsa, 1 metr/1 dona narxi va foyda o'zi hisoblanadi
 - **Yuk keldi**: tovar qadoqda kelsa, qadoq o'zi tanlanadi va 1 birlik narxi ko'rsatiladi; topilmagan tovar shu yerning o'zida qo'shiladi
+- **Oddiy bosh sahifa** (odatiy): uchta savolga javob — «Pul nima bo'ldi?» (qancha savdo, tovar o'zingizga qanchaga tushgan, xarajatlar, foyda yoki zarar/minus, yukka va yetkazib beruvchilarga to'langan), «Nima keldi? / Nima ketdi?» (davr ichida kelgan yuk va sotilgan tovarlar, har biri miqdori bilan), «Omborda nima bor?» (har bir tovar qoldig'i, tugagan va kam qolganlar). Davr: bugun / 7 / 30 / 90 kun. Grafiklar, prognoz va reyting — «Batafsil tahlil» tugmasida; tanlov foydalanuvchi sozlamasida saqlanadi
 - **Bosh sahifa**: «Nima qilmoqchisiz?» katta tugmalari (Sotish, Yuk keldi, Yangi tovar, Qarz yozish, Qarz to'lovi, Xarajat); telefonda pastki menyuda «+» tugmasi
 - **Kirim**: bitta hujjatda bir nechta mahsulot, partiyalar (batch) bilan, qisman to'lov va yetkazib beruvchi qarzi
 - **Kassa (POS)**: naqd, karta, o'tkazma, nasiya va aralash to'lov; chek; qaytarish
@@ -188,7 +189,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 82 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar.
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 86 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar).
 
 ## Loyiha tuzilishi
 

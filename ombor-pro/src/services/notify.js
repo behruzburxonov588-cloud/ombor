@@ -659,7 +659,8 @@ export function resetFreshness() {
 
 export const WIDGETS = ['assistant', 'kpis', 'sales_chart', 'pnl', 'top_products', 'forecast', 'inventory', 'recent'];
 export const PREF_DEFAULTS = {
-  dashboard: { widgets: WIDGETS.map((id) => ({ id, visible: true })), range: 'today', onboarding_hidden: false },
+  // mode: 'simple' — oddiy bosh sahifa (ombor, keldi-ketdi, pul); 'detailed' — grafiklar va batafsil tahlil
+  dashboard: { widgets: WIDGETS.map((id) => ({ id, visible: true })), range: 'today', onboarding_hidden: false, mode: 'simple', simple_range: '7d' },
   reports: { period: 'month', grain: 'daily' },
   notifications: { muted: [], browser: false, browser_levels: ['critical', 'warning', 'info', 'success'] },
 };
@@ -678,6 +679,8 @@ export function mergePrefs(raw, base = PREF_DEFAULTS) {
   }
   if (['today', '7d', '30d', '90d'].includes(raw.dashboard?.range)) p.dashboard.range = raw.dashboard.range;
   if (typeof raw.dashboard?.onboarding_hidden === 'boolean') p.dashboard.onboarding_hidden = raw.dashboard.onboarding_hidden;
+  if (['simple', 'detailed'].includes(raw.dashboard?.mode)) p.dashboard.mode = raw.dashboard.mode;
+  if (['today', '7d', '30d', '90d'].includes(raw.dashboard?.simple_range)) p.dashboard.simple_range = raw.dashboard.simple_range;
   if (['today', 'week', 'month', 'year'].includes(raw.reports?.period)) p.reports.period = raw.reports.period;
   if (['daily', 'weekly', 'monthly'].includes(raw.reports?.grain)) p.reports.grain = raw.reports.grain;
   if (Array.isArray(raw.notifications?.muted)) p.notifications.muted = raw.notifications.muted.filter((k) => TYPE_GROUPS[k]);
