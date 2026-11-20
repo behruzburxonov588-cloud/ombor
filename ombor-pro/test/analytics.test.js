@@ -348,7 +348,7 @@ async function download(api, path) {
 }
 
 test('eksport: Excel va PDF fayllar, ruxsat tekshiriladi', async () => {
-  for (const report of ['pnl', 'sales', 'products', 'inventory', 'weekly', 'debts', 'staff']) {
+  for (const report of ['pnl', 'sales', 'products', 'inventory', 'weekly', 'debts', 'staff', 'expenses']) {
     const x = await download({ username: 'bux', password: 'bux123' }, `/api/reports/export?report=${report}&format=xlsx&from=${today}&to=${today}`);
     assert.equal(x.status, 200, `${report} xlsx`);
     assert.match(x.type, /spreadsheetml/);

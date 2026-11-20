@@ -2,7 +2,7 @@
 import {
   get, post, put, icon, esc, num, money, dateTime, readForm, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, monthStartStr, download,
-  takeNewFlag,
+  takeNewFlag, presetRange, initials,
 } from '../ui.js';
 
 const ACTION_LABELS = {
@@ -97,22 +97,44 @@ async function renderEmployees(root, ctx, openNew = false) {
     root.innerHTML = '<div class="alert alert-bad">Xodimlarni boshqarish uchun ruxsatingiz yo\'q</div>';
     return;
   }
-  const [{ users }, meta] = await Promise.all([get('/users'), get('/permissions')]);
+  const month = presetRange('month');
+  const [{ users }, meta, perf] = await Promise.all([
+    get('/users'),
+    get('/permissions'),
+    get(`/analytics/staff?from=${month.from}&to=${month.to}`).catch(() => null),
+  ]);
+  const byId = new Map((perf?.staff || []).map((x) => [x.id, x]));
+  const active = users.filter((u) => u.is_active).length;
+  const ROLE_TONE = { owner: 'badge-info', admin: 'badge-info', cashier: 'badge-ok', warehouse: 'badge-low', accountant: 'badge-muted' };
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Xodimlar</h1><p class="muted">${users.length} ta hisob</p></div>
-      <button class="btn" type="button" id="addu">${icon('plus')} Yangi xodim</button>
+      <div><h1>Xodimlar</h1><p class="muted">Har bir xodimga alohida login: kim nima sotganini va nima qilganini ko'rasiz</p></div>
+      <div class="row">
+        <a class="btn btn-light" href="#/staff">${icon('staff', 'ico-sm')} Natijalar</a>
+        <button class="btn" type="button" id="addu">${icon('plus')} Yangi xodim</button>
+      </div>
     </div>
-    <div class="card">
-      ${users.length ? `<div class="list">${users.map((u) => `
-        <div class="list-item" data-id="${u.id}">
-          <div class="meta">
-            <div class="name">${esc(u.full_name)} ${u.id === ctx.user.id ? '<span class="badge badge-info">siz</span>' : ''}</div>
-            <div class="sub">@${esc(u.username)} · ${esc(meta.roles[u.role] || u.role)}${u.phone ? ` · ${esc(u.phone)}` : ''}</div>
-          </div>
-          <div class="end">${u.is_active ? '<span class="badge badge-ok">Faol</span>' : '<span class="badge badge-muted">Faol emas</span>'}</div>
-        </div>`).join('')}</div>` : emptyState("Xodimlar yo'q", 'users')}
-    </div>`;
+    <div class="sum-row">
+      <div class="sum-cell"><span>Hisoblar</span><b>${users.length} ta</b><small>${active} tasi faol</small></div>
+      <div class="sum-cell"><span>Shu oy cheklar</span><b>${num((perf?.staff || []).reduce((x, r) => x + r.sales_count, 0), 0)} ta</b></div>
+      <div class="sum-cell"><span>Shu oy savdo</span><b>${money(perf?.total_net_revenue || 0)}</b><small>qaytarishlar ayirilgan</small></div>
+      <div class="sum-cell"><span>Eng faol</span><b>${esc((perf?.staff || []).find((r) => r.sales_count > 0)?.full_name || '—')}</b></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      ${users.length ? `<div class="table-wrap cards"><table class="party-table">
+        <thead><tr><th>Xodim</th><th>Lavozimi</th><th class="right">Shu oy</th><th>Holat</th><th></th></tr></thead>
+        <tbody>${users.map((u) => {
+          const st = byId.get(u.id);
+          return `<tr class="clickable" data-id="${u.id}">
+            <td data-label="Xodim"><div class="who"><span class="avatar">${esc(initials(u.full_name))}</span><div><b>${esc(u.full_name)}</b> ${u.id === ctx.user.id ? '<span class="badge badge-info">siz</span>' : ''}<div class="small muted">@${esc(u.username)}${u.phone ? ` · ${esc(u.phone)}` : ''}</div></div></div></td>
+            <td data-label="Lavozimi"><span class="badge ${ROLE_TONE[u.role] || 'badge-muted'}">${esc(meta.roles[u.role] || u.role)}</span></td>
+            <td data-label="Shu oy" class="right num">${st && st.sales_count ? `${money(st.net_revenue)}<div class="small muted">${st.sales_count} ta chek</div>` : '<span class="muted">savdo yo\'q</span>'}</td>
+            <td data-label="Holat">${u.is_active ? '<span class="badge badge-ok">Faol</span>' : '<span class="badge badge-muted">Bloklangan</span>'}</td>
+            <td class="right no-label"><button class="btn btn-light btn-sm" type="button" data-edit="${u.id}">${icon('edit', 'ico-sm')} O'zgartirish</button></td>
+          </tr>`;
+        }).join('')}</tbody></table></div>` : emptyState("Xodimlar yo'q", 'users')}
+    </div>
+    <p class="small muted" style="margin-top:10px">${icon('info', 'ico-xs')} Har bir lavozimning ruxsatlari bor: masalan, kassir tovar kelish narxini va foydani ko'rmaydi. Xodimni bosib, ruxsatlarini o'zgartirishingiz mumkin.</p>`;
 
   root.querySelector('#addu').addEventListener('click', () => openUserEditor(ctx, meta, null, () => renderEmployees(root, ctx)));
   if (openNew) openUserEditor(ctx, meta, null, () => renderEmployees(root, ctx));

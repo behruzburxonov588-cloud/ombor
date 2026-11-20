@@ -140,3 +140,16 @@ test('artikul (SKU): saqlanadi, qidiruvda topiladi, takrorlanmaydi, tahrirda saq
   await owner.put(`/api/products/${a.body.id}`, { name: 'Sovun', base_unit_id: piece, selling_price: 5500, sku: '' });
   assert.equal((await owner.get(`/api/products/${a.body.id}`)).body.product.sku, null);
 });
+
+test("xarajatlar: jami summa 300 tadan ko'p yozuvda ham to'g'ri", async () => {
+  const today = todayLocal();
+  await pool.query(
+    `INSERT INTO expenses (category, amount, method, expense_date, description)
+     SELECT 'other', 100, 'cash', $1::date, 'test ' || g FROM generate_series(1, 305) g`,
+    [today],
+  );
+  const r = await owner.get(`/api/expenses?from=${today}&to=${today}`);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.expenses.length, 300, "ro'yxat 300 ta bilan cheklanadi");
+  assert.equal(r.body.total, 30500, 'jami esa hammasi bo\'yicha');
+});

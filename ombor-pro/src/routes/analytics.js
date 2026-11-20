@@ -135,6 +135,9 @@ router.get('/reports/export', requirePerm('reports.export'), async (req, res) =>
   if (kind === 'debts' && !(can(req.user, 'customers.view') || can(req.user, 'reports.view'))) {
     throw new HttpError(403, "Bu hisobot uchun ruxsatingiz yo'q");
   }
+  if (kind === 'expenses' && !(can(req.user, 'expenses.view') || can(req.user, 'reports.view'))) {
+    throw new HttpError(403, "Bu hisobot uchun ruxsatingiz yo'q");
+  }
   const doc = await buildReportDoc(pool, kind, req.query, req.user);
   const buf = format === 'pdf' ? toPdf(doc) : toXlsx(doc);
   res.setHeader('Content-Type', format === 'pdf'

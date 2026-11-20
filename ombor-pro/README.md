@@ -8,21 +8,24 @@ Do'konlar uchun ombor, sotuv, kirim, hisob-kitob va biznes tahlili tizimi. Inter
 - **Yangi tovar (savol-javob)**: «Qanday sotasiz?» (dona, kg, litr, metr), «Optomda qanday keladi?» (1 rulon ichida 100 metr), «Har xil hajmi bormi?» (Pepsi 0,5 L / 1 L — bitta formada bir nechta tovar). Kelish narxi qadoq (rulon, blok) uchun yozilsa, 1 metr/1 dona narxi va foyda o'zi hisoblanadi
 - **Yuk keldi**: tovar rasmini bosasiz → nechta keldi va narxi → saqlash. Har qatorda «Omborda: 61 → 73 dona bo'ladi» ko'rinadi; qadoq (quti, rulon) o'zi tanlanadi; to'liq to'langan bo'lsa yetkazib beruvchini tanlash shart emas, qarzga olinganda — majburiy
 - **Mahsulotlar ro'yxati**: rasmli kartochkalar, har birida katta raqam bilan qancha qolgani (qadoqda ham: «= 5 quti 1 dona»); tovar sahifasida katta qoldiq, narx, foyda va «Nima keldi, nima ketdi» tarixi
-- **Oddiy bosh sahifa** (odatiy): uchta savolga javob — «Pul nima bo'ldi?» (qancha savdo, tovar o'zingizga qanchaga tushgan, xarajatlar, foyda yoki zarar/minus, yukka va yetkazib beruvchilarga to'langan), «Nima keldi? / Nima ketdi?» (davr ichida kelgan yuk va sotilgan tovarlar, har biri miqdori bilan), «Omborda nima bor?» (har bir tovar qoldig'i, tugagan va kam qolganlar). Davr: bugun / 7 / 30 / 90 kun. Grafiklar, prognoz va reyting — «Batafsil tahlil» tugmasida; tanlov foydalanuvchi sozlamasida saqlanadi
-- **Bosh sahifa**: «Nima qilmoqchisiz?» katta tugmalari (Sotish, Yuk keldi, Yangi tovar, Qarz yozish, Qarz to'lovi, Xarajat); telefonda pastki menyuda «+» tugmasi
+- **Bosh sahifa**: «Nima qilmoqchisiz?» tugmalari (Sotish, Yuk keldi, Yangi tovar, Qarz yozish, Qarz to'lovi, Xarajat); 8 ta bosiladigan asosiy raqam — savdo, sof foyda, xarajat, cheklar soni, kassadagi pul, ombor qiymati, mijozlar qarzi va sizning qarzingiz (yetkazib beruvchilarga); savdo grafigi, tugayotgan tovarlar, eng ko'p sotilganlar, so'nggi savdolar, «Pul nima bo'ldi?» (oddiy so'zlar bilan foyda yoki zarar), nima keldi va nima ketdi, oylik natija (so'nggi oylar). Telefonda pastki menyuda «+» tugmasi
+- **Davr tanlash** hamma sahifada bir xil: Bugun, Kecha, 7 kun, 30 kun, Shu oy va «Boshqa» (sana oralig'i)
 - **Kirim**: bitta hujjatda bir nechta mahsulot, partiyalar (batch) bilan, qisman to'lov va yetkazib beruvchi qarzi
-- **Kassa (POS)**: naqd, karta, o'tkazma, nasiya va aralash to'lov; chek; qaytarish
+- **Kassa (POS)**: turkumlar bo'yicha saralash, shtrix-kod, chegirma, mijoz tanlash, naqd, karta, o'tkazma, nasiya va aralash to'lov; chek; qaytarish
+- **Savdolar tarixi**: chek raqami yoki mijoz bo'yicha qidiruv, to'lov turi va sotuvchi bo'yicha filtr, davr xulosasi
 - **Tannarx**: FIFO yoki o'rtacha tannarx usullari
 - **Ombor**: tuzatish, zarar yozish, inventarizatsiya (sanoq) va farqlar hisobi
-- **Kassa**: smenalar, depozit va yechib olish, xarajatlar
-- **Qarzlar**: mijoz va yetkazib beruvchi qarzlari alohida; to'lovlar eng eski qarzdan boshlab yopiladi
+- **Kassa**: smenalar (ochish/yopish va kassadagi pulni solishtirish), depozit va yechib olish, bugungi kirim-chiqim; minus qoldiq nimani bildirishi tushuntiriladi
+- **Xarajatlar**: turkumlar ulushi, oylar bo'yicha xarajat, qidiruv va filtr, Excel/PDF hisobot
+- **Qarzlar**: «Mijozlar qarzi» (sizga) va «Sizning qarzingiz» (yetkazib beruvchilarga) alohida bo'limlarda; to'lov muddati, muddati o'tgan va yaqinlashgan qarzlar eslatmasi; to'lovlar eng eski qarzdan boshlab yopiladi
+- **Artikul (SKU)**: tovarning ichki kodi, shtrix-koddan alohida, qidiruvda topiladi
 - **Hisobotlar**: kun, hafta, oy, yil bo'yicha foyda, marja, eng ko'p va kam sotiladigan mahsulotlar
 - **Amallar tarixi**: barcha o'zgarishlar yoziladi
 - **Rollar**: beshta rol va har bir xodim uchun alohida huquqlar
-- **Bosh sahifa (tahlil)**: tushum, sof foyda, xarajatlar, savdolar soni, ombor qiymati va mijozlar qarzi — oldingi davr bilan taqqoslash, o'zgarish foizi va kichik grafik bilan; savdo dinamikasi, foyda va zarar, mahsulotlar reytingi, 7 kunlik prognoz, ombor holati. Vidjetlarni yashirish va tartiblash mumkin
+- **Tahlil** (alohida bo'lim): tushum, sof foyda, xarajatlar, savdolar soni, ombor qiymati va mijozlar qarzi — oldingi davr bilan taqqoslash, o'zgarish foizi va kichik grafik bilan; savdo dinamikasi, foyda va zarar, mahsulotlar reytingi, 7 kunlik prognoz, ombor holati. Vidjetlarni yashirish va tartiblash mumkin
 - **Aqlli yordamchi**: haqiqiy ma'lumotdan kunlik xulosa, haftalik va oylik natijalar, diqqat talab qiladigan masalalar va tushunarli tavsiyalar (qayta buyurtma, sotilmayotgan tovar, savdosi pasaygan mahsulot, g'ayrioddiy xarajat, marja o'zgarishi, muddati o'tgan qarz)
 - **Hisobotlar**: foyda va zarar, savdo (kunlik, haftalik, oylik), mahsulotlar (saralash, filtr, sahifalash), sekin sotiladigan mahsulotlar, ombor tahlili, haftalik hisobot, prognoz. **Excel va PDF** eksport
-- **Bildirishnomalar markazi**: kam qolgan/tugagan mahsulot, qarz eslatmalari, g'ayrioddiy xarajat, savdo pasayishi, muhim ombor o'zgarishlari va voqealar; kunlik, haftalik va oylik xulosalar jadval bo'yicha. Ilovada, brauzerda va **Telegram** orqali. Takroriy xabarlar yuborilmaydi
+- **Bildirishnomalar markazi**: kam qolgan/tugagan mahsulot, mijoz qarzi va yetkazib beruvchiga to'lov eslatmalari, g'ayrioddiy xarajat, savdo pasayishi, muhim ombor o'zgarishlari va voqealar; kunlik, haftalik va oylik xulosalar jadval bo'yicha. Ilovada, brauzerda va **Telegram** orqali. Takroriy xabarlar yuborilmaydi
 - **Xodimlar samaradorligi**: har bir xodimning savdosi, cheklari, o'rtacha cheki, chegirma va qaytarishlari, tendensiyasi va amallar tarixi
 - **Mijoz qarzlari**: muddati o'tgan qarzlar, qarz yoshi (0–30, 31–60, 60+ kun), so'nggi to'lovlar
 
@@ -190,7 +193,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 89 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar), «Yuk keldi» (yetkazib beruvchisiz kirim, qarzda kimdan kelgani majburiy, qadoqli qoldiq).
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 93 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar), «Yuk keldi» (yetkazib beruvchisiz kirim, qarzda kimdan kelgani majburiy, qadoqli qoldiq), to'lov muddati va eslatmalar, artikul (SKU), oylik natija, xarajatlar hisoboti.
 
 ## Loyiha tuzilishi
 

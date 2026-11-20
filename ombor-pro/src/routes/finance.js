@@ -147,7 +147,8 @@ router.get('/expenses', requirePerm('expenses.view', 'reports.view'), async (req
   res.json({
     expenses: rows,
     by_category: byCat,
-    total: round2(rows.reduce((s, r) => s + Number(r.amount), 0)),
+    // Jami — ro'yxat cheklovidan (300 ta) qat'i nazar, barcha xarajatlar bo'yicha
+    total: round2(byCat.reduce((sum, r) => sum + Number(r.total), 0)),
     categories: EXPENSE_CATEGORIES,
   });
 });

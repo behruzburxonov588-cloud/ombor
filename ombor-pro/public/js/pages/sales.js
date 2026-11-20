@@ -2,7 +2,7 @@
 import {
   resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
   get, post, icon, esc, num, money, dateTime, dateOnly, readForm, toast, errorToast,
-  openModal, closeModal, withBusy, productThumb, emptyState, confirmBox, todayStr,
+  openModal, closeModal, withBusy, productThumb, emptyState, confirmBox, todayStr, productPhoto,
 } from '../ui.js';
 import { openBarcodeScanner } from '../scanner.js';
 
@@ -518,7 +518,7 @@ function gridHtml(list) {
     return `
       <button class="pcard" type="button" data-pid="${p.id}" ${out ? 'disabled' : ''} aria-label="${esc(p.name)} qo'shish">
         ${inCart > 0 ? `<span class="qty-badge">${num(inCart, 2)}</span>` : ''}
-        ${productThumb({ name: p.name, image_path: p.image_path })}
+        ${productPhoto(p, 'pcard-img')}
         <div class="pname">${esc(p.name)}</div>
         <div class="pprice">${num(p.selling_price)} <span class="small muted">so'm/${esc(p.base_unit_name)}</span></div>
         <div class="pstock">${out ? '<span class="red" style="font-weight:700">Tugagan</span>' : `Qoldiq: ${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}`}</div>
@@ -542,11 +542,36 @@ function bindGrid() {
 async function loadProducts(q = '') {
   const r = await get(`/products?q=${encodeURIComponent(q)}`);
   products = r.products;
-  const grid = document.getElementById('grid');
-  if (grid) {
-    grid.innerHTML = gridHtml(products);
-    bindGrid();
+  // Turkumlar ro'yxati — birinchi (qidiruvsiz) yuklashda olinadi
+  if (!q) {
+    const seen = new Map();
+    for (const p of products) if (p.category_id && !seen.has(p.category_id)) seen.set(p.category_id, p.category_name);
+    C.cats = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    drawCats();
   }
+  drawGrid();
+}
+
+function drawGrid() {
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+  const list = C.cat ? products.filter((p) => String(p.category_id) === String(C.cat)) : products;
+  grid.innerHTML = gridHtml(list);
+  bindGrid();
+}
+
+// Turkum tugmalari: Hammasi, Ichimliklar, Oziq-ovqat, ...
+function drawCats() {
+  const box = document.getElementById('pcats');
+  if (!box) return;
+  if (!C.cats || !C.cats.length) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = [{ id: '', name: 'Hammasi' }, ...C.cats].map((c) => `<button type="button" class="chip ${String(C.cat || '') === String(c.id) ? 'active' : ''}" data-cat="${c.id}">${esc(c.name)}</button>`).join('');
+  box.querySelectorAll('[data-cat]').forEach((b) => b.addEventListener('click', () => {
+    C.cat = b.dataset.cat;
+    box.querySelectorAll('[data-cat]').forEach((x) => x.classList.toggle('active', x === b));
+    drawGrid();
+  }));
 }
 
 async function addByBarcode(code) {
@@ -713,7 +738,7 @@ export async function render(root, params, ctx) {
     root.innerHTML = `<div class="page-head"><h1>Chek ${esc(sale.receipt_no)}</h1><a class="btn btn-light" href="#/sales/history">Savdolar</a></div>`;
     return showReceipt(sale, ctx);
   }
-  C = { ctx, query: '' };
+  C = { ctx, query: '', cat: '', cats: [] };
   if (S.owner !== ctx.user.username) S = loadState(ctx.user.username);
   const isDesktop = window.matchMedia('(min-width: 720px)').matches;
   root.innerHTML = `
@@ -728,6 +753,7 @@ export async function render(root, params, ctx) {
             <input class="input" id="barcode" type="text" inputmode="numeric" placeholder="Shtrix-kod (skaner yoki raqam)" autocomplete="off" aria-label="Shtrix-kod">
             <button class="btn btn-outline" type="button" id="btn-bc" style="min-width:56px">${icon('scan')}</button>
           </div>
+          <div class="chips pos-cats" id="pcats" hidden></div>
           <div class="between" style="margin-top:10px"><span class="small muted" id="grid-selected">${S.cart.length} ta tovar savatchada</span>
             <a class="small" href="#/sales/history">Bugungi savdolar &rsaquo;</a></div>
         </div>

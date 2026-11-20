@@ -31,7 +31,7 @@ export async function renderHome(root, ctx, opts) {
   const [d, ov, cash, sales, onbHtml] = await Promise.all([
     get(`/analytics/dashboard?${q}`),
     get(`/analytics/overview?${q}`),
-    ctx.canAny(['cash.view', 'cash.shift']) ? get('/cash/summary').catch(() => null) : null,
+    ctx.can('cash.view') ? get('/cash/summary').catch(() => null) : null,
     canSales ? get(`/sales?${q}&limit=6`).catch(() => null) : null,
     opts.onboarding ? opts.onboarding().catch(() => '') : '',
   ]);

@@ -55,6 +55,7 @@ async function mountWizard(host, opts) {
     costPer: 'pack',
     qtyIn: 'pack',
     barcode: '',
+    sku: '',
     cat: '',
     sup: '',
     min: '',
@@ -186,6 +187,7 @@ async function mountWizard(host, opts) {
         <div class="field"><span>Shtrix-kod</span>
           <div class="input-group"><input class="input" id="wbarcode" inputmode="numeric" maxlength="64" placeholder="Skaner bilan o'qiting yoki yozing" value="${esc(st.barcode)}">
             ${cameraScanSupported() ? `<button class="btn btn-light" type="button" id="wscan" aria-label="Kamera bilan o'qish" style="min-width:52px">${icon('camera')}</button>` : ''}</div></div>`}
+        ${st.variants ? '' : `<label class="field"><span>Artikul (SKU) <small>— o'zingizning ichki kodingiz</small></span><input class="input" id="wsku" maxlength="64" placeholder="Masalan: PEP-05" value="${esc(st.sku)}"></label>`}
         <label class="field"><span>Kategoriya</span><input class="input" id="wcat" list="wcats" maxlength="60" placeholder="Masalan: Ichimliklar" value="${esc(st.cat)}">
           <datalist id="wcats">${refs.cats.map((c) => `<option value="${esc(c.name)}">`).join('')}</datalist></label>
         <label class="field"><span>Kimdan olasiz? (yetkazib beruvchi)</span>
@@ -327,6 +329,7 @@ async function mountWizard(host, opts) {
     $('#pack-factor')?.addEventListener('input', (e) => { st.packFactor = e.target.value; refreshPrices(); });
     // Qo'shimcha maydonlar qayta chizilganda yo'qolmasligi uchun holatda saqlanadi
     $('#wbarcode')?.addEventListener('input', (e) => { st.barcode = e.target.value; });
+    $('#wsku')?.addEventListener('input', (e) => { st.sku = e.target.value; });
     $('#wcat')?.addEventListener('input', (e) => { st.cat = e.target.value; });
     $('#wsup')?.addEventListener('change', (e) => { st.sup = e.target.value; });
     $('#wmin')?.addEventListener('input', (e) => { st.min = e.target.value; });
@@ -383,6 +386,7 @@ async function mountWizard(host, opts) {
         supplier_id: st.sup ? Number(st.sup) : null,
         category_id: categoryId,
         barcode: st.variants ? null : (st.barcode.trim() || null),
+        sku: st.variants ? null : (st.sku.trim() || null),
       };
       const q = round4(qtyBase(qty));
       if (q > 0 && !opts.arrival) body.opening_qty = q;
@@ -409,7 +413,7 @@ async function mountWizard(host, opts) {
     if (again) {
       if (st.imageUrl) URL.revokeObjectURL(st.imageUrl);
       // Keyingi tovar uchun: birlik, qadoq va yetkazib beruvchi qoladi, qolgani tozalanadi
-      Object.assign(st, { name: '', single: blankRow(), rows: [blankRow(), blankRow()], barcode: '', image: null, imageUrl: '' });
+      Object.assign(st, { name: '', single: blankRow(), rows: [blankRow(), blankRow()], barcode: '', sku: '', image: null, imageUrl: '' });
       render();
       window.scrollTo({ top: 0 });
     }

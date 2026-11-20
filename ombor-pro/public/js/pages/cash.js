@@ -1,7 +1,7 @@
 // Kassa: balanslar, smena, kirim-chiqim, kassa harakatlari va xarajatlar
 import {
   get, post, icon, esc, num, money, dateTime, dateOnly, toast, errorToast, openModal, withBusy,
-  emptyState, todayStr, newKey, takeNewFlag, compact, monthName,
+  emptyState, todayStr, newKey, takeNewFlag, compact, monthName, download,
   resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
 } from '../ui.js';
 
@@ -283,7 +283,11 @@ async function tabExpenses(body, q, ctx, refresh) {
   body.innerHTML = `
     <div class="toolbar-row">
       ${periodPicker(range)}
-      ${canManage ? `<button class="btn" type="button" id="exp-new">${icon('plus', 'ico-sm')} Xarajat qo'shish</button>` : ''}
+      <div class="row">
+        ${ctx.can('reports.export') ? `<button class="btn btn-light btn-sm" type="button" data-export="xlsx">${icon('xlsx', 'ico-sm')} Excel</button>
+        <button class="btn btn-light btn-sm" type="button" data-export="pdf">${icon('pdf', 'ico-sm')} PDF</button>` : ''}
+        ${canManage ? `<button class="btn" type="button" id="exp-new">${icon('plus', 'ico-sm')} Xarajat qo'shish</button>` : ''}
+      </div>
     </div>
     <div class="sum-row">
       <div class="sum-cell bad"><span>Jami xarajat</span><b>${money(total)}</b><small>${esc(word)}</small></div>
@@ -347,6 +351,7 @@ async function tabExpenses(body, q, ctx, refresh) {
   }));
   body.querySelector('#eq').addEventListener('input', (e) => { text = e.target.value.trim(); draw(); });
   body.querySelector('#exp-new')?.addEventListener('click', () => openExpense(categories, refresh));
+  body.querySelectorAll('[data-export]').forEach((b) => b.addEventListener('click', () => withBusy(b, () => download(`/reports/export?report=expenses&format=${b.dataset.export}&from=${range.from}&to=${range.to}`).catch(errorToast))));
 
   const mBox = body.querySelector('#exp-months');
   if (mBox) {

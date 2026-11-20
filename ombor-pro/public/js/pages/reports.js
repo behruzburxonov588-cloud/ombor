@@ -79,6 +79,13 @@ export async function render(root, params, ctx) {
       </div>
     </div>
     <div class="ptabs no-print" role="tablist" style="margin-bottom:14px">${tabs.map((t) => `<button type="button" role="tab" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}">${icon(t.icon, 'ico-xs')} ${t.label}</button>`).join('')}</div>
+    <div class="chips other-reports no-print">
+      <span class="small muted">Boshqa hisobotlar (Excel/PDF ham bor):</span>
+      ${ctx.canAny(['expenses.view', 'reports.view']) ? `<a class="chip" href="#/cash?tab=expenses&from=${period.from}&to=${period.to}">${icon('expense', 'ico-xs')} Xarajatlar</a>` : ''}
+      ${ctx.canAny(['customers.view', 'reports.view']) ? `<a class="chip" href="#/debts">${icon('debt', 'ico-xs')} Qarzlar</a>` : ''}
+      ${ctx.canAny(['purchases.view']) ? `<a class="chip" href="#/purchases?from=${period.from}&to=${period.to}">${icon('truck', 'ico-xs')} Kirimlar</a>` : ''}
+      <a class="chip" href="#/staff?from=${period.from}&to=${period.to}">${icon('staff', 'ico-xs')} Xodimlar</a>
+    </div>
     ${tab.noPeriod ? '' : `<div class="filterbar no-print" style="margin-bottom:16px">
       <div class="seg">${PERIODS.map((p) => `<button type="button" data-p="${p.key}" class="${period.p === p.key ? 'active' : ''}">${p.label}</button>`).join('')}
         <button type="button" data-p="custom" class="${period.p === 'custom' ? 'active' : ''}">${icon('calendar', 'ico-xs')} Boshqa</button></div>

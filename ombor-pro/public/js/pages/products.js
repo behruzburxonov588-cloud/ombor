@@ -62,6 +62,7 @@ async function renderList(root, params, ctx) {
   let filter = params.query.filter || '';
   let q = (params.query.q || '').trim();
   let shown = PAGE;
+  let cat = params.query.cat || '';
   const canManage = ctx.can('products.manage');
   const canBuy = ctx.can('purchases.create');
   let active = [];
@@ -76,8 +77,9 @@ async function renderList(root, params, ctx) {
       </div>
     </div>
     <div class="plist-tools">
-      <div class="search-input">${icon('search', 'ico-sm')}<input class="input" type="search" id="q" placeholder="Tovar nomi yoki shtrix-kodi..." value="${esc(q)}" autocomplete="off" aria-label="Tovar qidirish"></div>
+      <div class="search-input">${icon('search', 'ico-sm')}<input class="input" type="search" id="q" placeholder="Tovar nomi, shtrix-kodi yoki artikuli..." value="${esc(q)}" autocomplete="off" aria-label="Tovar qidirish"></div>
       <div class="chips" id="chips"></div>
+      <div class="chips pos-cats" id="pcat" hidden></div>
     </div>
     <div id="list"><div class="empty">Yuklanmoqda...</div></div>`;
 
@@ -98,13 +100,21 @@ async function renderList(root, params, ctx) {
     if (out) parts.push(`${out} tasi tugagan`);
     if (low) parts.push(`${low} tasi kam qolgan`);
     root.querySelector('#count').textContent = parts.join(' · ');
+    // Turkumlar (kategoriyalar) — bor bo'lsa
+    const seen = new Map();
+    for (const p of active) if (p.category_id && !seen.has(p.category_id)) seen.set(p.category_id, p.category_name);
+    const cats = [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    const catEl = root.querySelector('#pcat');
+    catEl.hidden = cats.length < 2;
+    catEl.innerHTML = `<span class="small muted" style="flex:none">Turkum:</span>${[['', 'Hammasi'], ...cats].map(([id, name]) => `<button type="button" class="chip ${String(cat) === String(id) ? 'active' : ''}" data-cat="${id}">${esc(name)}</button>`).join('')}`;
   };
 
   const draw = () => {
     const src = filter === 'archived' ? (archived || []) : active;
     const text = q.toLowerCase();
     const rows = src.filter((p) => (filter === 'out' || filter === 'low' ? p.status === filter : true)
-      && (!text || p.name.toLowerCase().includes(text) || (p.barcode && p.barcode === q)));
+      && (!cat || String(p.category_id) === String(cat))
+      && (!text || p.name.toLowerCase().includes(text) || (p.barcode && p.barcode === q) || (p.sku && p.sku.toLowerCase() === text)));
     if (!rows.length) {
       listEl.innerHTML = emptyList(q, filter, canManage);
       return;
@@ -119,10 +129,20 @@ async function renderList(root, params, ctx) {
   const remember = () => {
     const qs = new URLSearchParams();
     if (filter) qs.set('filter', filter);
+    if (cat) qs.set('cat', cat);
     if (q) qs.set('q', q);
     history.replaceState(null, '', `#/products${qs.toString() ? `?${qs}` : ''}`);
   };
 
+  root.querySelector('#pcat').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cat]');
+    if (!b) return;
+    cat = b.dataset.cat;
+    shown = PAGE;
+    root.querySelectorAll('#pcat [data-cat]').forEach((x) => x.classList.toggle('active', x === b));
+    draw();
+    remember();
+  });
   chipsEl.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-f]');
     if (!b) return;
@@ -241,7 +261,7 @@ async function renderDetail(root, id, ctx) {
       </div>
       <div class="pd-main">
         <h1 class="pd-name">${esc(p.name)}</h1>
-        <div class="small muted">${esc(p.category_name || 'Kategoriyasiz')}${p.barcode ? ` · Shtrix-kod: <span class="num">${esc(p.barcode)}</span>` : ''}</div>
+        <div class="small muted">${esc(p.category_name || 'Kategoriyasiz')}${p.sku ? ` · Artikul: <b>${esc(p.sku)}</b>` : ''}${p.barcode ? ` · Shtrix-kod: <span class="num">${esc(p.barcode)}</span>` : ''}</div>
         <div class="pd-stock">
           <div class="pd-stock-label">Omborda qoldi</div>
           <div class="pd-stock-num">${num(p.stock_qty, 3)} <span>${unit}</span></div>
@@ -370,7 +390,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
           <select class="input" name="base_unit_id" id="base-unit" ${id && Number(p?.stock_qty) > 0 ? 'disabled' : ''}>${unitOpts(p?.base_unit_id || units.find((u) => u.code === 'piece')?.id)}</select>
           <button class="btn btn-light" type="button" id="new-unit" style="min-width:56px" aria-label="Yangi birlik">${icon('plus')}</button>
         </div>
-        <small>Qoldiq shu birlikda hisoblanadi (masalan: dona, kg, litr)</small></div>
+        <small>${id && Number(p?.stock_qty) > 0 ? "Omborda qoldig'i bor tovarning birligini o'zgartirib bo'lmaydi" : 'Qoldiq shu birlikda hisoblanadi (masalan: dona, kg, litr)'}</small></div>
 
       ${!id ? `<label class="field"><span>Hozir omborda qancha bor? (ixtiyoriy)</span>
         <input class="input" name="opening_qty" data-type="num" inputmode="decimal" placeholder="0"><small>Bo'sh qoldirsangiz, keyin «Kirim» orqali qo'shasiz</small></label>`
@@ -385,6 +405,10 @@ async function renderForm(root, id, ctx, prefill = {}) {
           ${cameraScanSupported() ? `<button class="btn btn-light" type="button" id="scan" aria-label="Kamera bilan o'qish" style="min-width:56px">${icon('camera')}</button>` : ''}
         </div>
         <small>Bo'sh qoldirsangiz, shtrix-kodsiz mahsulot bo'ladi</small></div>
+
+      <label class="field"><span>Artikul (SKU)</span>
+        <input class="input" name="sku" maxlength="64" value="${esc(p?.sku || '')}" placeholder="Masalan: PEP-05">
+        <small>Do'koningizning ichki kodi. Qidiruvda ham topiladi</small></label>
 
       <label class="field"><span>Kategoriya</span>
         <input class="input" name="category" list="cats" maxlength="60" value="${esc(p?.category_name || '')}" placeholder="Tanlang yoki yangi yozing">
@@ -505,7 +529,9 @@ async function renderForm(root, id, ctx, prefill = {}) {
     const body = {
       name: d.name,
       barcode: d.barcode || null,
-      base_unit_id: Number(d.base_unit_id),
+      sku: (d.sku || '').trim(),
+      // Qoldig'i bor tovarda birlik o'zgartirilmaydi (maydon bloklangan) — eskisi yuboriladi
+      base_unit_id: Number(d.base_unit_id || root.querySelector('#base-unit').value),
       supplier_id: d.supplier_id ? Number(d.supplier_id) : null,
       purchase_price: d.purchase_price ?? 0,
       selling_price: d.selling_price,

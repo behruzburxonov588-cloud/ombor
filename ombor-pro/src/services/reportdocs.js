@@ -19,6 +19,7 @@ export const REPORT_KINDS = {
   weekly: 'Haftalik hisobot',
   debts: 'Mijozlar qarzi hisoboti',
   staff: 'Xodimlar samaradorligi',
+  expenses: 'Xarajatlar hisoboti',
 };
 
 const CASH_LABELS = {
@@ -345,6 +346,65 @@ async function debtsDoc(db) {
   };
 }
 
+
+// Xarajatlar: turkumlar bo'yicha jami va har bir yozuv
+async function expensesDoc(db, q) {
+  const range = resolveRange(q);
+  const { rows } = await db.query(
+    `SELECT e.expense_date, e.category, e.description, e.method, e.amount, u.full_name AS user_name
+       FROM expenses e LEFT JOIN users u ON u.id = e.created_by
+      WHERE e.expense_date BETWEEN $1::date AND $2::date
+      ORDER BY e.expense_date, e.id`,
+    [range.from, range.to],
+  );
+  const total = rows.reduce((x, r) => x + Number(r.amount), 0);
+  const byCat = new Map();
+  for (const r of rows) byCat.set(r.category, (byCat.get(r.category) || 0) + Number(r.amount));
+  const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1])
+    .map(([c, v]) => ({ category: EXPENSE_LABELS[c] || c, total: v, share: total > 0 ? (v / total) * 100 : 0 }));
+  const days = Math.round((Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / 86400000) + 1;
+  return {
+    range,
+    summary: [
+      { label: 'Jami xarajat', value: m(total), tone: total ? 'bad' : undefined },
+      { label: 'Yozuvlar', value: `${rows.length} ta` },
+      { label: "Kuniga o'rtacha", value: m(days > 0 ? total / days : 0) },
+      { label: 'Eng katta turkum', value: cats[0] ? `${cats[0].category} (${m(cats[0].total)})` : '—' },
+    ],
+    notes: ["Xarajatlar sof foydadan ayiriladi. Yetkazib beruvchiga to'lov va tovar kirimi bu yerga kirmaydi."],
+    tables: [
+      {
+        title: "Turkumlar bo'yicha", name: 'Turkumlar',
+        columns: [col('category', 'Turkum', 'text', { width: 26 }), col('total', 'Summa', 'money'), col('share', 'Ulushi', 'percent')],
+        rows: cats,
+        totals: { category: 'Jami', total, share: total > 0 ? 100 : 0 },
+        empty: "Bu davrda xarajat yo'q",
+      },
+      {
+        title: 'Barcha xarajatlar', name: 'Xarajatlar',
+        columns: [
+          col('expense_date', 'Sana', 'date', { width: 12, pdf: 1.1 }),
+          col('category_label', 'Turkum', 'text', { width: 16, pdf: 1.4 }),
+          col('description', 'Izoh', 'text', { width: 34, pdf: 3 }),
+          col('method_label', 'Qayerdan', 'text', { width: 12, pdf: 1.1 }),
+          col('amount', 'Summa', 'money'),
+          col('user_name', 'Kim yozdi', 'text', { width: 18, pdf: 1.6 }),
+        ],
+        rows: rows.map((r) => ({
+          ...r,
+          expense_date: String(r.expense_date instanceof Date ? r.expense_date.toISOString() : r.expense_date).slice(0, 10),
+          category_label: EXPENSE_LABELS[r.category] || r.category,
+          method_label: METHOD_LABELS[r.method] || r.method,
+          description: r.description || '',
+          amount: Number(r.amount),
+        })),
+        totals: { expense_date: 'Jami', amount: total },
+        empty: "Bu davrda xarajat yo'q",
+      },
+    ],
+  };
+}
+
 async function staffDoc(db, q, user) {
   const r = await staffPerformance(db, q);
   const financial = Boolean(user.permissions['reports.view']);
@@ -385,6 +445,7 @@ export async function buildReportDoc(db, kind, query, user) {
     weekly: () => weeklyDoc(db, query, settings),
     debts: () => debtsDoc(db),
     staff: () => staffDoc(db, query, user),
+    expenses: () => expensesDoc(db, query),
   };
   const doc = await builders[kind]();
   const r = doc.range;
