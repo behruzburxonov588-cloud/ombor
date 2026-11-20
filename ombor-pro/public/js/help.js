@@ -146,9 +146,10 @@ const HELP = {
     title: 'Yangi kirim',
     what: "Kelgan tovarni omborga kiritish. Saqlangandan keyin qoldiq o'zi ko'payadi.",
     steps: [
-      "Kelgan tovarning rasmini bosing (yoki nomini qidiring, shtrix-kodni o'qiting). Ro'yxatda yo'q bo'lsa — «Yangi tovar».",
-      "«Nechta keldi?» ga sonini yozing. Quti yoki rulonda kelsa — «quti»/«rulon» ni tanlang.",
-      "Narxini yozing: 1 quti (yoki 1 dona) necha pulga olganingiz. Har qatorda «Omborda: 61 → 73 bo'ladi» deb ko'rinadi.",
+      "Kelgan tovarning rasmini bosing (yoki nomini qidiring, shtrix-kodni o'qiting) — tovar oynasi ochiladi. Ro'yxatda yo'q bo'lsa — «Yangi tovar».",
+      "Oynada «Nechta keldi?» ga sonini yozing. Quti yoki rulonda kelsa — «quti»/«rulon» ni tanlang.",
+      "Narxini yozing: 1 quti (yoki 1 dona) necha pulga olganingiz. «Omborda: 61 → 73 bo'ladi» deb ko'rinadi. Keyin «Qo'shish» ni bosing.",
+      "Xato yozgan bo'lsangiz — ro'yxatdagi tovarni bosib o'zgartiring yoki «×» bilan olib tashlang.",
       "Pulini to'ladingizmi: «To'liq to'ladim», «Bir qismini» yoki «Qarzga oldim». Qarzga olsangiz, kimdan kelganini tanlang.",
       "Yo'l kira, chegirma yoki boshqa sana bo'lsa — «Sana, yo'l kira, chegirma, izoh» ni oching.",
       "«Saqlash — omborga qo'shish» ni bosing.",

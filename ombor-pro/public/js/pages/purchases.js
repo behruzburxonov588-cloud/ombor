@@ -97,7 +97,7 @@ async function renderNew(root, ctx, preselect = null) {
     </div>
     <ol class="rcv-steps">
       <li><b>1</b> Kelgan tovarni bosing</li>
-      <li><b>2</b> Nechta keldi va narxini yozing</li>
+      <li><b>2</b> Ochilgan oynada nechta keldi va narxini yozing → «Qo'shish»</li>
       <li><b>3</b> «Saqlash» — omborga o'zi qo'shiladi</li>
     </ol>
     <div class="rcv">
@@ -249,47 +249,30 @@ async function renderNew(root, ctx, preselect = null) {
     if (old && p) old.outerHTML = tile(p);
   }
 
-  // ----- kelgan yuk (o'ng tomon) -----
+  // ----- kelgan yuk (o'ng tomon): qisqa qatorlar, bosilsa o'zgartirish oynasi ochiladi -----
   function lineHtml(l, i) {
-    const units = unitsOf(l.p);
     const un = unitOf(l);
+    const noPrice = !(toNum(l.unit_price) > 0);
+    const baseNote = un.factor !== 1 ? ` (${num(baseQty(l), 3)} ${esc(l.p.base_unit_name)})` : '';
     return `
       <div class="rl" data-i="${i}">
-        <div class="rl-head">
+        <button class="rl-main" type="button" data-edit aria-label="${esc(l.p.name)} — o'zgartirish">
           ${productPhoto(l.p, 'rl-img')}
-          <div class="rl-name"><b>${esc(l.p.name)}</b><span>Hozir omborda: ${num(l.p.stock_qty, 3)} ${esc(l.p.base_unit_name)}</span></div>
-          <button class="icon-btn icon-btn-light" type="button" data-del aria-label="Olib tashlash" title="Olib tashlash">${icon('x', 'ico-sm')}</button>
-        </div>
-        <div class="rl-grid">
-          <div class="field"><span>Nechta keldi?</span>
-            <div class="rl-qty">
-              <div class="qty-ctrl"><button type="button" data-dec aria-label="Kamaytirish">−</button><input data-q inputmode="decimal" value="${esc(l.quantity)}" aria-label="Nechta keldi"><button type="button" data-inc aria-label="Ko'paytirish">+</button></div>
-              ${units.length > 1
-                ? `<div class="seg rl-units">${units.map((u) => `<button type="button" data-u="${u.unit_id}" class="${u.unit_id === l.unit_id ? 'active' : ''}">${esc(u.name)}</button>`).join('')}</div>`
-                : `<span class="rl-unit">${esc(un.name)}</span>`}
-            </div>
-          </div>
-          <label class="field"><span data-plabel>1 ${esc(un.name)} necha pulga oldingiz?</span>
-            <div class="money-input"><input class="input" data-p inputmode="decimal" placeholder="0" value="${esc(l.unit_price)}"><em>so'm</em></div></label>
-        </div>
-        <div class="rl-foot"><span class="rl-after" data-after>${afterText(l)}</span><b class="rl-sum num" data-sum>${money(lineTotal(l))}</b></div>
-        <div class="rl-hint small muted" data-hint>${hintText(l)}</div>
+          <span class="rl-name">
+            <b>${esc(l.p.name)}</b>
+            <span>${num(toNum(l.quantity), 3)} ${esc(un.name)}${baseNote} × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : money(toNum(l.unit_price))}</span>
+            <span class="rl-after-s">${afterText(l)}</span>
+            <span class="rl-bottom"><b class="num">${money(lineTotal(l))}</b><small>${icon('edit', 'ico-xs')} o'zgartirish</small></span>
+          </span>
+        </button>
+        <button class="icon-btn icon-btn-light" type="button" data-del aria-label="Olib tashlash" title="Olib tashlash">${icon('x', 'ico-sm')}</button>
       </div>`;
   }
   function drawLines() {
     $('#lines').innerHTML = lines.length
       ? lines.map(lineHtml).join('')
-      : `<div class="rcv-empty">${icon('box')}<p>${isWide() ? 'Chapdagi' : 'Tepadagi'} tovarlardan kelganini bosing.<br><small>Ro'yxatda yo'q bo'lsa — «Yangi tovar».</small></p></div>`;
+      : `<div class="rcv-empty">${icon('box')}<p>${isWide() ? 'Chapdagi' : 'Tepadagi'} tovarlardan kelganini bosing.<br><small>Ochilgan oynada nechta kelganini yozib, «Qo'shish» ni bosasiz.</small></p></div>`;
     totals();
-  }
-  function refreshLine(i) {
-    const l = lines[i];
-    const el = $(`.rl[data-i="${i}"]`);
-    if (!el) return;
-    el.querySelector('[data-after]').innerHTML = afterText(l);
-    el.querySelector('[data-sum]').textContent = money(lineTotal(l));
-    el.querySelector('[data-hint]').innerHTML = hintText(l);
-    refreshTile(l.p.id);
   }
 
   function totals() {
@@ -322,35 +305,133 @@ async function renderNew(root, ctx, preselect = null) {
     else if (pay === 'part' && paid > total + 0.001) warn = "To'langan summa jami summadan katta bo'lishi mumkin emas";
     else if (remaining > 0.001 && noSup) warn = "Qarzga olgan bo'lsangiz, tovar kimdan kelganini tanlang (yuqorida «Kimdan keldi?»)";
     if (!warn && lines.some((l) => !(toNum(l.unit_price) > 0))) {
-      soft = `«${lines.find((l) => !(toNum(l.unit_price) > 0)).p.name}» narxi yozilmagan — foyda to'g'ri hisoblanishi uchun narxini yozing`;
+      soft = `«${lines.find((l) => !(toNum(l.unit_price) > 0)).p.name}» narxi yozilmagan — foyda to'g'ri hisoblanishi uchun ustiga bosib narxini yozing`;
     }
     $('#warn').innerHTML = warn ? `<div class="alert alert-warn">${esc(warn)}</div>` : soft ? `<div class="alert alert-info small">${esc(soft)}</div>` : '';
     $('#save').disabled = !lines.length || Boolean(warn);
     return warn || (!lines.length ? 'Avval kelgan tovarni tanlang' : '');
   }
 
-  function addLine(p, { quantity = null, unitId = null } = {}) {
+  // Ro'yxatga qo'shish yoki o'zgartirish (oynadan «Qo'shish» bosilgandagina chaqiriladi)
+  function putLine(p, { quantity, unitId, price }) {
     let l = inCart(p.id);
-    if (l) {
-      l.quantity = String(round4(toNum(l.quantity) + 1));
-    } else {
-      const pack = p.pack && Number(p.pack.factor) > 1 ? p.pack : null;
-      const un = unitId ? unitsOf(p).find((u) => u.unit_id === unitId) : null;
-      const use = un || (pack ? { unit_id: pack.unit_id, factor: Number(pack.factor) } : { unit_id: p.base_unit_id, factor: 1 });
-      l = { p, unit_id: use.unit_id, quantity: quantity ?? '1', unit_price: priceFor(p, use.factor) };
+    if (l) Object.assign(l, { unit_id: unitId, quantity, unit_price: price });
+    else {
+      l = { p, unit_id: unitId, quantity, unit_price: price };
       lines.push(l);
     }
     drawLines();
     refreshTile(p.id);
-    const i = lines.indexOf(l);
-    const el = $(`.rl[data-i="${i}"]`);
+    const el = $(`.rl[data-i="${lines.indexOf(l)}"]`);
     el?.classList.add('flash');
-    if (isWide()) {
-      const inp = el?.querySelector('[data-q]');
-      inp?.focus({ preventScroll: true });
-      inp?.select();
-      el?.scrollIntoView({ block: 'nearest' });
-    }
+    if (isWide()) el?.scrollIntoView({ block: 'nearest' });
+    else toast(`${p.name}: ${num(toNum(quantity), 3)} ${unitOf(l).name} ro'yxatga qo'shildi`, 'ok');
+  }
+
+  function removeLine(pid) {
+    const i = lines.findIndex((l) => l.p.id === pid);
+    if (i < 0) return;
+    lines.splice(i, 1);
+    drawLines();
+    refreshTile(pid);
+  }
+
+  // Tovar oynasi: nechta keldi, qaysi qadoqda, necha pulga — keyin «Qo'shish»
+  function openPicker(p) {
+    const existing = inCart(p.id);
+    const units = unitsOf(p);
+    const pack = p.pack && Number(p.pack.factor) > 1 ? p.pack : null;
+    const d = existing
+      ? { p, unit_id: existing.unit_id, quantity: existing.quantity, unit_price: existing.unit_price }
+      : (() => {
+        const use = pack ? { unit_id: pack.unit_id, factor: Number(pack.factor) } : { unit_id: p.base_unit_id, factor: 1 };
+        return { p, unit_id: use.unit_id, quantity: '1', unit_price: priceFor(p, use.factor) };
+      })();
+    const pk = packText(p.stock_qty, p.base_unit_name, p.pack);
+
+    const { close, el } = openModal({
+      title: existing ? "O'zgartirish" : 'Nechta keldi?',
+      body: `
+        <form class="pick" id="pick" novalidate>
+          <div class="pick-head">
+            ${productPhoto(p, 'pick-img')}
+            <div class="pick-info">
+              <div class="pick-name">${esc(p.name)}</div>
+              <div class="pick-now">Hozir omborda: <b>${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}</b>${pk ? ` <span class="muted">(= ${esc(pk)})</span>` : ''}</div>
+            </div>
+          </div>
+          <div class="field"><span>Nechta keldi?</span>
+            <div class="pick-qty">
+              <div class="qty-ctrl qty-lg"><button type="button" data-dec aria-label="Kamaytirish">−</button><input id="pk-q" inputmode="decimal" value="${esc(d.quantity)}" aria-label="Nechta keldi" autocomplete="off"><button type="button" data-inc aria-label="Ko'paytirish">+</button></div>
+              ${units.length > 1
+                ? `<div class="seg pick-units">${units.map((u) => `<button type="button" data-u="${u.unit_id}" class="${u.unit_id === d.unit_id ? 'active' : ''}">${esc(u.name)}</button>`).join('')}</div>`
+                : `<span class="rl-unit">${esc(units[0].name)}</span>`}
+            </div>
+          </div>
+          <label class="field"><span id="pk-pl"></span>
+            <div class="money-input"><input class="input input-lg" id="pk-p" inputmode="decimal" placeholder="0" value="${esc(d.unit_price)}" autocomplete="off"><em>so'm</em></div></label>
+          <div class="pick-result">
+            <span class="rl-after" id="pk-after"></span>
+            <span class="pick-sum">Summa: <b class="num" id="pk-sum"></b></span>
+          </div>
+          <div class="small muted" id="pk-hint"></div>
+          <div id="pk-err"></div>
+        </form>`,
+      foot: `
+        ${existing ? `<button class="btn btn-light" type="button" data-remove style="margin-right:auto">${icon('x', 'ico-sm')} Olib tashlash</button>` : ''}
+        <button class="btn btn-outline" type="button" data-close>Bekor</button>
+        <button class="btn btn-success" type="submit" form="pick">${icon('check', 'ico-sm')} ${existing ? 'Saqlash' : "Qo'shish"}</button>`,
+    });
+    const qIn = el.querySelector('#pk-q');
+    const pIn = el.querySelector('#pk-p');
+    const refresh = () => {
+      d.quantity = qIn.value;
+      d.unit_price = pIn.value;
+      el.querySelector('#pk-pl').textContent = `1 ${unitOf(d).name} necha pulga oldingiz?`;
+      el.querySelector('#pk-after').innerHTML = afterText(d);
+      el.querySelector('#pk-sum').textContent = money(lineTotal(d));
+      el.querySelector('#pk-hint').innerHTML = hintText(d);
+    };
+    refresh();
+    el.addEventListener('click', (e) => {
+      const step = e.target.closest('[data-inc], [data-dec]');
+      if (step) {
+        const delta = step.matches('[data-inc]') ? 1 : -1;
+        qIn.value = String(Math.max(0, round4(toNum(qIn.value) + delta)));
+        refresh();
+        return;
+      }
+      const ub = e.target.closest('[data-u]');
+      if (ub) {
+        const oldF = unitOf(d).factor;
+        d.unit_id = Number(ub.dataset.u);
+        const price = toNum(pIn.value);
+        if (price > 0) pIn.value = String(round2((price / oldF) * unitOf(d).factor));
+        el.querySelectorAll('[data-u]').forEach((b) => b.classList.toggle('active', b === ub));
+        refresh();
+        return;
+      }
+      if (e.target.closest('[data-remove]')) {
+        removeLine(p.id);
+        close();
+      }
+    });
+    qIn.addEventListener('input', refresh);
+    pIn.addEventListener('input', refresh);
+    el.querySelector('#pick').addEventListener('submit', (e) => {
+      e.preventDefault();
+      refresh();
+      const err = (msg, input) => {
+        el.querySelector('#pk-err').innerHTML = `<div class="alert alert-warn">${esc(msg)}</div>`;
+        input.focus();
+      };
+      if (!(toNum(qIn.value) > 0)) return err('Nechta kelganini yozing', qIn);
+      if (toNum(pIn.value) < 0) return err("Narx manfiy bo'lishi mumkin emas", pIn);
+      putLine(p, { quantity: String(round4(toNum(qIn.value))), unitId: d.unit_id, price: pIn.value.trim() });
+      close();
+    });
+    // Kompyuterda: darhol son yozish mumkin. Telefonda klaviatura o'zi ochilib, oynani yopib qo'ymasligi uchun fokus berilmaydi
+    if (isWide()) { qIn.focus(); qIn.select(); }
   }
 
   async function addByCode(code) {
@@ -359,7 +440,7 @@ async function renderNew(root, ctx, preselect = null) {
       const { product } = await get(`/products/barcode/${encodeURIComponent(code)}`);
       p = catalog.find((x) => x.id === product.id) || product;
     }
-    addLine(p);
+    openPicker(p);
   }
 
   async function newProduct() {
@@ -370,19 +451,22 @@ async function renderNew(root, ctx, preselect = null) {
     $('#pq').value = '';
     drawChips();
     drawGrid();
+    const ask = [];
     for (const c of created) {
       const p = catalog.find((x) => x.id === c.id);
       if (!p) continue;
       const arrived = Number(c.arrived) || 0;
       const f = p.pack ? Number(p.pack.factor) : 1;
+      // Yangi tovar oynasida «Nechta keldi?» yozilgan bo'lsa — to'g'ridan-to'g'ri ro'yxatga
       if (arrived > 0 && p.pack && Math.abs(arrived / f - Math.round(arrived / f)) < 1e-9) {
-        addLine(p, { quantity: String(round4(arrived / f)), unitId: p.pack.unit_id });
+        putLine(p, { quantity: String(round4(arrived / f)), unitId: p.pack.unit_id, price: priceFor(p, f) });
       } else if (arrived > 0) {
-        addLine(p, { quantity: String(arrived), unitId: p.base_unit_id });
+        putLine(p, { quantity: String(arrived), unitId: p.base_unit_id, price: priceFor(p, 1) });
       } else {
-        addLine(p);
+        ask.push(p);
       }
     }
+    if (ask.length) openPicker(ask[0]);
   }
 
   // ----- hodisalar -----
@@ -391,7 +475,7 @@ async function renderNew(root, ctx, preselect = null) {
     const t = e.target.closest('[data-pid]');
     if (!t) return;
     const p = catalog.find((x) => x.id === Number(t.dataset.pid));
-    if (p) addLine(p);
+    if (p) openPicker(p);
   });
   $('#gchips').addEventListener('click', (e) => {
     const b = e.target.closest('[data-gf]');
@@ -406,7 +490,7 @@ async function renderNew(root, ctx, preselect = null) {
     clearTimeout(timer);
     timer = setTimeout(() => { q = e.target.value.trim(); shown = GRID_PAGE; drawGrid(); }, 150);
   });
-  // Enter: shtrix-kod skaneri yoki bitta topilgan tovar — darhol qo'shiladi
+  // Enter: shtrix-kod skaneri yoki bitta topilgan tovar — o'sha tovar oynasi ochiladi
   $('#pq').addEventListener('keydown', async (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -416,8 +500,8 @@ async function renderNew(root, ctx, preselect = null) {
     const rows = gridRows();
     const exact = catalog.find((p) => p.barcode && p.barcode === text);
     try {
-      if (exact) addLine(exact);
-      else if (rows.length === 1) addLine(rows[0]);
+      if (exact) openPicker(exact);
+      else if (rows.length === 1) openPicker(rows[0]);
       else if (/^\d{6,}$/.test(text)) await addByCode(text);
       else { drawGrid(); return; }
       e.target.value = '';
@@ -432,40 +516,10 @@ async function renderNew(root, ctx, preselect = null) {
   $('#lines').addEventListener('click', (e) => {
     const row = e.target.closest('.rl');
     if (!row) return;
-    const i = Number(row.dataset.i);
-    const l = lines[i];
-    if (e.target.closest('[data-del]')) {
-      lines.splice(i, 1);
-      drawLines();
-      refreshTile(l.p.id);
-      return;
-    }
-    if (e.target.closest('[data-inc]') || e.target.closest('[data-dec]')) {
-      const d = e.target.closest('[data-inc]') ? 1 : -1;
-      l.quantity = String(Math.max(0, round4(toNum(l.quantity) + d)));
-      row.querySelector('[data-q]').value = l.quantity;
-      refreshLine(i);
-      totals();
-      return;
-    }
-    const ub = e.target.closest('[data-u]');
-    if (ub) {
-      const oldF = unitOf(l).factor;
-      l.unit_id = Number(ub.dataset.u);
-      const price = toNum(l.unit_price);
-      if (price > 0) l.unit_price = String(round2((price / oldF) * unitOf(l).factor));
-      drawLines();
-    }
-  });
-  $('#lines').addEventListener('input', (e) => {
-    const row = e.target.closest('.rl');
-    if (!row) return;
-    const i = Number(row.dataset.i);
-    if (e.target.matches('[data-q]')) lines[i].quantity = e.target.value;
-    else if (e.target.matches('[data-p]')) lines[i].unit_price = e.target.value;
-    else return;
-    refreshLine(i);
-    totals();
+    const l = lines[Number(row.dataset.i)];
+    if (!l) return;
+    if (e.target.closest('[data-del]')) removeLine(l.p.id);
+    else if (e.target.closest('[data-edit]')) openPicker(l.p);
   });
 
   $('#pay3').addEventListener('click', (e) => {
@@ -569,11 +623,11 @@ async function renderNew(root, ctx, preselect = null) {
   drawChips();
   drawGrid();
   drawLines();
-  // Mahsulot sahifasidagi «Yuk keldi» tugmasidan kelinganda: o'sha mahsulot oldindan qo'shiladi
+  // Mahsulot sahifasidagi «Yuk keldi» tugmasidan kelinganda: o'sha tovar oynasi darhol ochiladi
   if (preselect) {
     history.replaceState(null, '', '#/purchases/new');
     const p = catalog.find((x) => x.id === preselect);
-    if (p) addLine(p);
+    if (p) openPicker(p);
   }
 }
 

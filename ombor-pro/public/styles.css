@@ -997,8 +997,8 @@ a.list-item:hover { text-decoration: none; }
 .pc:hover { border-color: var(--border-strong); box-shadow: 0 6px 18px rgba(16, 24, 40, .08); text-decoration: none; transform: translateY(-1px); }
 .pc:active { transform: scale(.985); }
 .pc-top { position: relative; }
-.pc-img, .rt-img, .pd-photo, .rl-img { display: grid; place-items: center; overflow: hidden; background: var(--surface-2); }
-.pc-img img, .rt-img img, .pd-photo img, .rl-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pc-img, .rt-img, .pd-photo, .rl-img, .pick-img { display: grid; place-items: center; overflow: hidden; background: var(--surface-2); }
+.pc-img img, .rt-img img, .pd-photo img, .rl-img img, .pick-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .no-img span { font-weight: 700; color: var(--accent); opacity: .55; }
 .pc-img { aspect-ratio: 16 / 11; }
 .pc-img.no-img span { font-size: 36px; }
@@ -1108,7 +1108,32 @@ a.hist:hover { background: var(--surface-2); text-decoration: none; }
 .rt-new .pname, .rt-new .rt-stock { padding: 0; }
 .rt-plus { width: 46px; height: 46px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; margin: 0 auto 6px; }
 .rcv-cart { display: block; }
-.rl { padding: 12px 0; border-bottom: 1px solid var(--border); display: grid; gap: 10px; border-radius: 8px; }
+.rl { padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; border-radius: 10px; }
+.rl-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 6px; text-align: left; cursor: pointer; font: inherit; color: inherit; border-radius: 10px; }
+.rl-main:hover { background: var(--surface-2); }
+.rl > .icon-btn { width: 36px; height: 36px; flex: none; }
+.rl-name em { font-style: normal; font-weight: 600; }
+.rl-name .rl-after-s { color: var(--pos); }
+.rl-after-s b { font-weight: 700; }
+.rl-main .rl-img { align-self: flex-start; }
+.rl-name .rl-bottom { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 4px; color: var(--muted); }
+.rl-bottom b { font-size: 15px; color: var(--text); }
+.rl-bottom small { font-size: 11.5px; display: inline-flex; gap: 3px; align-items: center; }
+/* Tovar oynasi (Yuk keldi → tovarni bosganda) */
+.pick { display: grid; gap: 14px; }
+.pick-head { display: flex; gap: 12px; align-items: center; }
+.pick-img { width: 72px; height: 72px; border-radius: 12px; flex: none; border: 1px solid var(--border); }
+.pick-img.no-img span { font-size: 28px; }
+.pick-info { min-width: 0; }
+.pick-name { font-size: 18px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.pick-now { font-size: 13.5px; color: var(--text-2); margin-top: 2px; }
+.pick-qty { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.qty-lg button { width: 52px; height: 50px; font-size: 22px; }
+.qty-lg input { width: 96px; height: 50px; font-size: 20px; font-weight: 700; }
+.pick-units button { min-height: 40px; font-size: 14px; padding: 0 16px; }
+.pick-result { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pick-sum { font-size: 14px; color: var(--text-2); }
+.pick-sum b { font-size: 18px; color: var(--text); }
 .rl:last-child { border-bottom: 0; }
 .rl.flash { animation: rlflash 1.4s var(--ease); }
 @keyframes rlflash { from { background: #fff4cc; } to { background: transparent; } }
