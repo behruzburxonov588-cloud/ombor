@@ -306,6 +306,49 @@ export function statusBadge(status) {
   return '<span class="badge badge-ok">Yetarli</span>';
 }
 
+// Rasmni yuborishdan oldin kichraytiradi: telefon rasmi (4–8 MB) → ~1024 px JPEG (~100–300 KB).
+// Shunda har qanday rasm yuklanadi, tez ochiladi va bazada joy tejaladi.
+export async function compressImage(file, { max = 1024, quality = 0.8 } = {}) {
+  if (!file) return null;
+  if (file.type && !file.type.startsWith('image/')) throw new Error('Rasm faylini tanlang (JPG, PNG)');
+  let src;
+  let url = null;
+  try {
+    src = await createImageBitmap(file);
+  } catch {
+    url = URL.createObjectURL(file);
+    src = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Bu rasmni ochib bo'lmadi. Boshqa rasm tanlang (JPG yoki PNG)"));
+      img.src = url;
+    });
+  }
+  const w = src.width || src.naturalWidth;
+  const h = src.height || src.naturalHeight;
+  const scale = Math.min(1, max / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  g.drawImage(src, 0, 0, canvas.width, canvas.height);
+  if (url) URL.revokeObjectURL(url);
+  if (src.close) src.close();
+  const blob = await new Promise((resolve) => { canvas.toBlob(resolve, 'image/jpeg', quality); });
+  if (!blob) throw new Error("Rasmni tayyorlab bo'lmadi. Boshqa rasm tanlang");
+  return new File([blob], 'rasm.jpg', { type: 'image/jpeg' });
+}
+
+// Mahsulot rasmini yuklash (kichraytirib)
+export async function uploadProductImage(productId, file) {
+  const small = await compressImage(file);
+  const fd = new FormData();
+  fd.append('image', small);
+  return api('POST', `/products/${productId}/image`, fd);
+}
+
 export function productThumb(p, big = false) {
   const cls = big ? 'thumb thumb-lg' : 'thumb';
   if (p.image_path) return `<div class="${cls}"><img src="${esc(p.image_path)}" alt=""></div>`;

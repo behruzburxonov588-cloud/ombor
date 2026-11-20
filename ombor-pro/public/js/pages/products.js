@@ -1,7 +1,7 @@
 // Mahsulotlar: ro'yxat, tafsilot, qo'shish/tahrirlash, arxiv, rasm, konvertatsiya
 import {
   get, post, put, icon, esc, num, money, qty, dateTime, toast, errorToast, openModal, withBusy,
-  productThumb, statusBadge, emptyState, confirmBox, readForm, api,
+  productThumb, statusBadge, emptyState, confirmBox, readForm, api, uploadProductImage,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { renderProductWizard } from '../productform.js';
@@ -144,7 +144,7 @@ async function renderDetail(root, id, ctx) {
           <div style="margin-top:8px">${p.is_archived ? '<span class="badge badge-muted">Arxivlangan</span>' : statusBadge(p.status)}</div>
         </div>
       </div>
-      ${canManage ? `<div class="row" style="margin-top:14px"><label class="btn btn-light btn-sm" style="cursor:pointer">${icon('camera', 'ico-sm')} Rasm yuklash<input type="file" accept="image/*" id="img" hidden></label></div>` : ''}
+      ${canManage ? `<div class="row" style="margin-top:14px"><label class="btn btn-light btn-sm" style="cursor:pointer">${icon('camera', 'ico-sm')} ${p.image_path ? 'Rasmni almashtirish' : 'Rasm qo\'shish'}<input type="file" accept="image/*" id="img" hidden></label></div>` : ''}
     </div>
 
     <div class="kpis" style="margin-top:14px">
@@ -253,10 +253,9 @@ async function renderDetail(root, id, ctx) {
   root.querySelector('#img')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const fd = new FormData();
-    fd.append('image', file);
     try {
-      await api('POST', `/products/${id}/image`, fd);
+      toast('Rasm yuklanmoqda…');
+      await uploadProductImage(id, file);
       toast('Rasm yuklandi', 'ok');
       renderDetail(root, id, ctx);
     } catch (err) {
@@ -358,8 +357,8 @@ async function renderForm(root, id, ctx, prefill = {}) {
           ${productThumb(p || { name: '?' }, true)}
           <div class="stack" style="gap:4px">
             <label class="btn btn-light btn-sm file-btn" style="align-self:flex-start">${icon('image', 'ico-sm')} Rasm tanlash
-              <input type="file" accept="image/jpeg,image/png,image/webp" name="image" id="imgf"></label>
-            <span class="file-name" id="imgname">JPG, PNG yoki WEBP, 3 MB gacha</span>
+              <input type="file" accept="image/*" name="image" id="imgf"></label>
+            <span class="file-name" id="imgname">Telefon rasmi ham bo'ladi — o'zi kichraytiriladi</span>
           </div>
         </div>
       </div>
@@ -435,7 +434,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
 
   root.querySelector('#imgf').addEventListener('change', (e) => {
     const f = e.target.files[0];
-    root.querySelector('#imgname').textContent = f ? f.name : 'JPG, PNG yoki WEBP, 3 MB gacha';
+    root.querySelector('#imgname').textContent = f ? f.name : "Telefon rasmi ham bo'ladi — o'zi kichraytiriladi";
   });
   if (!id) root.querySelector('[name=name]').focus();
 
@@ -479,11 +478,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
           productId = r.id;
         }
         const file = root.querySelector('#imgf').files[0];
-        if (file) {
-          const fd = new FormData();
-          fd.append('image', file);
-          await api('POST', `/products/${productId}/image`, fd);
-        }
+        if (file) await uploadProductImage(productId, file);
         if (again) {
           toast(`«${d.name}» saqlandi. Keyingi mahsulotni kiriting`, 'ok');
           window.scrollTo({ top: 0 });
