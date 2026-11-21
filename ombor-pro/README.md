@@ -193,7 +193,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 93 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar), «Yuk keldi» (yetkazib beruvchisiz kirim, qarzda kimdan kelgani majburiy, qadoqli qoldiq), to'lov muddati va eslatmalar, artikul (SKU), oylik natija, xarajatlar hisoboti.
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 94 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar), «Yuk keldi» (yetkazib beruvchisiz kirim, qarzda kimdan kelgani majburiy, qadoqli qoldiq), to'lov muddati va eslatmalar, artikul (SKU), oylik natija, xarajatlar hisoboti.
 
 ## Loyiha tuzilishi
 

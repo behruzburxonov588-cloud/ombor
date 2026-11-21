@@ -1336,3 +1336,96 @@ tfoot td { border-top: 2px solid var(--border); background: var(--surface-2); }
 .other-reports { margin: -4px 0 14px; align-items: center; }
 .other-reports .chip .ico-xs { color: var(--muted); }
 @media (max-width: 719px) { .table-wrap.cards td .badge { white-space: normal; } }
+
+/* ---------- Telefon: kenglik xatolarini tuzatish ---------- */
+/* Grid elementlari ichidagi uzun (aylantiriladigan) qatorlar sahifani kengaytirib yubormasligi uchun */
+.pos { grid-template-columns: minmax(0, 1fr); }
+.pos-main-col, .plist-tools > *, .list-tools > *, .toolbar-row > *, .rcv-pick, .home > *, .filterbar > * { min-width: 0; }
+.plist-tools { grid-template-columns: minmax(0, 1fr); }
+.chips.pos-cats { max-width: 100%; }
+
+/* ---------- Xabarlar (toast) ---------- */
+.toast { display: flex; align-items: center; gap: 10px; cursor: pointer; transition: opacity .18s, transform .18s; }
+.toast .ico-sm { flex: none; opacity: .9; }
+.toast.out { opacity: 0; transform: translateY(-6px); }
+
+/* ---------- Oynalar (modal) ustma-ust ---------- */
+.modal-backdrop.stacked { background: rgba(15, 27, 45, .22); }
+body.modal-open { overflow: hidden; }
+
+/* ---------- Sotuv: tanlanganda belgi ---------- */
+@keyframes tile-added { 0% { box-shadow: 0 0 0 0 rgba(26, 154, 98, .55); border-color: var(--pos); } 100% { box-shadow: 0 0 0 10px rgba(26, 154, 98, 0); } }
+.pcard.added { animation: tile-added .5s ease-out; }
+.pcard.in-cart { border-color: var(--pos); box-shadow: 0 0 0 1px var(--pos); }
+/* Savatcha oynasida «Sotuvni yakunlash» doim ko'rinadi */
+.modal #cart-m [data-checkout] { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 14px 2px var(--surface); }
+@keyframes bar-bump { 0% { transform: scale(1); } 35% { transform: scale(1.04); } 100% { transform: scale(1); } }
+.mobile-cartbar.bump { animation: bar-bump .3s ease-out; }
+.pcard .qty-badge { background: var(--pos); }
+
+/* ---------- Bo'lim tugmalari (tab) hech qachon ustma-ust chiqmaydi ---------- */
+.seg { grid-auto-columns: max-content; }
+.seg.block, .seg-wide, .debt-tabs { grid-auto-columns: 1fr; }
+
+/* ---------- Jadvallar telefonda: birinchi ustun — kartochka sarlavhasi ---------- */
+@media (max-width: 720px) {
+  .table-wrap.cards td:first-child { display: block; text-align: left; font-size: 15px; padding: 6px 0 8px !important; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .table-wrap.cards td:first-child::before { content: none; }
+  .table-wrap.cards td.no-label { justify-content: flex-end; }
+  .table-wrap.cards td.no-label:empty { display: none; }
+  .table-wrap.cards tr.clickable { position: relative; }
+  .table-wrap.cards tfoot tr { background: var(--surface-2); }
+}
+
+/* ---------- Telefon ---------- */
+@media (max-width: 719px) {
+  /* Xabar: tepada, ixcham */
+  #toast-root { top: calc(8px + env(safe-area-inset-top)); width: calc(100vw - 20px); }
+  .toast { padding: 10px 12px; font-size: 13.5px; border-radius: 12px; }
+  /* Sotuv: tepasi ixcham (kamera tugmasi qoladi, shtrix-kod qatori — kompyuterda) */
+  .pos-search .pos-bc, .pos-search .pos-meta { display: none; }
+  .pos-search { padding-bottom: 8px; }
+  .pos-cats { margin-top: 8px; }
+  /* Raqamlar kesilmasin */
+  .sum-cell { padding: 10px 12px; }
+  .sum-cell > b { font-size: 16px; white-space: normal; overflow-wrap: anywhere; }
+  .stat .stat-value { font-size: 20px; }
+  /* Sarlavha tugmalari: bir qatorda, kerak bo'lsa ko'chadi */
+  .page-head { gap: 10px; }
+  .page-head .row, .page-head .filterbar { width: 100%; }
+  .page-head > .btn, .page-head > a.btn { align-self: flex-start; }
+  /* Davr tugmalari va bo'lim tugmalari */
+  .filterbar .seg:not(.ptabs) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: row; overflow: visible; width: 100%; }
+  .filterbar .seg button { padding: 0 6px; }
+  .seg[role="tablist"]:not(.period .seg) { width: 100%; }
+  .other-reports { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .other-reports::-webkit-scrollbar { display: none; }
+  .other-reports > * { flex: none; }
+  /* Oyna (pastdan chiqadigan) */
+  .modal-head { padding: 14px 16px; }
+  .modal-body { padding: 14px 16px; }
+  .modal-foot { padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .modal-foot .btn { flex: 1 1 0; }
+  .modal::before { content: ''; display: block; width: 38px; height: 4px; border-radius: 4px; background: var(--border-strong); margin: 8px auto 0; }
+}
+.modal #cart-m > .card-head { display: none; }
+@media (max-width: 719px) {
+  /* Filtr tugmalari bir qatorda — barmoq bilan suriladi, sahifa uzunlashmaydi */
+  .plist-tools > .chips, .list-tools > .chips, .stock-tools .chips, .toolbar-row > .chips, #ecats, #hpay, #ponly, #only {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; padding-bottom: 2px;
+  }
+  .plist-tools > .chips::-webkit-scrollbar, .list-tools > .chips::-webkit-scrollbar, .toolbar-row > .chips::-webkit-scrollbar { display: none; }
+  .plist-tools .chip, .list-tools .chip, .toolbar-row .chip { flex: none; }
+  .list-tools { gap: 8px; }
+  .list-tools > select.input { max-width: none !important; width: 100%; }
+  .uchip-select select { font-size: 13px; color: var(--muted); }
+}
+@media (max-width: 719px) {
+  /* Sarlavha: orqaga tugmasi, nomi va amallar — tepadan pastga, tartibli */
+  .page-head { flex-direction: column; align-items: flex-start; }
+  .page-head > h1 { order: 2; }
+  /* «Yuk keldi» qadamlari — bir qatorda, suriladi */
+  .rcv-steps { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-top: -4px; }
+  .rcv-steps::-webkit-scrollbar { display: none; }
+  .rcv-steps li { flex: none; white-space: nowrap; }
+}

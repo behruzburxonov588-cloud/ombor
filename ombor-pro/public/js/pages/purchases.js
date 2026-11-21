@@ -26,10 +26,11 @@ export async function render(root, params, ctx) {
 async function renderList(root, params, ctx) {
   const range = resolvePeriod(params.query, 'month');
   const word = periodWord(range);
-  const { purchases: rows } = await get(`/purchases?from=${range.from}&to=${range.to}&limit=500`);
-  const total = round2(rows.reduce((s, p) => s + Number(p.total), 0));
-  const paid = round2(rows.reduce((s, p) => s + Number(p.paid_amount), 0));
-  const debt = round2(rows.reduce((s, p) => s + Number(p.remaining_debt), 0));
+  const { purchases: rows, totals } = await get(`/purchases?from=${range.from}&to=${range.to}&limit=500`);
+  // Jami — butun davr bo'yicha (ro'yxat 500 ta bilan cheklangan bo'lsa ham)
+  const total = round2(totals ? totals.total : rows.reduce((s, p) => s + Number(p.total), 0));
+  const paid = round2(totals ? totals.paid : rows.reduce((s, p) => s + Number(p.paid_amount), 0));
+  const debt = round2(totals ? totals.debt : rows.reduce((s, p) => s + Number(p.remaining_debt), 0));
   const today = todayStr();
   let q = '';
   let only = '';
@@ -43,7 +44,7 @@ async function renderList(root, params, ctx) {
       </div>
     </div>
     <div class="sum-row">
-      <div class="sum-cell"><span>Kirimlar</span><b>${rows.length} ta</b><small>${esc(word)}</small></div>
+      <div class="sum-cell"><span>Kirimlar</span><b>${totals ? totals.count : rows.length} ta</b><small>${esc(word)}</small></div>
       <div class="sum-cell"><span>Yuk summasi</span><b>${money(total)}</b></div>
       <div class="sum-cell good"><span>To'langan</span><b>${money(paid)}</b></div>
       <div class="sum-cell ${debt > 0 ? 'warn' : ''}"><span>Qarz qolgan</span><b>${money(debt)}</b>${debt > 0 ? '<small><a href="#/debts?tab=suppliers">Hamma qarzlar ›</a></small>' : ''}</div>
@@ -365,7 +366,12 @@ async function renderNew(root, ctx, preselect = null) {
     const el = $(`.rl[data-i="${lines.indexOf(l)}"]`);
     el?.classList.add('flash');
     if (isWide()) el?.scrollIntoView({ block: 'nearest' });
-    else toast(`${p.name}: ${num(toNum(quantity), 3)} ${unitOf(l).name} ro'yxatga qo'shildi`, 'ok');
+    else {
+      const bar = $('#cartbar');
+      bar.classList.remove('bump');
+      void bar.offsetWidth;
+      bar.classList.add('bump');
+    }
   }
 
   function removeLine(pid) {

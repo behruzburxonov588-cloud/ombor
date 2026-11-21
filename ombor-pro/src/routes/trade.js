@@ -31,7 +31,19 @@ router.get('/purchases', requirePerm('purchases.view'), async (req, res) => {
       ORDER BY p.purchase_date DESC, p.id DESC LIMIT ${limit} OFFSET ${offset}`,
     params,
   );
-  res.json({ purchases: rows, from: period.fromDate, to: period.toDate });
+  const { rows: tot } = await pool.query(
+    `SELECT COUNT(*)::int AS count, COALESCE(SUM(p.total), 0) AS total, COALESCE(SUM(p.paid_amount), 0) AS paid,
+            COALESCE(SUM(p.remaining_debt), 0) AS debt
+       FROM purchases p WHERE p.purchase_date BETWEEN $1::date AND $2::date AND p.kind = 'purchase'${extra}`,
+    params,
+  );
+  const t = tot[0];
+  res.json({
+    purchases: rows,
+    from: period.fromDate,
+    to: period.toDate,
+    totals: { count: t.count, total: Number(t.total), paid: Number(t.paid), debt: Number(t.debt) },
+  });
 });
 
 router.get('/purchases/:id', requirePerm('purchases.view'), async (req, res) => {
@@ -70,7 +82,21 @@ router.get('/sales', requirePerm('sales.view', 'reports.view'), async (req, res)
       ORDER BY s.created_at DESC, s.id DESC LIMIT ${limit} OFFSET ${offset}`,
     params,
   );
-  res.json({ sales: rows, from: period.fromDate, to: period.toDate });
+  // Davr bo'yicha jami (ro'yxat cheklovidan qat'i nazar): cheklar, summa, qaytarilgan, nasiyada qolgan
+  const { rows: tot } = await pool.query(
+    `SELECT COUNT(*)::int AS count, COALESCE(SUM(s.total), 0) AS total, COALESCE(SUM(s.refunded_total), 0) AS refunded,
+            COALESCE(SUM(s.balance_due), 0) AS debt
+       FROM sales s
+      WHERE s.created_at >= $1 AND s.created_at < $2 AND s.kind = 'sale'${extra}`,
+    params,
+  );
+  const t = tot[0];
+  res.json({
+    sales: rows,
+    from: period.fromDate,
+    to: period.toDate,
+    totals: { count: t.count, total: Number(t.total), refunded: Number(t.refunded), net: Number(t.total) - Number(t.refunded), debt: Number(t.debt) },
+  });
 });
 
 router.get('/sales/:id', requirePerm('sales.view', 'sales.create', 'reports.view'), async (req, res) => {

@@ -85,7 +85,7 @@ async function mountWizard(host, opts) {
           <b>${esc(cap(u.name))}</b><span>${esc(UNIT_HINT[u.code] || '')}</span></button>`).join('')}
         <label class="uchip uchip-select${otherSelected ? ' on' : ''}"><b>Boshqa</b>
           <select id="base-other" aria-label="Boshqa birlik">
-            <option value="">${otherSelected ? '' : 'tanlang…'}</option>
+            <option value="">${otherSelected ? '' : "gramm, quti, to'plam…"}</option>
             ${others.map((u) => `<option value="${u.id}" ${u.id === st.baseUnitId ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}
             <option value="new">+ yangi birlik…</option>
           </select></label>

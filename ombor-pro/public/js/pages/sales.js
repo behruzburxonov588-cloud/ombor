@@ -310,6 +310,25 @@ function refreshAll() {
   }
   const badge = document.getElementById('grid-selected');
   if (badge) badge.textContent = `${S.cart.length} ta tovar savatchada`;
+  syncTiles();
+}
+
+// Plitkalardagi «nechta tanlandi» belgisi va yashil chegara savatcha bilan doim bir xil
+function syncTiles() {
+  document.querySelectorAll('#grid [data-pid]').forEach((tile) => {
+    const pid = Number(tile.dataset.pid);
+    const n = S.cart.filter((l) => l.pid === pid).reduce((sum, l) => sum + Number(l.qty), 0);
+    tile.classList.toggle('in-cart', n > 0);
+    let b = tile.querySelector('.qty-badge');
+    if (n > 0) {
+      if (!b) {
+        b = document.createElement('span');
+        b.className = 'qty-badge';
+        tile.prepend(b);
+      }
+      b.textContent = num(n, 2);
+    } else if (b) b.remove();
+  });
 }
 
 // ---------- Mijoz tanlash ----------
@@ -516,7 +535,7 @@ function gridHtml(list) {
     const inCart = S.cart.filter((l) => l.pid === p.id).reduce((s, l) => s + Number(l.qty), 0);
     const out = Number(p.stock_qty) <= 0;
     return `
-      <button class="pcard" type="button" data-pid="${p.id}" ${out ? 'disabled' : ''} aria-label="${esc(p.name)} qo'shish">
+      <button class="pcard ${inCart > 0 ? 'in-cart' : ''}" type="button" data-pid="${p.id}" ${out ? 'disabled' : ''} aria-label="${esc(p.name)} qo'shish">
         ${inCart > 0 ? `<span class="qty-badge">${num(inCart, 2)}</span>` : ''}
         ${productPhoto(p, 'pcard-img')}
         <div class="pname">${esc(p.name)}</div>
@@ -532,7 +551,16 @@ function bindGrid() {
     if (!p) return;
     try {
       await addProduct(p, 1);
-      toast(`${p.name} savatga qo'shildi`, 'ok');
+      // Xabar o'rniga: plitka bir lahza yonadi va pastdagi «Savatcha» tugmasi silkinadi
+      const tile = document.querySelector(`#grid [data-pid="${p.id}"]`);
+      tile?.classList.remove('added');
+      void tile?.offsetWidth;
+      tile?.classList.add('added');
+      const bar = document.getElementById('cartbar');
+      bar?.classList.remove('bump');
+      void bar?.offsetWidth;
+      bar?.classList.add('bump');
+      if (navigator.vibrate) navigator.vibrate(12);
     } catch (err) {
       errorToast(err);
     }
@@ -610,7 +638,7 @@ async function renderHistory(root, ctx, query = {}) {
       </div>
     </div>
     <div class="sum-row" id="sum"></div>
-    ${all.length >= 500 ? '<div class="alert alert-info" style="margin:12px 0">Faqat oxirgi 500 ta savdo ko\'rsatildi. Davrni qisqartiring.</div>' : ''}
+    ${all.length >= 500 ? '<div class="alert alert-info" style="margin:12px 0">Ro\'yxatda oxirgi 500 ta chek ko\'rsatildi (yuqoridagi jami — butun davr bo\'yicha). Boshqalarini ko\'rish uchun davrni qisqartiring.</div>' : ''}
     <div class="card" style="margin-top:14px">
       <div class="list-tools">
         <div class="search-input">${icon('search', 'ico-sm')}<input class="input" id="hq" type="search" placeholder="Chek raqami yoki mijoz ismi" autocomplete="off"></div>
@@ -628,13 +656,16 @@ async function renderHistory(root, ctx, query = {}) {
     const rows = all.filter((s) => (!pay || s.payment_method === pay)
       && (!cashier || s.cashier_name === cashier)
       && (!text || s.receipt_no.toLowerCase().includes(text) || (s.customer_name || '').toLowerCase().includes(text)));
-    const net = rows.reduce((sum, x) => sum + Number(x.total) - Number(x.refunded_total || 0), 0);
-    const debt = rows.reduce((sum, x) => sum + Number(x.balance_due || 0), 0);
-    const returned = rows.reduce((sum, x) => sum + Number(x.refunded_total || 0), 0);
+    // Filtr yo'q bo'lsa — butun davr bo'yicha server hisoblagan jami (500 ta cheklovidan qat'i nazar)
+    const whole = !q && !pay && !cashier && r.totals;
+    const count = whole ? r.totals.count : rows.length;
+    const net = whole ? r.totals.net : rows.reduce((sum, x) => sum + Number(x.total) - Number(x.refunded_total || 0), 0);
+    const debt = whole ? r.totals.debt : rows.reduce((sum, x) => sum + Number(x.balance_due || 0), 0);
+    const returned = whole ? r.totals.refunded : rows.reduce((sum, x) => sum + Number(x.refunded_total || 0), 0);
     root.querySelector('#sum').innerHTML = `
-      <div class="sum-cell"><span>Cheklar</span><b>${rows.length} ta</b></div>
+      <div class="sum-cell"><span>Cheklar</span><b>${count} ta</b></div>
       <div class="sum-cell"><span>Savdo summasi</span><b>${money(net)}</b><small>qaytarishlar ayirilgan</small></div>
-      <div class="sum-cell"><span>O'rtacha chek</span><b>${money(rows.length ? net / rows.length : 0)}</b></div>
+      <div class="sum-cell"><span>O'rtacha chek</span><b>${money(count ? net / count : 0)}</b></div>
       <div class="sum-cell ${debt > 0 ? 'warn' : ''}"><span>Nasiyada qolgan</span><b>${money(debt)}</b>${returned > 0 ? `<small>qaytarilgan ${money(returned)}</small>` : ''}</div>`;
     root.querySelector('#hlist').innerHTML = rows.length ? `<div class="table-wrap cards"><table>
         <thead><tr><th>Chek</th><th>Vaqt</th><th>Mijoz</th><th>Sotuvchi</th><th>To'lov</th><th class="right">Summa</th><th>Holat</th><th></th></tr></thead>
@@ -749,12 +780,12 @@ export async function render(root, params, ctx) {
             <input class="input" id="q" type="search" placeholder="Tovar nomini yozing" autocomplete="off" aria-label="Mahsulot qidirish">
             <button class="btn btn-light" type="button" id="btn-scan" aria-label="Kamera bilan shtrix-kod" style="min-width:56px">${icon('camera')}</button>
           </div>
-          <div class="input-group" style="margin-top:8px">
+          <div class="input-group pos-bc" style="margin-top:8px">
             <input class="input" id="barcode" type="text" inputmode="numeric" placeholder="Shtrix-kod (skaner yoki raqam)" autocomplete="off" aria-label="Shtrix-kod">
             <button class="btn btn-outline" type="button" id="btn-bc" style="min-width:56px">${icon('scan')}</button>
           </div>
           <div class="chips pos-cats" id="pcats" hidden></div>
-          <div class="between" style="margin-top:10px"><span class="small muted" id="grid-selected">${S.cart.length} ta tovar savatchada</span>
+          <div class="between pos-meta" style="margin-top:10px"><span class="small muted" id="grid-selected">${S.cart.length} ta tovar savatchada</span>
             <a class="small" href="#/sales/history">Bugungi savdolar &rsaquo;</a></div>
         </div>
         <div class="product-grid" id="grid"><div class="empty">Yuklanmoqda...</div></div>
@@ -790,12 +821,10 @@ export async function render(root, params, ctx) {
   root.querySelector('#btn-bc').addEventListener('click', doBarcode);
   root.querySelector('#btn-scan').addEventListener('click', openScanner);
   root.querySelector('#cartbar').addEventListener('click', () => {
-    const r = openModal({ title: 'Savatcha', body: '<div id="cart-m"></div>', wide: true });
+    const r = openModal({ title: 'Savatcha', body: '<div id="cart-m"></div>', wide: true, onClose: () => { cartModal = null; } });
     cartModal = r.el.querySelector('#cart-m');
     cartModal.classList.add('stack');
     mountCart(cartModal, ctx);
-    r.el.querySelector('[data-close]').addEventListener('click', () => { cartModal = null; });
-    r.el.querySelector('[data-backdrop]')?.addEventListener('click', () => { cartModal = null; });
   });
   refreshAll();
   // Qoldiq ma'lumoti yangi bo'lishi uchun keshni tozalaymiz

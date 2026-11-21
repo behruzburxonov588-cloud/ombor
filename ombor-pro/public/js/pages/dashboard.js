@@ -195,9 +195,8 @@ async function load(host, range, ctx, first = false) {
   }
   flush();
   const onbHtml = onb ? onboardingCard(onbSteps, onb) : '';
-  const tiles = actionTiles(ctx);
-  const body = (tiles ? `<div class="w-full" data-widget="actions">${tiles}</div>` : '')
-    + (onbHtml ? `<div class="w-full" data-widget="onboarding">${onbHtml}</div>` : '')
+  // Tahlil sahifasida «Nima qilmoqchisiz?» tugmalari takrorlanmaydi (ular Bosh sahifada)
+  const body = (onbHtml ? `<div class="w-full" data-widget="onboarding">${onbHtml}</div>` : '')
     + rendered.map((w) => `<div class="${w.size}" data-widget="${w.id}">${w.html}</div>`).join('');
 
   host.innerHTML = `

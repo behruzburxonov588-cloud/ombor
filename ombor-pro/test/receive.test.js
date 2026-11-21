@@ -153,3 +153,19 @@ test("xarajatlar: jami summa 300 tadan ko'p yozuvda ham to'g'ri", async () => {
   assert.equal(r.body.expenses.length, 300, "ro'yxat 300 ta bilan cheklanadi");
   assert.equal(r.body.total, 30500, 'jami esa hammasi bo\'yicha');
 });
+
+test("savdolar va kirimlar ro'yxati: jami butun davr bo'yicha (ro'yxat cheklangan bo'lsa ham)", async () => {
+  const today = todayLocal();
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal((await owner.post('/api/sales', { items: [{ product_id: ids.p, quantity: 1 }], payment: { method: 'cash' } })).status, 201);
+  }
+  const r = await owner.get(`/api/sales?from=${today}&to=${today}&limit=1`);
+  assert.equal(r.body.sales.length, 1);
+  assert.equal(r.body.totals.count, 3);
+  assert.equal(r.body.totals.net, 18000);
+  const pr = await owner.get(`/api/purchases?from=${today}&to=${today}&limit=1`);
+  assert.equal(pr.body.purchases.length, 1);
+  assert.ok(pr.body.totals.count > 1);
+  const all = (await owner.get(`/api/purchases?from=${today}&to=${today}&limit=500`)).body.purchases;
+  assert.equal(pr.body.totals.total, all.reduce((x, p) => x + Number(p.total), 0));
+});

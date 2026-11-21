@@ -219,13 +219,25 @@ export function readForm(form) {
 
 // ---------- Xabarlar ----------
 
+// Qisqa xabar. Telefonda bir vaqtda faqat bittasi ko'rinadi (yangisi eskisining o'rnini oladi),
+// shuning uchun xabarlar ustma-ust yig'ilib ekranni yopmaydi. Bossangiz — yopiladi.
+const TOAST_ICON = { ok: 'check', bad: 'alert', warn: 'alert' };
 export function toast(message, kind = '') {
   const root = document.getElementById('toast-root');
+  const phone = window.matchMedia('(max-width: 719px)').matches;
+  const max = phone ? 1 : 3;
+  while (root.children.length >= max) root.firstElementChild.remove();
   const el = document.createElement('div');
   el.className = `toast ${kind}`.trim();
-  el.textContent = message;
+  el.setAttribute('role', kind === 'bad' ? 'alert' : 'status');
+  el.innerHTML = `${icon(TOAST_ICON[kind] || 'info', 'ico-sm')}<span>${esc(message)}</span>`;
   root.appendChild(el);
-  setTimeout(() => el.remove(), 3200);
+  const hide = () => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 180);
+  };
+  setTimeout(hide, kind === 'bad' ? 4500 : phone ? 2000 : 3000);
+  el.addEventListener('click', hide);
 }
 
 export function errorToast(err) {
@@ -234,10 +246,14 @@ export function errorToast(err) {
 
 // ---------- Modal ----------
 
+// Oynalar ustma-ust ochiladi: ichki oyna (masalan, savatchadan «Mijoz tanlash») yopilganda
+// oldingi oyna (savatcha) o'z holicha qoladi. Esc va fonni bosish — faqat eng ustidagisini yopadi.
 export function openModal({ title, body = '', foot = '', wide = false, onMount, onClose } = {}) {
   const root = document.getElementById('modal-root');
-  root.innerHTML = `
-    <div class="modal-backdrop" data-backdrop>
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.dataset.backdrop = '';
+  backdrop.innerHTML = `
       <div class="modal${wide ? ' wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title || '')}">
         <div class="modal-head">
           <h3>${esc(title || '')}</h3>
@@ -245,30 +261,35 @@ export function openModal({ title, body = '', foot = '', wide = false, onMount, 
         </div>
         <div class="modal-body">${body}</div>
         ${foot ? `<div class="modal-foot">${foot}</div>` : ''}
-      </div>
-    </div>`;
-  const backdrop = root.querySelector('[data-backdrop]');
-  const close = () => {
-    if (!root.firstElementChild) return;
-    root.innerHTML = '';
-    document.removeEventListener('keydown', onKey);
-    if (onClose) onClose();
-  };
+      </div>`;
+  if (root.children.length) backdrop.classList.add('stacked');
+  root.appendChild(backdrop);
+  document.body.classList.add('modal-open');
+  let closed = false;
   const onKey = (e) => {
-    if (e.key === 'Escape') close();
+    if (e.key === 'Escape' && root.lastElementChild === backdrop) close();
   };
+  function close() {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', onKey);
+    if (backdrop.isConnected) backdrop.remove();
+    if (!root.children.length) document.body.classList.remove('modal-open');
+    if (onClose) onClose();
+  }
   backdrop.addEventListener('click', (e) => {
     if (e.target === backdrop) close();
   });
-  root.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
+  backdrop.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
   document.addEventListener('keydown', onKey);
-  const modalEl = root.querySelector('.modal');
+  const modalEl = backdrop.querySelector('.modal');
   if (onMount) onMount(modalEl, close);
   return { close, el: modalEl };
 }
 
 export function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
+  document.body.classList.remove('modal-open');
 }
 
 export function confirmBox(message, { okText = 'Ha, davom etish', danger = false } = {}) {
