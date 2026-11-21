@@ -1,7 +1,7 @@
 // OMBOR PRO - asosiy ilova: kirish, tuzilma (yon panel, yuqori panel), marshrutlar, bildirishnomalar
 import {
   icon, esc, get, post, onUnauthorized, openModal, closeModal, toast, errorToast, num, money,
-  openPopover, closePopover, initials, timeAgo,
+  openPopover, closePopover, initials, timeAgo, confirmBox,
 } from './ui.js';
 
 // Marshrut -> sahifa moduli
@@ -157,6 +157,11 @@ const $ = (sel) => document.querySelector(sel);
 
 // ---------- Kirish va birinchi sozlash ----------
 
+// Shu qurilmada oxirgi kirgan login: chiqqandan keyin kirish oynasida tayyor turadi (parol saqlanmaydi)
+const LAST_LOGIN = 'ombor.lastLogin';
+const rememberLogin = (u) => { try { if (u) localStorage.setItem(LAST_LOGIN, String(u).trim().toLowerCase()); } catch { /* xotira yopiq */ } };
+const lastLogin = () => { try { return localStorage.getItem(LAST_LOGIN) || ''; } catch { return ''; } };
+
 async function showAuth(setupRequired) {
   $('#app').hidden = true;
   $('#boot').hidden = true;
@@ -200,6 +205,7 @@ async function showAuth(setupRequired) {
       btn.disabled = true;
       try {
         await post(mode === 'register' ? '/auth/register' : '/setup', d);
+        rememberLogin(d.username);
         try { sessionStorage.setItem('ombor.welcome', '1'); } catch { /* xotira yopiq */ }
         location.hash = '#/dashboard';
         location.reload();
@@ -212,24 +218,29 @@ async function showAuth(setupRequired) {
     });
     root.querySelector('[data-mode="login"]')?.addEventListener('click', () => showAuth(false));
   } else {
+    const known = lastLogin();
     root.innerHTML = `
       <div class="auth-card">
         <div class="auth-brand">
           <div class="mark">${icon('layers')}</div>
-          <h1>OMBOR PRO</h1>
-          <p>Login va parolingizni kiriting. Telefon yoki kompyuter — farqi yo'q, ma'lumotlaringiz bir xil ko'rinadi</p>
+          <h1>${known ? 'Xush kelibsiz' : 'OMBOR PRO'}</h1>
+          <p>${known
+    ? 'Parolingizni kiriting. Kirganingizdan keyin «Chiqish» tugmasini bosmaguningizcha qayta so\'ralmaydi'
+    : "Login va parolingizni kiriting. Telefon yoki kompyuter — farqi yo'q, ma'lumotlaringiz bir xil ko'rinadi"}</p>
         </div>
         <form id="login-form" class="form-grid" novalidate>
-          <label class="field"><span>Login</span><input class="input" name="username" required autocomplete="username" autocapitalize="none"></label>
+          <label class="field"><span>Login</span><input class="input" name="username" required autocomplete="username" autocapitalize="none" value="${esc(known)}"></label>
           <label class="field"><span>Parol</span><input class="input" name="password" type="password" required autocomplete="current-password"></label>
           <div id="form-error"></div>
           <button class="btn btn-lg btn-block" type="submit">Kirish</button>
         </form>
         <p class="auth-note">${icon('info', 'ico-xs')} Xodimmisiz? Login va parolni do'kon egasidan oling.</p>
-        ${state.signup !== false ? `<div class="auth-divider"><span>yoki</span></div>
-          <button type="button" class="btn btn-lg btn-block btn-light" data-mode="register">${icon('store', 'ico-sm')} Yangi do'kon ochish</button>` : ''}
+        ${state.signup !== false ? `<div class="auth-foot">Do'koningiz hali yo'qmi? <button type="button" class="link-btn" data-mode="register">Yangi do'kon ochish</button></div>` : ''}
       </div>`;
     root.querySelector('[data-mode="register"]')?.addEventListener('click', () => showAuth('register'));
+    // Login tayyor bo'lsa — darhol parolga
+    const focusEl = root.querySelector(known ? '[name="password"]' : '[name="username"]');
+    if (window.matchMedia('(min-width: 720px)').matches) focusEl?.focus();
     root.querySelector('#login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(e.currentTarget));
@@ -237,6 +248,7 @@ async function showAuth(setupRequired) {
       btn.disabled = true;
       try {
         await post('/auth/login', d);
+        rememberLogin(d.username);
         // Sahifa to'liq qayta yuklanadi: oldingi hisob (boshqa do'kon bo'lishi mumkin) xotirasi qolmaydi
         location.reload();
         return;
@@ -399,7 +411,12 @@ function openUserMenu(anchor, align = 'right') {
     align,
     onMount: (el, close) => {
       el.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { close(); toggleDrawer(false); }));
-      el.querySelector('[data-logout]').addEventListener('click', () => { close(); logout(); });
+      el.querySelector('[data-logout]').addEventListener('click', async () => {
+        close();
+        toggleDrawer(false);
+        // Chiqqandan keyin parol qayta so'raladi — tasodifiy bosishdan himoya
+        if (await confirmBox("Hisobingizdan chiqasizmi? Keyingi safar parolni qayta kiritasiz.", { okText: 'Ha, chiqish' })) logout();
+      });
     },
   });
 }

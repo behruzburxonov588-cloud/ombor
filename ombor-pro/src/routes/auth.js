@@ -104,7 +104,7 @@ async function openStore(req, res) {
     await dropStore(store).catch(() => {});
     throw err;
   }
-  setSessionCookie(res, user.id, store);
+  setSessionCookie(res, user, store);
   res.status(201).json({ user: publicUser(user) });
 }
 
@@ -159,7 +159,7 @@ router.post('/auth/login', async (req, res) => {
     throw new HttpError(401, "Login yoki parol noto'g'ri");
   }
   attempts.delete(key);
-  setSessionCookie(res, user.id, store.id ? store : null);
+  setSessionCookie(res, user, store.id ? store : null);
   res.json({ user: publicUser(user) });
 });
 
@@ -177,10 +177,13 @@ router.post('/auth/password', authenticate, async (req, res) => {
   const ok = await verifyPassword(String(req.body?.current_password || ''), rows[0].password_hash);
   if (!ok) throw new HttpError(400, "Joriy parol noto'g'ri");
   const next = validatePassword(req.body?.new_password);
+  const hash = await hashPassword(next);
   await withTransaction(async (client) => {
-    await client.query('UPDATE users SET password_hash = $2 WHERE id = $1', [req.user.id, await hashPassword(next)]);
+    await client.query('UPDATE users SET password_hash = $2 WHERE id = $1', [req.user.id, hash]);
     await audit(client, req.user.id, 'password.change', 'user', req.user.id);
   });
+  // Boshqa qurilmalardagi sessiyalar yopiladi, shu qurilmada esa foydalanuvchi tizimda qoladi
+  setSessionCookie(res, { id: req.user.id, password_hash: hash }, req.store?.id ? req.store : null);
   res.json({ ok: true });
 });
 

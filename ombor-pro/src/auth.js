@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from './config.js';
@@ -60,19 +61,25 @@ export function publicUser(row) {
   };
 }
 
+// Parol versiyasi: parol o'zgarsa, eski sessiyalar (boshqa qurilmalardagi ham) yaroqsiz bo'ladi
+export function passwordVersion(hash) {
+  return createHash('sha256').update(String(hash || '')).digest('base64url').slice(0, 12);
+}
+
 // Sessiya: foydalanuvchi va uning do'koni (sxemasi). Eski sessiyalarda do'kon yo'q — ular birinchi do'konga tegishli.
-export function setSessionCookie(res, userId, store = null) {
-  const payload = { sub: userId };
+// user — users jadvali qatori (id va password_hash kerak)
+export function setSessionCookie(res, user, store = null) {
+  const payload = { sub: user.id, pv: passwordVersion(user.password_hash) };
   if (store) {
     payload.sid = store.id;
     payload.sch = store.schema;
   }
-  const token = jwt.sign(payload, config.jwtSecret, { expiresIn: `${config.sessionHours}h` });
+  const token = jwt.sign(payload, config.jwtSecret, { expiresIn: `${config.sessionDays}d` });
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'strict',
     secure: config.isProd,
-    maxAge: config.sessionHours * 3600 * 1000,
+    maxAge: config.sessionDays * 24 * 3600 * 1000,
     path: '/',
   });
 }
@@ -113,11 +120,20 @@ export async function authenticate(req, res, next) {
     if (!payload) throw new HttpError(401, 'Avval tizimga kiring');
     if (payload.invalid) throw new HttpError(401, 'Sessiya muddati tugagan. Qaytadan kiring');
     const { rows } = await query('SELECT * FROM users WHERE id = $1', [payload.sub]);
-    if (!rows[0] || !rows[0].is_active) {
+    const row = rows[0];
+    if (!row || !row.is_active) {
       throw new HttpError(401, 'Foydalanuvchi topilmadi yoki faol emas');
     }
-    req.user = publicUser(rows[0]);
+    if (payload.pv && payload.pv !== passwordVersion(row.password_hash)) {
+      throw new HttpError(401, "Parol o'zgargan. Yangi parol bilan kiring");
+    }
+    req.user = publicUser(row);
     if (!req.store) req.store = { schema: payload.sch || 'public', id: payload.sid || null };
+    // Ishlatilayotgan sessiya muddati uzayadi: foydalanuvchi o'zi chiqmaguncha qayta kirish so'ralmaydi
+    const ageHours = (Date.now() / 1000 - (payload.iat || 0)) / 3600;
+    if ((ageHours >= config.sessionRenewHours || !payload.pv) && !res.headersSent) {
+      setSessionCookie(res, row, payload.sid ? { id: payload.sid, schema: payload.sch } : null);
+    }
     next();
   } catch (err) {
     next(err);

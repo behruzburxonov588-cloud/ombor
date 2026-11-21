@@ -1,7 +1,7 @@
 // Xodimlar, yetkazib beruvchilar va mijozlar
 import { Router } from 'express';
 import { pool, withTransaction } from '../db.js';
-import { requirePerm, hashPassword, publicUser } from '../auth.js';
+import { requirePerm, hashPassword, publicUser, setSessionCookie } from '../auth.js';
 import { HttpError, str, round2 } from '../util.js';
 import { ROLES, PERMISSION_KEYS, PERMISSIONS, ROLE_DEFAULTS } from '../permissions.js';
 import { audit } from '../audit.js';
@@ -98,6 +98,8 @@ router.put('/users/:id', requirePerm('employees.manage'), async (req, res) => {
     await audit(client, req.user.id, 'user.update', 'user', id, { role, is_active: isActive });
     return upd[0];
   });
+  // O'z parolini shu yerda o'zgartirgan egasi shu qurilmada tizimda qoladi (boshqa qurilmalar qayta kiradi)
+  if (result.id === req.user.id && body.password) setSessionCookie(res, result, req.store?.id ? req.store : null);
   res.json({ user: { ...publicUser(result), overrides: result.permissions } });
 });
 

@@ -193,7 +193,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 94 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar), «Yuk keldi» (yetkazib beruvchisiz kirim, qarzda kimdan kelgani majburiy, qadoqli qoldiq), to'lov muddati va eslatmalar, artikul (SKU), oylik natija, xarajatlar hisoboti.
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 100 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar), «Yuk keldi» (yetkazib beruvchisiz kirim, qarzda kimdan kelgani majburiy, qadoqli qoldiq), to'lov muddati va eslatmalar, artikul (SKU), oylik natija, xarajatlar hisoboti, uzoq va o'zi yangilanadigan sessiya (parol o'zgarsa eski sessiyalar yopilishi).
 
 ## Loyiha tuzilishi
 
@@ -212,7 +212,8 @@ npm test
 - Moliyaviy yozuvlar (sotuv, kirim, to'lov, kassa harakatlari) bazadan o'chirilmaydi. Xato bo'lsa, qaytarish yoki tuzatish orqali to'g'rilanadi.
 - Amallar tarixi (audit) o'zgartirilmaydi va o'chirilmaydi.
 - Kirish cheklovi: 15 daqiqada bir foydalanuvchi nomi va IP manzil uchun 8 ta noto'g'ri urinishdan keyin vaqtincha bloklanadi. Hisoblagich xotirada saqlanadi, shuning uchun server qayta ishga tushsa tiklanadi. Bir nechta server ishlatilsa, cheklov har bir serverda alohida hisoblanadi.
-- Sessiya 12 soat amal qiladi. Sessiya cookie'si `httpOnly` va `SameSite=Strict` bilan saqlanadi.
+- Foydalanuvchi o'zi «Chiqish» tugmasini bosmaguncha tizimda qoladi: sessiya 90 kun amal qiladi va har kuni ishlatilganda yana 90 kunga uzayadi. Sessiya cookie'si `httpOnly` va `SameSite=Strict` bilan saqlanadi.
+- Parol o'zgarsa (o'zi yoki egasi xodim parolini almashtirsa), boshqa qurilmalardagi eski sessiyalar yopiladi; parolni o'zgartirgan qurilma tizimda qoladi. Chiqishdan oldin tasdiqlash so'raladi, kirish oynasida shu qurilmadagi oxirgi login tayyor turadi.
 
 ## Kechiktirilgan imkoniyatlar
 

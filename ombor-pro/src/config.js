@@ -26,7 +26,10 @@ export const config = {
   },
   get uploadDir() { return process.env.UPLOAD_DIR || path.join(ROOT, 'uploads'); },
   get backupDir() { return process.env.BACKUP_DIR || path.join(ROOT, 'backups'); },
-  sessionHours: 12,
+  // Sessiya: foydalanuvchi o'zi «Chiqish» tugmasini bosmaguncha tizimda qoladi.
+  // Muddat har kuni ishlatilganda yangilanadi; 90 kun umuman kirilmasa — qayta kirish so'raladi.
+  sessionDays: 90,
+  sessionRenewHours: 24,
 };
 
 // Ishga tushishda tekshirish: production rejimida maxfiy kalit bo'lishi shart
