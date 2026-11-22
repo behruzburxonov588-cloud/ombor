@@ -65,6 +65,7 @@ export async function renderHome(root, ctx, opts) {
         <div class="sec-title"><h2>${esc(word)}</h2><span>savdo, foyda va xarajat</span></div>
         ${kpiCards(d, range, { periodOnly: true })}
       </section>
+      ${moneySection(ov, word)}
       ${snapshotSection(d, ov, cash)}
       <div class="home-row wide-narrow">
         ${salesCard(d, range)}
@@ -78,7 +79,6 @@ export async function renderHome(root, ctx, opts) {
         ${d.access.financial ? topCard(d) : ''}
         ${recentCard(d, canSell)}
       </div>
-      ${moneySection(ov, word)}
       ${movesSection(ov, word, { canBuy, canSell })}
       ${d.access.financial ? `<div class="home-foot no-print"><a class="btn btn-light" href="#/analytics?${periodQuery(range)}">${icon('chart', 'ico-sm')} Grafiklar, prognoz va batafsil tahlil</a></div>` : ''}
     </div>`;
@@ -294,38 +294,42 @@ function recentCard(d, canSell) {
     </section>`;
 }
 
-// ---------- Pul nima bo'ldi? ----------
+// ---------- Qancha foyda qildingiz? (qadamma-qadam: savdo → kelish narxi → xarajat → sof foyda) ----------
 function moneySection(d, word) {
   const m = d.money;
   if (!d.access.financial) return '';
   const profit = m.net_profit;
-  const loss = profit < 0;
+  const goods = m.gross_profit;
+  const left = Math.round((m.revenue - m.expenses) * 100) / 100;
+  const pct = (v) => (m.revenue > 0 ? ` <em class="pfs-pct">${String(Math.round((v / m.revenue) * 1000) / 10).replace('.', ',')}%</em>` : '');
+  const sum = (v, sign = '') => `${v < 0 ? '−' : sign}${moneyFull(Math.abs(v))}`;
   const parts = [
     { label: "Tovar o'zingizga tushgan narx", value: Math.max(0, m.cogs), cls: 'seg-cost' },
     { label: 'Xarajatlar', value: Math.max(0, m.expenses), cls: 'seg-exp' },
     { label: "Buzilgan / yo'qolgan tovar", value: Math.max(0, m.losses), cls: 'seg-loss' },
-    { label: 'Foyda', value: Math.max(0, profit), cls: 'seg-profit' },
+    { label: 'Sof foyda', value: Math.max(0, profit), cls: 'seg-profit' },
   ];
-  const total = parts.reduce((s, p) => s + p.value, 0) || 1;
-  const goods = Math.round((m.revenue - m.cogs) * 100) / 100;
-  const left = Math.round((m.revenue - m.expenses) * 100) / 100;
-  const sentence = m.sales_count === 0 && m.expenses === 0
-    ? `${word} savdo ham, xarajat ham bo'lmadi.`
-    : `${word} <b>${moneyFull(m.revenue)} so'm</b> savdo bo'ldi (${m.sales_count} ta).${m.expenses > 0
-      ? ` Xarajatlarga (obed, suv va boshqalar) savdo pulidan <b>${moneyFull(m.expenses)} so'm</b> olindi — savdodan <b class="${left < 0 ? 'red' : ''}">${left < 0 ? '−' : ''}${moneyFull(Math.abs(left))} so'm</b> qoldi.`
-      : ''}<br>Tovarlardan foyda (sotuv narxi − kelish narxi): <b class="${goods < 0 ? 'red' : 'green'}">${goods < 0 ? '−' : ''}${moneyFull(Math.abs(goods))} so'm</b>${m.losses > 0 ? `, buzilgan/yo'qolgan tovar <b>${moneyFull(m.losses)} so'm</b>` : ''}. ${loss
-      ? `<span class="red">Xarajatlar ayirilgach: <b>${moneyFull(Math.abs(profit))} so'm zarar</b>.</span>`
-      : `<span class="green">Xarajatlar ayirilgach sof foyda: <b>${moneyFull(profit)} so'm</b>.</span>`}`;
+  const total = parts.reduce((s2, p) => s2 + p.value, 0) || 1;
+  const empty = m.sales_count === 0 && m.expenses === 0 && m.losses === 0;
   return `
-    <section class="card home-card">
+    <section class="card home-card profit-card">
       <div class="hc-head">
-        <span class="hc-ico">${icon('money')}</span>
-        <div><h2>Pul nima bo'ldi?</h2><div class="card-sub">${esc(word)}: qancha tushdi, qayerga ketdi, qancha qoldi</div></div>
+        <span class="hc-ico in">${icon('trendUp')}</span>
+        <div><h2>Qancha foyda qildingiz?</h2><div class="card-sub">${esc(word)}: savdodan sof foydagacha — qadamma-qadam</div></div>
         <a class="link-btn" href="#/reports?tab=pnl&from=${d.range.from}&to=${d.range.to}">Batafsil ${icon('right', 'ico-xs')}</a>
       </div>
-      <p class="money-sentence">${sentence}</p>
+      ${empty ? `<p class="money-sentence">${esc(word)} savdo ham, xarajat ham bo'lmadi.</p>` : `
+      <div class="pf-steps" role="table" aria-label="Foyda hisobi">
+        <div class="pfs" role="row"><span class="pfs-n">1</span><span class="pfs-l">Savdo <small>${m.sales_count} ta chek, chegirma va qaytarilganlar ayirilgan</small></span><b>${sum(m.revenue)}</b></div>
+        <div class="pfs minus" role="row"><span class="pfs-n">2</span><span class="pfs-l">Sotilgan tovarlarning kelish narxi</span><b>${sum(-m.cogs)}</b></div>
+        <div class="pfs result" role="row"><span class="pfs-n">=</span><span class="pfs-l"><span>Tovardan foyda${pct(goods)}</span><small>sotuv narxi − kelish narxi</small></span><b class="${goods < 0 ? 'red' : 'green'}">${sum(goods, '+')}</b></div>
+        <div class="pfs minus" role="row"><span class="pfs-n">3</span><span class="pfs-l">Xarajatlar <small>obed, suv, ijara, maosh… — savdo pulidan</small></span><b>${sum(-m.expenses)}</b></div>
+        ${m.losses > 0 ? `<div class="pfs minus" role="row"><span class="pfs-n">4</span><span class="pfs-l">Buzilgan / yo'qolgan tovar</span><b>${sum(-m.losses)}</b></div>` : ''}
+        <div class="pfs total ${profit < 0 ? 'neg' : ''}" role="row"><span class="pfs-n">=</span><span class="pfs-l">${profit < 0 ? 'Zarar' : 'Sof foyda'} <small>${profit < 0 ? 'xarajatlar foydadan ko\'p bo\'ldi' : "qo'lingizda qoladigan foyda"}</small></span><b>${sum(profit, '+')} <small>so'm</small></b></div>
+      </div>
+      <div class="pf-cash">${icon('wallet', 'ico-sm')}<span>Savdo pulidan xarajatlar olingach qolgan pul: <b class="${left < 0 ? 'red' : ''}">${sum(left)} so'm</b></span></div>
       ${m.revenue > 0 ? `<div class="flowbar" role="img" aria-label="Savdo pulining taqsimoti">${parts.filter((p) => p.value > 0).map((p) => `<i class="${p.cls}" style="width:${(p.value / total) * 100}%" title="${esc(p.label)}: ${moneyFull(p.value)} so'm"></i>`).join('')}</div>
-      <div class="flow-legend">${parts.map((p) => `<span><i class="${p.cls}"></i>${esc(p.label)} <b>${moneyFull(p.value)}</b></span>`).join('')}</div>` : ''}
+      <div class="flow-legend">${parts.map((p) => `<span><i class="${p.cls}"></i>${esc(p.label)} <b>${moneyFull(p.value)}</b></span>`).join('')}</div>` : ''}`}
       <div class="money-foot">
         <span>${icon('truck', 'ico-xs')} Yuk keldi: <b>${m.purchases_count} ta</b>, ${moneyFull(m.purchases_total)} so'm${m.purchases_unpaid > 0 ? ` <span class="amber">(to'lanmagan ${moneyFull(m.purchases_unpaid)})</span>` : ''}</span>
         <span>${icon('wallet', 'ico-xs')} Yetkazib beruvchilarga to'landi: <b>${moneyFull(m.paid_suppliers)} so'm</b></span>

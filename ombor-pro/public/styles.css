@@ -2077,3 +2077,38 @@ tr.clickable:hover td { background: #f7f9fd; }
 .size-range .input { width: 76px; min-height: 42px; text-align: center; }
 .size-range select.input { width: auto; text-align: left; }
 @media (max-width: 559px) { .size-range select.input { flex: 1 1 100%; } .size-range .btn { flex: 1 1 100%; } }
+
+/* ---------- Foyda: qadamma-qadam hisob, har bir sotuv foydasi ---------- */
+.profit-card { gap: 16px; }
+.pf-steps { display: grid; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.pfs { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14.5px; }
+.pfs:last-child { border-bottom: 0; }
+.pfs-n { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-weight: 750; font-size: 13px; background: var(--hover); color: var(--text-2); }
+.pfs-l { display: grid; gap: 1px; color: var(--text-2); font-weight: 550; min-width: 0; }
+.pfs-l small { font-size: 12px; color: var(--muted); font-weight: 450; }
+.pfs b { font-variant-numeric: tabular-nums; font-size: 16px; white-space: nowrap; text-align: right; }
+.pfs.minus b { color: var(--text-2); font-weight: 600; }
+.pfs.result { background: var(--surface-2); }
+.pfs.result .pfs-n, .pfs.total .pfs-n { background: var(--accent-soft); color: var(--accent); }
+.pfs.total { background: var(--pos-bg); }
+.pfs.total .pfs-l { color: var(--text); font-weight: 750; font-size: 15.5px; }
+.pfs.total b { font-size: 24px; font-weight: 800; color: var(--pos); letter-spacing: -.02em; }
+.pfs.total b small { font-size: 13px; font-weight: 600; color: var(--muted); }
+.pfs.total.neg { background: var(--neg-bg); }
+.pfs.total.neg b { color: var(--neg); }
+.pf-cash { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-2); padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px dashed var(--border-strong); }
+.pf-cash b { color: var(--text); }
+@media (max-width: 559px) {
+  .pfs { grid-template-columns: 24px minmax(0, 1fr); padding: 10px 12px; row-gap: 2px; }
+  .pfs b { grid-column: 2; text-align: left; font-size: 17px; }
+  .pfs.total b { font-size: 22px; }
+}
+.sale-profit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; margin-bottom: 12px; padding: 12px 14px; border-radius: 12px; background: var(--pos-bg); border: 1px solid #c6f0d8; }
+.sale-profit > span { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; color: #085d3a; }
+.sale-profit > b { font-size: 20px; font-weight: 800; color: var(--pos); font-variant-numeric: tabular-nums; }
+.sale-profit.neg { background: var(--neg-bg); border-color: #fecdca; }
+.sale-profit.neg > span, .sale-profit.neg > b { color: var(--neg); }
+.sp-lines { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; font-size: 12.5px; color: var(--text-2); border-top: 1px dashed #b7e4c9; padding-top: 6px; }
+.sp-lines span:nth-child(2n) { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.sale-profit small { grid-column: 1 / -1; }
+.pfs-pct { font-style: normal; font-size: 12px; font-weight: 700; color: var(--pos); background: var(--pos-bg); border-radius: 6px; padding: 1px 6px; margin-left: 4px; }

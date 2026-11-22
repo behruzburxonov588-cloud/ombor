@@ -118,3 +118,35 @@ test("xarajat (obed, suv) savdo pulidan ayiriladi: savdodan qolgan pul va tovard
   const cats = (await owner.get('/api/expenses?limit=5')).body;
   assert.ok((cats.categories || []).includes('food') && cats.categories.includes('household'));
 });
+
+test("har bir sotuvning foydasi: egasiga ko'rinadi, kassirga tannarx umuman yuborilmaydi", async () => {
+  const { id } = (await owner.post('/api/products', { name: 'Ruchka', base_unit_id: piece, selling_price: 3000, purchase_price: 1800, opening_qty: 50 })).body;
+  const sale = (await owner.post('/api/sales', { items: [{ product_id: id, quantity: 5, discount: 1000 }], payment: { method: 'cash' } })).body.sale;
+  assert.equal(sale.profit, 15000 - 1000 - 9000, 'sotuv 15 000 − chegirma 1 000 − kelish 9 000');
+  assert.equal(sale.items[0].profit, 5000);
+  assert.equal(sale.cost_missing, false);
+  // qaytarish: 1 dona (2 800 qaytadi, tannarx 1 800) → foyda 4 000
+  await owner.post(`/api/sales/${sale.id}/return`, { items: [{ sale_item_id: sale.items[0].id, quantity: 1 }], refund_method: 'cash' });
+  const after = (await owner.get(`/api/sales/${sale.id}`)).body.sale;
+  assert.equal(after.profit, 4000);
+  const t = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
+  const hist = (await owner.get(`/api/sales?from=${t}&to=${t}`)).body;
+  assert.equal(hist.sales.find((x) => x.id === sale.id).profit, 4000);
+  assert.ok(typeof hist.totals.profit === 'number');
+  // kassir
+  await owner.post('/api/users', { full_name: 'Kassir', username: 'kassir1', password: 'secret1', role: 'cashier' });
+  const cashier = client(srv.base);
+  assert.equal((await cashier.post('/api/auth/login', { username: 'kassir1', password: 'secret1' })).status, 200);
+  const cs = (await cashier.post('/api/sales', { items: [{ product_id: id, quantity: 1 }], payment: { method: 'cash' } })).body.sale;
+  assert.equal(cs.cost_total, undefined);
+  assert.equal(cs.profit, undefined);
+  assert.equal(cs.items[0].cost_total, undefined);
+  const cd = (await cashier.get(`/api/sales/${cs.id}`)).body.sale;
+  assert.equal(cd.cost_total, undefined);
+  assert.equal(cd.profit, undefined);
+  const ch = (await cashier.get(`/api/sales?from=${t}&to=${t}`));
+  if (ch.status === 200) {
+    assert.equal(ch.body.totals.profit, undefined);
+    assert.ok(ch.body.sales.every((x) => x.profit === undefined));
+  }
+});

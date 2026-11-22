@@ -535,6 +535,11 @@ async function showReceipt(sale, ctx, opts = {}) {
   const { close, el } = openModal({
     title: opts.fresh ? 'Sotuv yakunlandi' : `Chek ${full.receipt_no}`,
     body: `<div class="alert ${opts.fresh ? "alert-ok" : "alert-info"}" style="margin-bottom:12px">${icon("check", "ico-sm")}<div>Chek: <b>${esc(full.receipt_no)}</b> · jami <b>${money(full.total)}</b>${Number(full.balance_due) ? ` · qarz <b>${money(full.balance_due)}</b>` : ''}</div></div>
+           ${full.profit !== undefined ? `<div class="sale-profit ${full.profit < 0 ? 'neg' : ''}">
+              <span>${icon('trendUp', 'ico-sm')} Bu sotuvdan foyda</span><b>${full.profit < 0 ? '−' : '+'}${money(Math.abs(full.profit))}</b>
+              ${full.items.length > 1 ? `<div class="sp-lines">${full.items.map((i) => `<span>${esc(i.product_name)}</span><span class="${i.profit < 0 ? 'red' : ''}">${i.profit < 0 ? '−' : '+'}${money(Math.abs(i.profit))}</span>`).join('')}</div>` : ''}
+              ${full.cost_missing ? `<small class="amber">Ba'zi tovarning kelish narxi yozilmagan — foyda aslidan ko'p ko'rinadi</small>` : ''}
+            </div>` : ''}
            <div id="print-area">${html}</div>`,
     foot: `<button class="btn btn-outline" type="button" data-print>${icon('print', 'ico-sm')} Chop etish</button>
            <button class="btn btn-light" type="button" data-share>${icon('share', 'ico-sm')} Ulashish</button>
@@ -774,13 +779,17 @@ async function renderHistory(root, ctx, query = {}) {
     const net = whole ? r.totals.net : rows.reduce((sum, x) => sum + Number(x.total) - Number(x.refunded_total || 0), 0);
     const debt = whole ? r.totals.debt : rows.reduce((sum, x) => sum + Number(x.balance_due || 0), 0);
     const returned = whole ? r.totals.refunded : rows.reduce((sum, x) => sum + Number(x.refunded_total || 0), 0);
+    // Foyda — faqat tannarxni ko'ra oladiganlarga (server kassirga yubormaydi)
+    const hasProfit = r.totals && r.totals.profit !== undefined;
+    const profit = !hasProfit ? null : whole ? r.totals.profit : rows.reduce((sum, x) => sum + Number(x.profit || 0), 0);
     root.querySelector('#sum').innerHTML = `
-      <div class="sum-cell"><span>Cheklar</span><b>${count} ta</b></div>
+      <div class="sum-cell"><span>Cheklar</span><b>${count} ta</b>${hasProfit ? `<small>o'rtacha ${money(count ? net / count : 0)}</small>` : ''}</div>
       <div class="sum-cell"><span>Savdo summasi</span><b>${money(net)}</b><small>qaytarishlar ayirilgan</small></div>
-      <div class="sum-cell"><span>O'rtacha chek</span><b>${money(count ? net / count : 0)}</b></div>
+      ${hasProfit ? `<div class="sum-cell ${profit < 0 ? 'bad' : 'good'}"><span>Foyda</span><b>${profit < 0 ? '−' : ''}${money(Math.abs(profit))}</b><small>sotuv − kelish narxi</small></div>`
+    : `<div class="sum-cell"><span>O'rtacha chek</span><b>${money(count ? net / count : 0)}</b></div>`}
       <div class="sum-cell ${debt > 0 ? 'warn' : ''}"><span>Nasiyada qolgan</span><b>${money(debt)}</b>${returned > 0 ? `<small>qaytarilgan ${money(returned)}</small>` : ''}</div>`;
     root.querySelector('#hlist').innerHTML = rows.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Chek</th><th>Vaqt</th><th>Mijoz</th><th>Sotuvchi</th><th>To'lov</th><th class="right">Summa</th><th>Holat</th><th></th></tr></thead>
+        <thead><tr><th>Chek</th><th>Vaqt</th><th>Mijoz</th><th>Sotuvchi</th><th>To'lov</th><th class="right">Summa</th>${hasProfit ? '<th class="right">Foyda</th>' : ''}<th>Holat</th><th></th></tr></thead>
         <tbody>${rows.map((s) => `
           <tr class="clickable" data-view="${s.id}">
             <td data-label="Chek"><b>${esc(s.receipt_no)}</b></td>
@@ -789,6 +798,7 @@ async function renderHistory(root, ctx, query = {}) {
             <td data-label="Sotuvchi">${esc(s.cashier_name || '—')}</td>
             <td data-label="To'lov">${esc(payLabel(s.payment_method))}</td>
             <td data-label="Summa" class="right num"><b>${money(s.total)}</b>${Number(s.balance_due) ? `<div class="small amber">qarz ${num(s.balance_due)}</div>` : ''}</td>
+            ${hasProfit ? `<td data-label="Foyda" class="right num ${Number(s.profit) < 0 ? 'red' : 'green'}"><b>${Number(s.profit) < 0 ? '−' : '+'}${money(Math.abs(Number(s.profit)))}</b></td>` : ''}
             <td data-label="Holat">${s.status === 'completed' ? '<span class="badge badge-ok">Yakunlangan</span>' : s.status === 'returned' ? '<span class="badge badge-muted">Qaytarilgan</span>' : '<span class="badge badge-low">Qisman qaytarilgan</span>'}</td>
             <td class="no-label" style="text-align:right;white-space:nowrap">
               <button class="btn btn-sm btn-light" type="button" data-view="${s.id}">Chek</button>
