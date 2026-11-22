@@ -154,11 +154,11 @@ function cartHtml(ctx) {
           <div class="top">
             <div class="grow"><div class="name">${esc(l.name)}</div>
               <div class="small muted">${num(c.f * Number(l.price), 2)} so'm / ${esc(l.unit_name)} · qoldiq ${num(l.stock, 4)} ${esc(l.base_unit_name)}</div></div>
-            <button class="icon-btn icon-btn-light" style="width:40px;height:40px" type="button" data-remove="${i}" aria-label="O'chirish">${icon('minus', 'ico-sm')}</button>
+            <button class="cart-x" type="button" data-remove="${i}" aria-label="${esc(l.name)}ni savatchadan olib tashlash">${icon('x', 'ico-sm')}<span>Olib tashlash</span></button>
           </div>
           <div class="row" style="justify-content:space-between">
             <div class="qty-ctrl" aria-label="Miqdor">
-              <button type="button" data-step="${i}" data-d="-1" aria-label="Kamaytirish">−</button>
+              <button type="button" data-step="${i}" data-d="-1" aria-label="${Number(l.qty) <= 1 ? 'Savatchadan olib tashlash' : 'Kamaytirish'}">${Number(l.qty) <= 1 ? icon('x', 'ico-sm') : '−'}</button>
               <input type="text" inputmode="decimal" value="${String(round4(l.qty)).replace('.', ',')}" data-qty="${i}" aria-label="Miqdor">
               <button type="button" data-step="${i}" data-d="1" aria-label="Ko'paytirish">+</button>
             </div>
@@ -171,7 +171,7 @@ function cartHtml(ctx) {
           ${c.over ? '<div class="small red" style="font-weight:700">Qoldiq yetarli emas</div>' : ''}
         </div>`;
     }).join('')
-    : emptyState("Savatcha bo'sh. Chapdagi tovarni bosing — u shu yerga tushadi. Keyin to'lov turini tanlab «Sotuvni yakunlash» ni bosing.", 'cart');
+    : emptyState("Savatcha bo'sh. Tovarni bosing: u shu yerga tushadi. Adashsangiz, tovar ustidagi «−» ni bosing.", 'cart');
 
   const cust = S.customer
     ? `<div class="alert alert-info" style="align-items:center"><div class="grow"><b>${esc(S.customer.name)}</b>
@@ -199,20 +199,17 @@ function cartHtml(ctx) {
     <div class="stack" style="max-height:none">${lines}</div>
     ${S.cart.length ? `
       <div style="margin-top:12px">${cust}</div>
-      <div class="cart-totals" style="margin-top:12px">
-        <div class="between"><span class="muted">Tovarlar summasi</span><span class="num">${money(t.gross)}</span></div>
-        ${t.discount ? `<div class="between"><span class="muted">Chegirma</span><span class="num red">−${money(t.discount)}</span></div>` : ''}
-        <div class="between"><span style="font-weight:700">Xaridor to'laydi</span><span class="big num">${money(t.total)}</span></div>
-      </div>
-      <div style="margin-top:12px"><div class="small" style="font-weight:700;margin-bottom:6px">Xaridor qanday to'laydi?</div>
-        <div class="pay-grid">${METHODS.map((m) => `<button type="button" data-method="${m.key}" class="${S.method === m.key ? 'active' : ''}">${icon(m.ico)}<span>${m.label}</span></button>`).join('')}</div>
-      </div>
       <div class="stack" style="margin-top:12px">${pay}${dueRow}</div>
-      ${reason ? `<div class="alert alert-warn" style="margin-top:12px">${esc(reason)}</div>` : ''}
-      <button class="btn btn-success btn-lg btn-block" type="button" data-checkout style="margin-top:14px" ${reason ? 'disabled' : ''}>
-        ${icon('check')} Sotuvni yakunlash · ${money(t.total)}
-      </button>
-      <button class="btn btn-ghost btn-block" type="button" data-clear style="margin-top:6px">Savatchani tozalash</button>
+      <button class="btn btn-ghost btn-block" type="button" data-clear style="margin-top:6px">Savatchani butunlay tozalash</button>
+      <div class="cart-foot">
+        ${t.discount ? `<div class="between small"><span class="muted">Tovarlar ${money(t.gross)}, chegirma</span><span class="num red">−${money(t.discount)}</span></div>` : ''}
+        <div class="between"><span style="font-weight:700">Jami</span><span class="big num">${money(t.total)}</span></div>
+        <div class="pay-row" role="group" aria-label="Xaridor qanday to'laydi">${METHODS.map((m) => `<button type="button" data-method="${m.key}" class="${S.method === m.key ? 'active' : ''}" aria-pressed="${S.method === m.key}">${icon(m.ico)}<span>${m.label}</span></button>`).join('')}</div>
+        ${reason ? `<div class="small amber" style="font-weight:650">${esc(reason)}</div>` : ''}
+        <button class="btn btn-success btn-lg btn-block" type="button" data-checkout ${reason ? 'disabled' : ''}>
+          ${icon('check')} Sotish · ${money(t.total)}
+        </button>
+      </div>
     ` : ''}`;
 }
 
@@ -228,7 +225,12 @@ function mountCart(el, ctx) {
     const i = Number(b.dataset.step);
     const l = S.cart[i];
     const next = round4(Number(l.qty) + Number(b.dataset.d));
-    if (next <= 0) return;
+    if (next <= 0) { // 1 tadan kamaytirsa — savatchadan chiqadi
+      S.cart.splice(i, 1);
+      save();
+      refreshAll();
+      return;
+    }
     l.qty = next;
     if (calc(l).over) { toast(`"${l.name}" qoldig'i yetarli emas`, 'warn'); return; }
     save();
@@ -319,6 +321,8 @@ function syncTiles() {
     const pid = Number(tile.dataset.pid);
     const n = S.cart.filter((l) => l.pid === pid).reduce((sum, l) => sum + Number(l.qty), 0);
     tile.classList.toggle('in-cart', n > 0);
+    const minus = tile.parentElement?.querySelector('[data-minus]');
+    if (minus) minus.hidden = !(n > 0);
     let b = tile.querySelector('.qty-badge');
     if (n > 0) {
       if (!b) {
@@ -534,18 +538,39 @@ function gridHtml(list) {
   return list.map((p) => {
     const inCart = S.cart.filter((l) => l.pid === p.id).reduce((s, l) => s + Number(l.qty), 0);
     const out = Number(p.stock_qty) <= 0;
-    return `
-      <button class="pcard ${inCart > 0 ? 'in-cart' : ''}" type="button" data-pid="${p.id}" ${out ? 'disabled' : ''} aria-label="${esc(p.name)} qo'shish">
+    return `<div class="pwrap">
+      <button class="pcard ${inCart > 0 ? 'in-cart' : ''}" type="button" data-pid="${p.id}" ${out ? 'disabled' : ''} aria-label="${esc(p.name)}: savatchaga qo'shish">
         ${inCart > 0 ? `<span class="qty-badge">${num(inCart, 2)}</span>` : ''}
         ${productPhoto(p, 'pcard-img')}
         <div class="pname">${esc(p.name)}</div>
         <div class="pprice">${num(p.selling_price)} <span class="small muted">so'm/${esc(p.base_unit_name)}</span></div>
         <div class="pstock">${out ? '<span class="red" style="font-weight:700">Tugagan</span>' : `Qoldiq: ${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}`}</div>
-      </button>`;
+      </button>
+      <button class="pcard-minus" type="button" data-minus="${p.id}" aria-label="${esc(p.name)}: bittaga kamaytirish yoki olib tashlash" ${inCart > 0 ? '' : 'hidden'}>${icon('minus')}</button>
+    </div>`;
   }).join('');
 }
 
+// Plitka ustidagi «−»: oxirgi qo'shilgan qatordan bittasini kamaytiradi, qolmasa savatchadan chiqaradi
+function removeOne(pid) {
+  for (let i = S.cart.length - 1; i >= 0; i -= 1) {
+    const l = S.cart[i];
+    if (l.pid !== pid) continue;
+    const next = round4(Number(l.qty) - 1);
+    if (next <= 0) S.cart.splice(i, 1);
+    else l.qty = next;
+    save();
+    refreshAll();
+    if (navigator.vibrate) navigator.vibrate(8);
+    return;
+  }
+}
+
 function bindGrid() {
+  document.querySelectorAll('#grid [data-minus]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    removeOne(Number(b.dataset.minus));
+  }));
   document.querySelectorAll('[data-pid]').forEach((b) => b.addEventListener('click', async () => {
     const p = products.find((x) => String(x.id) === b.dataset.pid);
     if (!p) return;
@@ -793,7 +818,7 @@ export async function render(root, params, ctx) {
       <aside class="pos-cart card" id="cart-panel" ${isDesktop ? '' : 'hidden'}></aside>
     </div>
     <button class="mobile-cartbar" id="cartbar" type="button" hidden>
-      <span class="count" data-count>0</span><span>Savatcha</span><span class="total" data-total>0 so'm</span>
+      <span class="count" data-count>0</span><span class="cb-text"><b>Sotishga o'tish</b><small>Savatcha va to'lov</small></span><span class="total" data-total>0 so'm</span>${icon('right', 'ico-sm')}
     </button>`;
 
   const q = root.querySelector('#q');
@@ -821,7 +846,7 @@ export async function render(root, params, ctx) {
   root.querySelector('#btn-bc').addEventListener('click', doBarcode);
   root.querySelector('#btn-scan').addEventListener('click', openScanner);
   root.querySelector('#cartbar').addEventListener('click', () => {
-    const r = openModal({ title: 'Savatcha', body: '<div id="cart-m"></div>', wide: true, onClose: () => { cartModal = null; } });
+    const r = openModal({ title: 'Savatcha va to\'lov', body: '<div id="cart-m"></div>', wide: true, onClose: () => { cartModal = null; } });
     cartModal = r.el.querySelector('#cart-m');
     cartModal.classList.add('stack');
     mountCart(cartModal, ctx);

@@ -1339,7 +1339,7 @@ tfoot td { border-top: 2px solid var(--border); background: var(--surface-2); }
 
 /* ---------- Telefon: kenglik xatolarini tuzatish ---------- */
 /* Grid elementlari ichidagi uzun (aylantiriladigan) qatorlar sahifani kengaytirib yubormasligi uchun */
-.pos { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 719px) { .pos { grid-template-columns: minmax(0, 1fr); } } /* telefonda bitta ustun; kompyuterda o'ngda savatcha */
 .pos-main-col, .plist-tools > *, .list-tools > *, .toolbar-row > *, .rcv-pick, .home > *, .filterbar > * { min-width: 0; }
 .plist-tools { grid-template-columns: minmax(0, 1fr); }
 .chips.pos-cats { max-width: 100%; }
@@ -1428,4 +1428,27 @@ body.modal-open { overflow: hidden; }
   .rcv-steps { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-top: -4px; }
   .rcv-steps::-webkit-scrollbar { display: none; }
   .rcv-steps li { flex: none; white-space: nowrap; }
+}
+
+/* ---------- Sotuv joyi: oson bekor qilish va doim ko'rinadigan «Sotish» ---------- */
+.pwrap { position: relative; display: flex; min-width: 0; }
+.pwrap > .pcard { flex: 1; width: 100%; }
+.pcard-minus { position: absolute; top: 6px; left: 6px; z-index: 2; width: 44px; height: 44px; border-radius: 999px; border: 2px solid var(--surface); background: var(--danger, #c2413a); color: #fff; display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 10px rgba(0, 0, 0, .25); }
+.pcard-minus .ico { width: 22px; height: 22px; stroke-width: 2.6; }
+.pcard-minus:active { transform: scale(.92); }
+.pcard-minus[hidden] { display: none; }
+.cart-x { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--danger, #c2413a); font-weight: 600; font-size: 13px; cursor: pointer; flex: none; }
+.cart-x:hover { background: var(--hover); }
+.cart-foot { position: sticky; bottom: 0; z-index: 2; display: grid; gap: 10px; margin: 14px -2px 0; padding: 12px 2px calc(4px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -10px 18px -14px rgba(0, 0, 0, .35); }
+.cart-foot .big { font-size: 24px; font-weight: 750; letter-spacing: -.02em; }
+.pay-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.pay-row button { min-height: 52px; padding: 4px 2px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; line-height: 1.15; }
+.pay-row button .ico { width: 18px; height: 18px; color: var(--muted); }
+.pay-row button.active { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+.pay-row button.active .ico { color: var(--accent); }
+.cart-foot [data-checkout] { min-height: 56px; font-size: 17px; }
+.mobile-cartbar .cb-text { display: flex; flex-direction: column; line-height: 1.15; }
+.mobile-cartbar .cb-text small { font-size: 11.5px; opacity: .85; font-weight: 500; }
+@media (min-width: 720px) {
+  .pos-cart { max-height: calc(100vh - var(--topbar-h) - 32px); overflow-y: auto; }
 }
