@@ -1,9 +1,9 @@
 // Qo'lda qarz yozish va qarz to'lovini qabul qilish oynalari
 // (Qarzdor mijozlar, mijoz va yetkazib beruvchi sahifalari, "+ Qo'shish" menyusidan ochiladi)
-import { get, post, esc, icon, money, openModal, toast, withBusy, todayStr, newKey } from './ui.js';
+import { get, post, esc, icon, money, openModal, toast, withBusy, todayStr, newKey, parseMoney } from './ui.js';
 
 const toNum = (v) => {
-  const n = Number(String(v ?? '').replace(/\s/g, '').replace(',', '.'));
+  const n = parseMoney(v);
   return Number.isFinite(n) ? n : 0;
 };
 
@@ -53,7 +53,7 @@ export async function openDebtForm({ kind = 'customer', party = null, onDone = (
           <datalist id="dwho-list">${parties.map((p) => `<option value="${esc(p.name)}">${esc(p.phone || '')}</option>`).join('')}</datalist>
           <small id="dwho-hint"></small></label>
         <label class="field" id="dphone-row" hidden><span>Telefon (ixtiyoriy)</span><input class="input" id="dphone" inputmode="tel" maxlength="30" placeholder="+998 90 123 45 67"></label>`}
-        <label class="field"><span>Qarz summasi (so'm) *</span><input class="input" id="damount" inputmode="decimal" placeholder="0"></label>
+        <label class="field"><span>Qarz summasi (so'm) *</span><input class="input" id="damount" data-money inputmode="decimal" placeholder="0"></label>
         <div class="form-grid two" style="gap:10px">
           <label class="field"><span>Qarz qachon paydo bo'lgan?</span><input class="input" type="date" id="ddate" value="${today}" max="${today}"></label>
           ${t.due ? `<label class="field"><span>${t.dueLabel || "Qachon to'lashi kerak? (ixtiyoriy)"}</span><input class="input" type="date" id="ddue"></label>` : '<div></div>'}
@@ -119,7 +119,7 @@ export function openReceivePayment({ debtors, selected = null, onDone = () => {}
             ${debtors.map((d) => `<option value="${d.id}" ${first && first.id === d.id ? 'selected' : ''}>${esc(d.name)} — ${money(d.debt)}</option>`).join('')}
           </select></label>
         <div class="form-grid two" style="gap:10px">
-          <label class="field"><span>Qancha to'ladi? (so'm) *</span><input class="input" id="ramount" inputmode="decimal" value="${first ? first.debt : ''}"></label>
+          <label class="field"><span>Qancha to'ladi? (so'm) *</span><input class="input" id="ramount" data-money inputmode="decimal" value="${first ? first.debt : ''}"></label>
           <label class="field"><span>Qanday to'ladi?</span>
             <select class="input" id="rmethod"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
         </div>

@@ -10,7 +10,7 @@ import { config } from '../config.js';
 import { HttpError, num, str, round2, round4, paging, dateStr, todayLocal, addDays } from '../util.js';
 import { audit } from '../audit.js';
 import { productUnits } from '../services/catalog.js';
-import { receiveStock } from '../services/inventory.js';
+import { receiveStock, recostProduct, missingCost } from '../services/inventory.js';
 
 const router = Router();
 
@@ -179,6 +179,7 @@ router.get('/products', requirePerm('products.view', 'sales.create', 'purchases.
   }
   if (req.query.stock === 'low') where.push('p.min_stock > 0 AND p.stock_qty > 0 AND p.stock_qty <= p.min_stock');
   if (req.query.stock === 'out') where.push('p.stock_qty <= 0');
+  if (req.query.cost === 'missing') where.push('p.purchase_price = 0 AND p.avg_cost = 0');
   if (req.query.expiry === 'soon') where.push("p.expiry_date IS NOT NULL AND p.expiry_date <= (now() AT TIME ZONE 'Asia/Tashkent')::date + 30");
   const { limit, offset } = paging(req.query, { limit: 200, max: 1000 });
   const { rows } = await pool.query(
@@ -210,6 +211,7 @@ router.get('/products/:id', requirePerm('products.view', 'stock.view'), async (r
   res.json({
     product: hideCost(shapeProduct(rows[0], conv), req.user),
     batches: seesCost(req.user) ? batches : batches.map(({ unit_cost: _c, ...b }) => b),
+    ...(seesCost(req.user) ? { missing_cost: await missingCost(pool, id) } : {}),
   });
 });
 
@@ -348,11 +350,38 @@ router.put('/products/:id', requirePerm('products.manage'), async (req, res) => 
         v.description, v.descGiven, v.expiryDate, v.expiryGiven],
     );
     await saveConversions(client, id, v.conversions);
+    // Kelish narxi yozilgan/o'zgargan bo'lsa: boshlang'ich va narxsiz qoldiq hamda ulardan qilingan sotuvlar qayta hisoblanadi
+    let recost = null;
+    // Narx o'zgargan bo'lsa — boshlang'ich qoldiq ham; o'zgarmagan bo'lsa — faqat narxsiz (0) qoldiq to'ldiriladi
+    const changed = Math.abs(v.purchasePrice - Number(cur[0].purchase_price)) > 0.004;
+    const mode = body.recost === false || body.recost === 'none' ? null
+      : body.recost === 'all' ? 'all' : changed ? 'missing' : 'zero';
+    if (mode && v.purchasePrice > 0) {
+      recost = await recostProduct(client, id, v.purchasePrice, mode);
+      if (!recost.batches) recost = null;
+    }
     await audit(client, req.user.id, 'product.update', 'product', id, {
       name: v.name, selling_price: v.sellingPrice, purchase_price: v.purchasePrice, min_stock: v.minStock,
+      ...(recost ? { recost_batches: recost.batches, recost_sales: recost.sales } : {}),
     });
+    return recost;
+  }).then((recost) => res.json({ ok: true, recost }));
+});
+
+// Tannarxni to'g'irlash: kelish narxi yozilmagan yoki xato yozilgan tovar uchun foyda qayta hisoblanadi
+router.post('/products/:id/recost', requirePerm('products.manage'), async (req, res) => {
+  const id = Number(req.params.id);
+  const body = req.body || {};
+  const price = round2(num(body.purchase_price, 'Kelish narxi', { positive: true }));
+  const mode = body.mode === 'all' ? 'all' : 'missing';
+  const result = await withTransaction(async (client) => {
+    const { rows } = await client.query('SELECT id, name FROM products WHERE id = $1 FOR UPDATE', [id]);
+    if (!rows[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+    const r = await recostProduct(client, id, price, mode);
+    await audit(client, req.user.id, 'product.recost', 'product', id, { name: rows[0].name, purchase_price: price, mode, recost_batches: r.batches, recost_sales: r.sales });
+    return r;
   });
-  res.json({ ok: true });
+  res.json({ ok: true, ...result });
 });
 
 router.post('/products/:id/archive', requirePerm('products.manage'), async (req, res) => {

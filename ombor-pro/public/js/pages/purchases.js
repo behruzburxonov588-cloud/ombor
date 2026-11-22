@@ -2,14 +2,19 @@
 import {
   get, post, icon, esc, num, money, dateOnly, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, productPhoto, packText,
-  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, groupBySize,
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, groupBySize, parseMoney, formatMoneyInput,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { openProductWizard } from '../productform.js';
 
 const newKey = () => `pur-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+// Miqdor: "1,5" = 1,5; probellar e'tiborsiz. Narx va summa: toMoney ("12.000" = 12 000 so'm)
 const toNum = (v) => {
-  const n = Number(String(v ?? '').trim().replace(',', '.'));
+  const n = Number(String(v ?? '').replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+};
+const toMoney = (v) => {
+  const n = parseMoney(v);
   return Number.isFinite(n) ? n : 0;
 };
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -173,7 +178,7 @@ async function renderNew(root, ctx, preselect = null) {
           </div>
           <div id="part-box" hidden style="margin-top:10px">
             <label class="field"><span>Qancha to'ladingiz?</span>
-              <div class="money-input"><input class="input" id="paid" inputmode="decimal" placeholder="0"><em>so'm</em></div></label>
+              <div class="money-input"><input class="input" id="paid" data-money inputmode="decimal" placeholder="0"><em>so'm</em></div></label>
           </div>
           <div id="due-box" hidden style="margin-top:10px">
             <label class="field"><span>Qachongacha to'laysiz? <small>(ixtiyoriy — muddat yaqinlashganda eslatamiz)</small></span>
@@ -191,8 +196,8 @@ async function renderNew(root, ctx, preselect = null) {
           <summary>Sana, yo'l kira, chegirma, izoh</summary>
           <div class="form-grid two" style="gap:10px;margin-top:10px">
             <label class="field"><span>Sana</span><input class="input" type="date" id="pdate" value="${todayStr()}"></label>
-            <label class="field"><span>Yo'l kira (so'm)</span><input class="input" id="dlv" inputmode="decimal" placeholder="0"></label>
-            <label class="field"><span>Sizga chegirma (so'm)</span><input class="input" id="dsc" inputmode="decimal" placeholder="0"></label>
+            <label class="field"><span>Yo'l kira (so'm)</span><input class="input" id="dlv" data-money inputmode="decimal" placeholder="0"></label>
+            <label class="field"><span>Sizga chegirma (so'm)</span><input class="input" id="dsc" data-money inputmode="decimal" placeholder="0"></label>
             <label class="field"><span>Izoh</span><input class="input" id="note" maxlength="500" placeholder="Ixtiyoriy"></label>
           </div>
           <p class="small muted" style="margin-top:6px">Yo'l kira va chegirma tovarlarning kelish narxiga taqsimlanadi.</p>
@@ -218,7 +223,7 @@ async function renderNew(root, ctx, preselect = null) {
   const unitsOf = (p) => [{ unit_id: p.base_unit_id, name: p.base_unit_name, factor: 1 }, ...(p.conversions || [])];
   const unitOf = (l) => unitsOf(l.p).find((u) => u.unit_id === l.unit_id) || unitsOf(l.p)[0];
   const baseQty = (l) => round4(toNum(l.quantity) * unitOf(l).factor);
-  const lineTotal = (l) => round2(toNum(l.quantity) * toNum(l.unit_price));
+  const lineTotal = (l) => round2(toNum(l.quantity) * toMoney(l.unit_price));
   const inCart = (pid) => lines.find((l) => l.p.id === pid);
   const priceFor = (p, factor) => (Number(p.purchase_price) > 0 ? String(round2(Number(p.purchase_price) * factor)) : '');
 
@@ -232,7 +237,7 @@ async function renderNew(root, ctx, preselect = null) {
     const un = unitOf(l);
     const parts = [];
     if (un.factor !== 1) parts.push(`1 ${esc(un.name)} ichida ${num(un.factor, 4)} ${esc(l.p.base_unit_name)}`);
-    const price = toNum(l.unit_price);
+    const price = toMoney(l.unit_price);
     if (un.factor !== 1 && price > 0) parts.push(`1 ${esc(l.p.base_unit_name)} ${money(round2(price / un.factor))}ga tushdi`);
     const sell = Number(l.p.selling_price);
     if (price > 0 && sell > 0) {
@@ -294,7 +299,7 @@ async function renderNew(root, ctx, preselect = null) {
             <span class="qty-ctrl"><button type="button" data-szd="${v.id}" aria-label="Kamaytirish">−</button><input type="text" inputmode="decimal" data-szq="${v.id}" placeholder="0" value="${inCart(v.id) ? esc(String(inCart(v.id).quantity)) : ''}" aria-label="${esc(v.variant_label)}: nechta keldi"><button type="button" data-szi="${v.id}" aria-label="Ko'paytirish">+</button></span>
           </label>`).join('')}</div>
         <label class="field"><span>1 ${esc(first.base_unit_name)} kelish narxi (hamma o'lchamga)</span>
-          <div class="money-input"><input class="input input-lg" id="szp" inputmode="decimal" value="${esc(String(price0 ?? ''))}" placeholder="0"><em>so'm</em></div></label>
+          <div class="money-input"><input class="input input-lg" id="szp" data-money inputmode="decimal" value="${esc(formatMoneyInput(price0 ?? ''))}" placeholder="0"><em>so'm</em></div></label>
         <div class="small" id="szsum"></div>
         <div id="szerr"></div>
         <button class="btn btn-lg btn-block" type="submit">${icon('check')} Qo'shish</button></form>`,
@@ -302,7 +307,7 @@ async function renderNew(root, ctx, preselect = null) {
     const sumEl = el.querySelector('#szsum');
     const refresh = () => {
       const total = g.items.reduce((s, v) => s + (toNum(el.querySelector(`[data-szq="${v.id}"]`).value) || 0), 0);
-      const price = toNum(el.querySelector('#szp').value) || 0;
+      const price = toMoney(el.querySelector('#szp').value) || 0;
       sumEl.innerHTML = total > 0 ? `Jami: <b>${num(round4(total), 3)} ${esc(first.base_unit_name)}</b>${price > 0 ? ` · <b>${money(round2(total * price))}</b>` : ''}` : '';
     };
     el.addEventListener('click', (e) => {
@@ -319,7 +324,7 @@ async function renderNew(root, ctx, preselect = null) {
     el.querySelector('#szr').addEventListener('submit', (e) => {
       e.preventDefault();
       const price = el.querySelector('#szp').value.trim();
-      if (toNum(price) < 0) { el.querySelector('#szerr').innerHTML = '<div class="alert alert-warn">Narx manfiy bo\'lishi mumkin emas</div>'; return; }
+      if (toMoney(price) < 0) { el.querySelector('#szerr').innerHTML = '<div class="alert alert-warn">Narx manfiy bo\'lishi mumkin emas</div>'; return; }
       let any = false;
       for (const v of g.items) {
         const q = toNum(el.querySelector(`[data-szq="${v.id}"]`).value) || 0;
@@ -363,7 +368,7 @@ async function renderNew(root, ctx, preselect = null) {
   // ----- kelgan yuk (o'ng tomon): qisqa qatorlar, bosilsa o'zgartirish oynasi ochiladi -----
   function lineHtml(l, i) {
     const un = unitOf(l);
-    const noPrice = !(toNum(l.unit_price) > 0);
+    const noPrice = !(toMoney(l.unit_price) > 0);
     const baseNote = un.factor !== 1 ? ` (${num(baseQty(l), 3)} ${esc(l.p.base_unit_name)})` : '';
     return `
       <div class="rl" data-i="${i}">
@@ -371,7 +376,7 @@ async function renderNew(root, ctx, preselect = null) {
           ${productPhoto(l.p, 'rl-img')}
           <span class="rl-name">
             <b>${esc(l.p.name)}</b>
-            <span>${num(toNum(l.quantity), 3)} ${esc(un.name)}${baseNote} × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : money(toNum(l.unit_price))}</span>
+            <span>${num(toNum(l.quantity), 3)} ${esc(un.name)}${baseNote} × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : money(toMoney(l.unit_price))}</span>
             <span class="rl-after-s">${afterText(l)}</span>
             <span class="rl-bottom"><b class="num">${money(lineTotal(l))}</b><small>${icon('edit', 'ico-xs')} o'zgartirish</small></span>
           </span>
@@ -388,10 +393,10 @@ async function renderNew(root, ctx, preselect = null) {
 
   function totals() {
     const subtotal = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
-    const delivery = toNum($('#dlv').value);
-    const discount = toNum($('#dsc').value);
+    const delivery = toMoney($('#dlv').value);
+    const discount = toMoney($('#dsc').value);
     const total = round2(subtotal + delivery - discount);
-    const paid = pay === 'full' ? total : pay === 'debt' ? 0 : toNum($('#paid').value);
+    const paid = pay === 'full' ? total : pay === 'debt' ? 0 : toMoney($('#paid').value);
     const remaining = round2(total - paid);
     $('#tot').textContent = money(total);
     $('#cnt').textContent = `${lines.length} xil`;
@@ -411,13 +416,13 @@ async function renderNew(root, ctx, preselect = null) {
     const noSup = !$('#sup').value;
     if (!lines.length) warn = '';
     else if (lines.some((l) => !(toNum(l.quantity) > 0))) warn = `«${lines.find((l) => !(toNum(l.quantity) > 0)).p.name}» — nechta kelganini yozing`;
-    else if (lines.some((l) => toNum(l.unit_price) < 0)) warn = "Narx manfiy bo'lishi mumkin emas";
+    else if (lines.some((l) => toMoney(l.unit_price) < 0)) warn = "Narx manfiy bo'lishi mumkin emas";
     else if (discount > subtotal + delivery) warn = "Chegirma umumiy summadan katta bo'lishi mumkin emas";
     else if (pay === 'part' && !(paid > 0)) warn = "Qancha to'laganingizni yozing";
     else if (pay === 'part' && paid > total + 0.001) warn = "To'langan summa jami summadan katta bo'lishi mumkin emas";
     else if (remaining > 0.001 && noSup) warn = "Qarzga olgan bo'lsangiz, tovar kimdan kelganini tanlang (yuqorida «Kimdan keldi?»)";
-    if (!warn && lines.some((l) => !(toNum(l.unit_price) > 0))) {
-      soft = `«${lines.find((l) => !(toNum(l.unit_price) > 0)).p.name}» narxi yozilmagan — foyda to'g'ri hisoblanishi uchun ustiga bosib narxini yozing`;
+    if (!warn && lines.some((l) => !(toMoney(l.unit_price) > 0))) {
+      soft = `«${lines.find((l) => !(toMoney(l.unit_price) > 0)).p.name}» narxi yozilmagan — foyda to'g'ri hisoblanishi uchun ustiga bosib narxini yozing`;
     }
     $('#warn').innerHTML = warn ? `<div class="alert alert-warn">${esc(warn)}</div>` : soft ? `<div class="alert alert-info small">${esc(soft)}</div>` : '';
     $('#save').disabled = !lines.length || Boolean(warn);
@@ -486,7 +491,7 @@ async function renderNew(root, ctx, preselect = null) {
             </div>
           </div>
           <label class="field"><span id="pk-pl"></span>
-            <div class="money-input"><input class="input input-lg" id="pk-p" inputmode="decimal" placeholder="0" value="${esc(d.unit_price)}" autocomplete="off"><em>so'm</em></div></label>
+            <div class="money-input"><input class="input input-lg" id="pk-p" data-money inputmode="decimal" placeholder="0" value="${esc(d.unit_price)}" autocomplete="off"><em>so'm</em></div></label>
           <div class="pick-result">
             <span class="rl-after" id="pk-after"></span>
             <span class="pick-sum">Summa: <b class="num" id="pk-sum"></b></span>
@@ -522,7 +527,7 @@ async function renderNew(root, ctx, preselect = null) {
       if (ub) {
         const oldF = unitOf(d).factor;
         d.unit_id = Number(ub.dataset.u);
-        const price = toNum(pIn.value);
+        const price = toMoney(pIn.value);
         if (price > 0) pIn.value = String(round2((price / oldF) * unitOf(d).factor));
         el.querySelectorAll('[data-u]').forEach((b) => b.classList.toggle('active', b === ub));
         refresh();
@@ -543,7 +548,7 @@ async function renderNew(root, ctx, preselect = null) {
         input.focus();
       };
       if (!(toNum(qIn.value) > 0)) return err('Nechta kelganini yozing', qIn);
-      if (toNum(pIn.value) < 0) return err("Narx manfiy bo'lishi mumkin emas", pIn);
+      if (toMoney(pIn.value) < 0) return err("Narx manfiy bo'lishi mumkin emas", pIn);
       putLine(p, { quantity: String(round4(toNum(qIn.value))), unitId: d.unit_id, price: pIn.value.trim() });
       close();
     });
@@ -708,8 +713,8 @@ async function renderNew(root, ctx, preselect = null) {
     const warn = totals();
     if (warn) return toast(warn, 'warn');
     const subtotal = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
-    const total = round2(subtotal + toNum($('#dlv').value) - toNum($('#dsc').value));
-    const paid = pay === 'full' ? total : pay === 'debt' ? 0 : toNum($('#paid').value);
+    const total = round2(subtotal + toMoney($('#dlv').value) - toMoney($('#dsc').value));
+    const paid = pay === 'full' ? total : pay === 'debt' ? 0 : toMoney($('#paid').value);
     const body = {
       supplier_id: $('#sup').value ? Number($('#sup').value) : null,
       purchase_date: $('#pdate').value,
@@ -718,10 +723,10 @@ async function renderNew(root, ctx, preselect = null) {
         product_id: l.p.id,
         unit_id: l.unit_id,
         quantity: toNum(l.quantity),
-        unit_price: toNum(l.unit_price),
+        unit_price: toMoney(l.unit_price),
       })),
-      delivery_cost: toNum($('#dlv').value),
-      discount: toNum($('#dsc').value),
+      delivery_cost: toMoney($('#dlv').value),
+      discount: toMoney($('#dsc').value),
       paid_amount: paid,
       payment_method: method,
       due_date: pay !== 'full' && $('#due').value ? $('#due').value : null,
@@ -800,7 +805,7 @@ async function renderDetail(root, id, ctx) {
       title: `To'lov · ${p.purchase_no}`,
       body: `<p class="small muted">${esc(p.supplier_name)} ga qarz: <b>${money(p.remaining_debt)}</b></p>
         <div class="form-grid two" style="margin-top:12px;gap:10px">
-          <label class="field"><span>Summa (so'm)</span><input class="input" id="pa" inputmode="decimal" value="${esc(p.remaining_debt)}"></label>
+          <label class="field"><span>Summa (so'm)</span><input class="input" id="pa" data-money inputmode="decimal" value="${esc(p.remaining_debt)}"></label>
           <label class="field"><span>Usul</span>
             <select class="input" id="pmth"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
         </div>
@@ -813,7 +818,7 @@ async function renderDetail(root, id, ctx) {
       withBusy(e.currentTarget, async () => {
         try {
           const r = await post(`/suppliers/${p.supplier_id}/payments`, {
-            amount: toNum(el.querySelector('#pa').value),
+            amount: toMoney(el.querySelector('#pa').value),
             method: el.querySelector('#pmth').value,
             purchase_id: p.id,
           });

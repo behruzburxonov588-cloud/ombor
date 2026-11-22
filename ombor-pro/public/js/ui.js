@@ -203,6 +203,59 @@ export const post = (p, b) => api('POST', p, b ?? {});
 export const put = (p, b) => api('PUT', p, b ?? {});
 
 // Forma maydonlarini obyektga aylantiradi. data-type="num" bo'lsa raqamga o'giradi.
+// ---------- Pul summalarini kiritish ----------
+// Odamlar narxni turlicha yozadi: "12000", "12 000", "12.000", "12,000", "1.250.000", "12 000 so'm".
+// Hammasi 12 000 so'm deb o'qiladi. Kasr: "12,5" yoki "12.50" (nuqta/verguldan keyin 1–2 raqam).
+// Bo'sh qator — 0 (eski xatti-harakat bilan bir xil). Noto'g'ri yozuv — NaN.
+export function parseMoney(v) {
+  if (typeof v === 'number') return v;
+  let s = String(v ?? '').toLowerCase().replace(/so['ʻ’`‘]?m|сўм|сум|uzs/g, '').replace(/[\s  '’ʻ‘`_]/g, '');
+  if (!s) return 0;
+  if (/^-?[1-9]\d{0,2}([.,]\d{3})+$/.test(s)) s = s.replace(/[.,]/g, ''); // minglik ajratgich
+  else if (s.includes('.') && s.includes(',')) { // 1.250,50 yoki 1,250.50 — oxirgisi kasr
+    const i = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+    s = `${s.slice(0, i).replace(/[.,]/g, '')}.${s.slice(i + 1)}`;
+  } else s = s.replace(',', '.');
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : NaN;
+}
+
+// 12000 -> "12 000", 12.5 -> "12,5" (kiritish maydoni uchun)
+export function formatMoneyInput(value) {
+  const n = Number(value);
+  if (value === '' || value === null || value === undefined || !Number.isFinite(n)) return '';
+  const [i, d] = String(Math.round(Math.abs(n) * 100) / 100).split('.');
+  return `${n < 0 ? '-' : ''}${i.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}${d ? `,${d}` : ''}`;
+}
+
+// data-money maydonlari: yozish paytida raqamlar o'zi guruhlanadi (12 000), chiqqanda — chiroyli ko'rinishga keladi
+function groupLive(inp) {
+  const v = inp.value;
+  if (!/^[\d ]*$/.test(v)) return; // nuqta yoki vergul yozilyapti — chiqqanda to'g'rilanadi
+  const caret = inp.selectionStart ?? v.length;
+  const before = v.slice(0, caret).replace(/\D/g, '').length;
+  const digits = v.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  if (grouped === v) return;
+  inp.value = grouped;
+  let pos = 0;
+  for (let seen = 0; pos < grouped.length && seen < before; pos += 1) if (/\d/.test(grouped[pos])) seen += 1;
+  try { inp.setSelectionRange(pos, pos); } catch { /* ba'zi maydonlarda tanlash yo'q */ }
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', (e) => { if (e.target?.matches?.('input[data-money]')) groupLive(e.target); }, true);
+  // Maydonda faqat «0» turgan bo'lsa — bosilganda tozalanadi (yozilgan raqam 0 ga qo'shilib ketmasin)
+  document.addEventListener('focusin', (e) => {
+    const t = e.target;
+    if (t?.matches?.('input[data-money]') && /^0([.,]0*)?$/.test(t.value.trim())) t.value = '';
+  });
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (!t?.matches?.('input[data-money]') || !t.value.trim()) return;
+    const n = parseMoney(t.value);
+    if (Number.isFinite(n) && n >= 0) t.value = formatMoneyInput(n);
+  }, true);
+}
+
 export function readForm(form) {
   const out = {};
   for (const el of form.querySelectorAll('[name]')) {
@@ -211,7 +264,8 @@ export function readForm(form) {
     if (el.type === 'checkbox') value = el.checked;
     else value = el.value;
     if (typeof value === 'string') value = value.trim();
-    if (el.dataset.type === 'num') value = value === '' ? null : Number(String(value).replace(',', '.'));
+    if (el.dataset.type === 'num') value = value === '' ? null : Number(String(value).replace(/\s/g, '').replace(',', '.'));
+    if (el.dataset.type === 'money') value = value === '' ? null : parseMoney(value);
     if (el.dataset.type === 'nullable' && value === '') value = null;
     out[el.name] = value;
   }

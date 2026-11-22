@@ -2,7 +2,7 @@
 import {
   get, post, put, icon, esc, num, money, qty, dateTime, toast, errorToast, openModal, withBusy,
   productThumb, emptyState, confirmBox, readForm, api, uploadProductImage, packText, productPhoto,
-  groupBySize, priceRange, skeletonGrid, download,
+  groupBySize, priceRange, skeletonGrid, download, parseMoney, formatMoneyInput,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { renderProductWizard, openProductWizard } from '../productform.js';
@@ -47,7 +47,10 @@ const SORTS = [
 const STOCK_WORD = { out: 'Tugagan', low: 'Kam qoldi', ok: '' };
 const EXP_WORD = { expired: "Muddati o'tgan", soon: 'Muddati yaqin' };
 const expBad = (p) => p.expiry_status === 'expired' || p.expiry_status === 'soon';
+// Kelish narxi yozilmagan: sotilsa butun tushum foyda bo'lib chiqadi
+const noCost = (p) => !p.cost_hidden && !p.is_archived && !(Number(p.purchase_price) > 0) && !(Number(p.avg_cost) > 0);
 const costOf = (p) => (p.cost_hidden ? null : (Number(p.purchase_price) > 0 ? Number(p.purchase_price) : Number(p.avg_cost) || 0));
+const costCell = (cost) => (cost > 0 ? money(cost) : '<span class="nocost">yozilmagan</span>');
 
 function readView() {
   try { return localStorage.getItem(VIEW_KEY) === 'table' ? 'table' : 'grid'; } catch { return 'grid'; }
@@ -107,7 +110,7 @@ function productCard(p, perm) {
         <div class="pcx-code ${code ? '' : 'none'}">${icon('scan', 'ico-xs')}<span>${code ? esc(p.barcode || `SKU ${p.sku}`) : "shtrix-kod yo'q"}</span></div>
         <div class="pcx-prices">
           <div class="pcx-price"><span>Sotuv narxi</span><b>${money(p.selling_price)}</b></div>
-          ${cost === null ? '' : `<div class="pcx-price cost"><span>Kelish narxi</span><b>${cost > 0 ? money(cost) : '—'}</b></div>`}
+          ${cost === null ? '' : `<div class="pcx-price cost"><span>Kelish narxi</span><b>${costCell(cost)}</b></div>`}
         </div>
         <div class="pcx-stock">
           <div class="pcx-stock-row"><span>Qoldiq</span><b class="pcx-qty">${num(p.stock_qty, 3)} <small>${esc(p.base_unit_name)}</small></b></div>
@@ -164,7 +167,7 @@ function tableHtml(rows, perm) {
         return `<tr class="clickable st-${p.is_archived ? 'arch' : p.status}" data-href="#/products/${p.id}">
           <td data-label="Mahsulot"><div class="pt-name">${productPhoto(p, 'pt-img')}<div class="pt-text"><a href="#/products/${p.id}">${esc(p.name)}</a><small>${p.category_name ? esc(p.category_name) : 'Turkumsiz'}</small></div></div></td>
           <td data-label="Shtrix-kod" class="pt-code">${p.barcode ? esc(p.barcode) : '<span class="faint">—</span>'}${p.sku ? `<small>SKU ${esc(p.sku)}</small>` : ''}</td>
-          ${showCost ? `<td data-label="Kelish narxi" class="right num">${cost ? money(cost) : '<span class="faint">—</span>'}</td>` : ''}
+          ${showCost ? `<td data-label="Kelish narxi" class="right num">${cost === null ? '' : costCell(cost)}</td>` : ''}
           <td data-label="Sotuv narxi" class="right num"><b>${money(p.selling_price)}</b></td>
           <td data-label="Qoldiq" class="right num"><b class="pt-qty">${num(p.stock_qty, 3)}</b> <span class="muted">${esc(p.base_unit_name)}</span></td>
           <td data-label="Holati">${statusBadge(p)}</td>
@@ -231,10 +234,12 @@ async function renderList(root, params, ctx) {
     const out = active.filter((p) => p.status === 'out').length;
     const low = active.filter((p) => p.status === 'low').length;
     const exp = active.filter(expBad).length;
+    const nc = active.filter(noCost).length;
     const chips = [
       { key: '', label: `Hammasi <b>${active.length}</b>` },
       { key: 'out', label: `Tugagan <b>${out}</b>`, cls: out ? 'chip-bad' : '' },
       { key: 'low', label: `Kam qolgan <b>${low}</b>`, cls: low ? 'chip-warn' : '' },
+      ...(nc || filter === 'nocost' ? [{ key: 'nocost', label: `${icon('alert', 'ico-xs')} Kelish narxi yo'q <b>${nc}</b>`, cls: nc ? 'chip-warn' : '' }] : []),
       ...(exp || filter === 'expiry' ? [{ key: 'expiry', label: `${icon('clock', 'ico-xs')} Muddati yaqin <b>${exp}</b>`, cls: exp ? 'chip-warn' : '' }] : []),
       { key: 'archived', label: `${icon('archive', 'ico-xs')} Arxiv` },
     ];
@@ -258,6 +263,7 @@ async function renderList(root, params, ctx) {
     const text = q.toLowerCase();
     return sortRows(src.filter((p) => (filter === 'out' || filter === 'low' ? p.status === filter : true)
       && (filter === 'expiry' ? expBad(p) : true)
+      && (filter === 'nocost' ? noCost(p) : true)
       && (!cat || String(p.category_id) === String(cat))
       && (!text || p.name.toLowerCase().includes(text) || (p.barcode && p.barcode === q) || (p.sku && p.sku.toLowerCase() === text))), sort);
   };
@@ -395,7 +401,7 @@ function emptyList(q, filter, canManage) {
       <a class="btn" href="#/products/new?name=${encodeURIComponent(q)}">${icon('plus')} «${esc(q)}» ni qo'shish</a>
     </div>`;
   }
-  const text = { archived: "Arxivda mahsulot yo'q", low: "Kam qolgan mahsulot yo'q — hammasi yetarli", out: "Tugagan mahsulot yo'q — hammasi bor" }[filter] || 'Hech narsa topilmadi';
+  const text = { nocost: "Hamma tovarning kelish narxi yozilgan — foyda to'g'ri hisoblanadi", expiry: "Muddati yaqin tovar yo'q", archived: "Arxivda mahsulot yo'q", low: "Kam qolgan mahsulot yo'q — hammasi yetarli", out: "Tugagan mahsulot yo'q — hammasi bor" }[filter] || 'Hech narsa topilmadi';
   return `<div class="card">${emptyState(text, 'box')}</div>`;
 }
 
@@ -459,7 +465,7 @@ async function mountSizes(root, p, ctx) {
       body: `<form id="szf" class="form-grid">
         <label class="field"><span>O'lcham</span><input class="input input-lg" name="label" maxlength="40" required placeholder="Masalan: XXL yoki 45" autocomplete="off"></label>
         <label class="field"><span>Nechta bor?</span><input class="input input-lg" name="qty" inputmode="decimal" placeholder="0"></label>
-        <label class="field"><span>Sotuv narxi</span><input class="input input-lg" name="sell" inputmode="decimal" value="${Number(p.selling_price)}"></label>
+        <label class="field"><span>Sotuv narxi</span><input class="input input-lg" name="sell" data-money inputmode="decimal" value="${formatMoneyInput(p.selling_price)}"></label>
         <div id="szerr"></div>
         <button class="btn btn-lg btn-block" type="submit">${icon('check')} Qo'shish</button></form>`,
     });
@@ -469,7 +475,7 @@ async function mountSizes(root, p, ctx) {
       const f = Object.fromEntries(new FormData(e.currentTarget));
       const label = String(f.label || '').trim();
       const qty = Number(String(f.qty || '0').replace(',', '.').replace(/\s/g, ''));
-      const sell = Number(String(f.sell || '').replace(',', '.').replace(/\s/g, ''));
+      const sell = parseMoney(f.sell || '');
       const err = (m) => { el.querySelector('#szerr').innerHTML = `<div class="alert alert-bad">${esc(m)}</div>`; };
       if (!label) return err("O'lchamni yozing");
       if (items.some((v) => v.variant_label.toLowerCase() === label.toLowerCase())) return err(`«${label}» o'lchami allaqachon bor`);
@@ -494,14 +500,19 @@ async function mountSizes(root, p, ctx) {
 }
 
 async function renderDetail(root, id, ctx) {
-  const [{ product: p, batches }, hist] = await Promise.all([get(`/products/${id}`), get(`/products/${id}/history`)]);
+  const [{ product: p, batches, missing_cost: miss }, hist] = await Promise.all([get(`/products/${id}`), get(`/products/${id}/history`)]);
   const canManage = ctx.can('products.manage');
   const canBuy = ctx.can('purchases.create') && !p.is_archived;
   const unit = esc(p.base_unit_name);
   const showCost = !p.cost_hidden;
   const st = p.is_archived ? 'arch' : p.status;
   const pk = packText(p.stock_qty, p.base_unit_name, p.pack);
-  const cost = showCost ? (Number(p.avg_cost) > 0 ? Number(p.avg_cost) : Number(p.purchase_price)) : 0;
+  // Kelish narxi — oxirgi kelgan yuk narxi (yoki qo'lda yozilgani); ombordagi tovar o'rtacha narxi alohida ko'rsatiladi
+  const cost = showCost ? (Number(p.purchase_price) > 0 ? Number(p.purchase_price) : Number(p.avg_cost)) : 0;
+  const avgDiffers = showCost && Number(p.avg_cost) > 0 && Number(p.stock_qty) > 0 && Math.abs(Number(p.avg_cost) - cost) >= 1;
+  const missQty = Number(miss?.stock_qty || 0);
+  const missSales = Number(miss?.sales || 0);
+  const costProblem = showCost && !p.is_archived && (cost <= 0 || missQty > 0 || missSales > 0);
   const margin = showCost && cost > 0 ? Number(p.selling_price) - cost : null;
   const statusText = {
     out: "Tugagan — sotish uchun yangi yuk kiriting",
@@ -541,11 +552,15 @@ async function renderDetail(root, id, ctx) {
       </div>
     </section>
 
+    ${costProblem ? `<div class="alert alert-warn cost-alert">${icon('alert', 'ico-sm')}<div class="grow">
+        <b>Foyda to'g'ri hisoblanmayapti: ${cost <= 0 ? 'kelish narxi yozilmagan' : 'ba\'zi tovarlarning kelish narxi yozilmagan'}</b>
+        <div class="small">${[missQty > 0 ? `omborda ${num(missQty, 3)} ${unit} narxsiz` : '', missSales > 0 ? `${missSales} ta sotuv tannarxsiz (butun tushum foyda bo'lib chiqqan)` : ''].filter(Boolean).join(' · ') || "Sotsangiz, butun tushum foyda bo'lib ko'rinadi"}. Kelish narxini yozing — foyda o'zi qayta hisoblanadi.</div></div>
+        ${canManage ? `<button class="btn btn-sm" type="button" id="fix-cost">${icon('calc', 'ico-sm')} Kelish narxini yozish</button>` : ''}</div>` : ''}
     ${p.model_name ? '<section class="card" id="sizes"><div class="empty small">O\'lchamlar yuklanmoqda...</div></section>' : ''}
 
     <div class="pd-facts">
       <div class="pd-fact"><span>Sotuv narxi</span><b>${money(p.selling_price)}</b><small>1 ${unit} uchun${p.pack ? ` · 1 ${esc(p.pack.name)} = ${money(Number(p.selling_price) * p.pack.factor)}` : ''}</small></div>
-      ${showCost ? `<div class="pd-fact"><span>Kelish narxi</span><b>${cost > 0 ? money(cost) : '—'}</b><small>${cost > 0 ? `1 ${unit} sizga shunga tushgan` : 'hali kiritilmagan'}</small></div>` : ''}
+      ${showCost ? `<div class="pd-fact ${cost > 0 ? '' : 'warn'}"><span>Kelish narxi</span><b>${cost > 0 ? money(cost) : 'yozilmagan'}</b><small>${cost > 0 ? `1 ${unit} — oxirgi kelgan narx${avgDiffers ? ` · ombordagisi o'rtacha ${money(p.avg_cost)}` : ''}` : 'foyda hisoblanishi uchun yozing'}</small>${canManage && !p.is_archived ? `<button class="link-btn" type="button" id="fix-cost2">${cost > 0 ? "To'g'irlash" : 'Yozish'}</button>` : ''}</div>` : ''}
       ${margin !== null ? `<div class="pd-fact ${margin >= 0 ? 'good' : 'bad'}"><span>Har biridan foyda</span><b>${money(margin)}</b><small>1 ${unit} sotsangiz</small></div>` : ''}
       <div class="pd-fact"><span>Jami sotildi</span><b>${num(p.sold_qty, 3)} ${unit}</b><small>${money(p.sold_revenue)}ga${showCost ? ` · foyda ${money(p.profit)}` : ''}</small></div>
       ${p.conversions.length ? `<div class="pd-fact"><span>Qadoq</span><b>${p.conversions.map((c) => `1 ${esc(c.name)} = ${num(c.factor, 4)} ${unit}`).join('<br>')}</b><small>yuk kelganda shunday hisoblanadi</small></div>` : ''}
@@ -588,6 +603,46 @@ async function renderDetail(root, id, ctx) {
     e.currentTarget.remove();
   });
 
+  // Kelish narxini yozish yoki to'g'irlash: ombordagi qoldiq va oldingi sotuvlar foydasi qayta hisoblanadi
+  const fixCost = () => {
+    const { el, close } = openModal({
+      title: `${p.name}: kelish narxi`,
+      body: `<form id="fcf" class="stack">
+        <p class="muted" style="margin:0">1 ${unit} sizga necha so'mga tushadi? Foyda shu narx bilan qayta hisoblanadi.</p>
+        <label class="field"><span>Kelish narxi (1 ${unit}) <span class="req">*</span></span>
+          <div class="money-input"><input class="input input-lg" name="price" data-money inputmode="decimal" value="${cost > 0 ? formatMoneyInput(cost) : ''}" placeholder="0" autocomplete="off"><em>so'm</em></div></label>
+        <div class="small" id="fc-prof"></div>
+        <div class="fc-modes">
+          <label class="check"><input type="radio" name="mode" value="missing" checked> <span><b>Narxi yozilmagan va boshlang'ich qoldiq</b><small>Odatdagi holat: tovarni narxsiz qo'shgan bo'lsangiz</small></span></label>
+          <label class="check"><input type="radio" name="mode" value="all"> <span><b>Hamma eski kirim va sotuvlar</b><small>Narx xato yozilgan bo'lsa (masalan, 12 000 o'rniga 12). Yetkazib beruvchiga qarz o'zgarmaydi</small></span></label>
+        </div>
+        <div id="fc-err"></div>
+        <button class="btn btn-lg btn-block" type="submit">${icon('check')} Saqlash va foydani qayta hisoblash</button></form>`,
+    });
+    const inp = el.querySelector('[name=price]');
+    const prof = () => {
+      const v = parseMoney(inp.value);
+      const m = Number(p.selling_price) - v;
+      el.querySelector('#fc-prof').innerHTML = v > 0 ? `Har 1 ${unit}dan foyda: <b class="${m >= 0 ? 'green' : 'red'}">${money(m)}</b> (sotuv narxi ${money(p.selling_price)})` : '';
+    };
+    inp.addEventListener('input', prof);
+    prof();
+    inp.focus();
+    el.querySelector('#fcf').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const v = parseMoney(inp.value);
+      if (!(v > 0)) { el.querySelector('#fc-err').innerHTML = '<div class="alert alert-bad">Kelish narxini yozing (masalan: 12 000)</div>'; return; }
+      const mode = el.querySelector('[name=mode]:checked').value;
+      try {
+        const r = await withBusy(e.submitter || el.querySelector('[type=submit]'), () => post(`/products/${id}/recost`, { purchase_price: v, mode }));
+        close();
+        toast(r.sales ? `Kelish narxi saqlandi. ${r.sales} ta sotuvning foydasi qayta hisoblandi` : 'Kelish narxi saqlandi', 'ok');
+        renderDetail(root, id, ctx);
+      } catch (err) { el.querySelector('#fc-err').innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`; }
+    });
+  };
+  root.querySelector('#fix-cost')?.addEventListener('click', fixCost);
+  root.querySelector('#fix-cost2')?.addEventListener('click', fixCost);
   root.querySelector('#btn-arch')?.addEventListener('click', async (e) => {
     if (!p.is_archived) {
       const ok = await confirmBox(`"${p.name}" arxivlansinmi? Arxivdagi mahsulot sotilmaydi, tarix saqlanadi.`, { okText: 'Arxivlash', danger: true });
@@ -649,10 +704,11 @@ async function renderForm(root, id, ctx, prefill = {}) {
         <input class="input" name="name" required maxlength="150" value="${esc(p?.name || prefill.name || '')}" placeholder="Masalan: Un oliy nav" autocomplete="off"></label>
 
       <label class="field"><span>Sotuv narxi (1 birlik uchun, so'm) *</span>
-        <input class="input" name="selling_price" data-type="num" inputmode="decimal" required value="${p?.selling_price ?? ''}" placeholder="0"><small>Xaridorga shu narxda sotiladi</small></label>
+        <input class="input" name="selling_price" data-type="money" data-money inputmode="decimal" required value="${formatMoneyInput(p?.selling_price ?? '')}" placeholder="0"><small>Xaridorga shu narxda sotiladi</small></label>
 
-      <label class="field"><span>Kirim narxi (1 birlik uchun, so'm)</span>
-        <input class="input" name="purchase_price" data-type="num" inputmode="decimal" value="${p?.purchase_price ?? ''}" placeholder="0"><small>O'zingiz necha so'mga olgansiz (foydani hisoblash uchun)</small></label>
+      <label class="field"><span>Kelish narxi (1 birlik uchun, so'm)</span>
+        <input class="input" name="purchase_price" data-type="money" data-money inputmode="decimal" value="${Number(p?.purchase_price) > 0 ? formatMoneyInput(p.purchase_price) : ''}" placeholder="0"><small>O'zingiz necha so'mga olgansiz (foydani hisoblash uchun)</small></label>
+      ${id ? `<label class="check recost-check" hidden style="grid-column:1/-1"><input type="checkbox" name="recost" checked> <span>Eski qoldiq va oldingi sotuvlar foydasini ham shu kelish narxi bilan qayta hisoblash <small class="muted">(narxsiz va boshlang'ich qoldiq)</small></span></label>` : ''}
 
       <div class="field"><span>O'lchov birligi *</span>
         <div class="input-group">
@@ -791,6 +847,13 @@ async function renderForm(root, id, ctx, prefill = {}) {
   });
   if (!id) root.querySelector('[name=name]').focus();
 
+  // Kelish narxi o'zgarsa — «eski qoldiq va sotuvlarni qayta hisoblash» belgisi ko'rinadi
+  const pp = root.querySelector('#pf [name=purchase_price]');
+  const rc = root.querySelector('#pf .recost-check');
+  if (pp && rc) {
+    const start = parseMoney(pp.value);
+    pp.addEventListener('input', () => { rc.hidden = !(parseMoney(pp.value) > 0) || Math.abs(parseMoney(pp.value) - start) < 0.005; });
+  }
   root.querySelector('#pf').addEventListener('submit', async (e) => {
     e.preventDefault();
     const again = e.submitter?.dataset.again === '1';
@@ -801,6 +864,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
     const fail = (msg) => { errEl.innerHTML = `<div class="alert alert-bad">${esc(msg)}</div>`; };
     if (!d.name) return fail('Mahsulot nomini kiriting');
     if (d.selling_price === null || d.selling_price === '' || Number.isNaN(d.selling_price)) return fail('Sotuv narxini kiriting');
+    if (d.selling_price < 0 || Number.isNaN(d.purchase_price)) return fail("Narx noto'g'ri yozilgan. Masalan: 12000 yoki 12 000");
     const body = {
       name: d.name,
       barcode: d.barcode || null,
@@ -817,6 +881,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
     };
     if (convs.some((c) => c.unit_id && !(c.factor > 0))) return fail('Birlik koeffitsientini kiriting (0 dan katta)');
     if (!id && d.opening_qty) body.opening_qty = d.opening_qty;
+    if (id) body.recost = d.recost === false ? 'none' : 'missing';
     const btn = again ? root.querySelector('#save-again') : root.querySelector('#save');
     await withBusy(btn, async () => {
       try {
@@ -828,8 +893,9 @@ async function renderForm(root, id, ctx, prefill = {}) {
           body.category_id = null;
         }
         let productId = id;
+        let recost = null;
         if (id) {
-          await put(`/products/${id}`, body);
+          recost = (await put(`/products/${id}`, body)).recost;
         } else {
           const r = await post('/products', body);
           productId = r.id;
@@ -843,7 +909,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
           await renderForm(root, null, ctx);
           return;
         }
-        toast(id ? 'Mahsulot yangilandi' : 'Mahsulot saqlandi', 'ok');
+        toast(id ? (recost?.sales ? `Mahsulot yangilandi. ${recost.sales} ta sotuvning foydasi qayta hisoblandi` : 'Mahsulot yangilandi') : 'Mahsulot saqlandi', 'ok');
         ctx.go(`#/products/${productId}`);
       } catch (err) {
         fail(err.message);

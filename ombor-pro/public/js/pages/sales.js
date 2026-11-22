@@ -3,7 +3,7 @@ import {
   resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
   get, post, icon, esc, num, money, dateTime, dateOnly, readForm, toast, errorToast,
   openModal, closeModal, withBusy, productThumb, emptyState, confirmBox, todayStr, productPhoto,
-  groupBySize, priceRange,
+  groupBySize, priceRange, parseMoney, formatMoneyInput,
 } from '../ui.js';
 import { openBarcodeScanner } from '../scanner.js';
 
@@ -87,10 +87,12 @@ function totals() {
 }
 
 const round = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+// Pul summasi: "12.000" ham, "12 000" ham 12 000 so'm; bo'sh yoki noto'g'ri — 0
+const money0 = (v) => { const n = parseMoney(v); return Number.isFinite(n) ? n : 0; };
 
 function mixedSum() {
   const m = S.mixed;
-  return round(Number(m.cash || 0) + Number(m.card || 0) + Number(m.transfer || 0) + Number(m.credit || 0));
+  return round(money0(m.cash) + money0(m.card) + money0(m.transfer) + money0(m.credit));
 }
 
 function payValidity(t) {
@@ -99,7 +101,7 @@ function payValidity(t) {
   if (S.method === 'credit' && !S.customer) return 'Nasiyaga sotish uchun mijozni tanlang';
   if (S.method === 'mixed') {
     if (Math.abs(mixedSum() - t.total) > 0.005) return `Aralash to'lov jami summaga teng bo'lishi kerak (qolgan: ${num(round(t.total - mixedSum()))})`;
-    if (Number(S.mixed.credit || 0) > 0 && !S.customer) return 'Nasiya qismi uchun mijozni tanlang';
+    if (money0(S.mixed.credit) > 0 && !S.customer) return 'Nasiya qismi uchun mijozni tanlang';
   }
   return null;
 }
@@ -174,7 +176,7 @@ function cartHtml(ctx) {
             <span class="cl-total num">${money(c.total)}</span>
           </div>
           ${canDiscount ? `<label class="cl-disc"><span>${icon('percent', 'ico-xs')} Chegirma</span>
-              <input class="input" type="text" inputmode="decimal" value="${l.discount ? num(l.discount, 2) : ''}" placeholder="0" data-disc="${i}" aria-label="${esc(l.name)}: chegirma, so'm"><em>so'm</em>
+              <input class="input" type="text" data-money inputmode="decimal" value="${l.discount ? formatMoneyInput(l.discount) : ''}" placeholder="0" data-disc="${i}" aria-label="${esc(l.name)}: chegirma, so'm"><em>so'm</em>
               ${c.discount ? `<b class="red">−${money(c.discount)}</b>` : ''}</label>` : ''}
           ${c.over ? `<div class="cl-warn">${icon('alert', 'ico-xs')} Qoldiq yetarli emas</div>` : ''}
         </div>`;
@@ -192,12 +194,12 @@ function cartHtml(ctx) {
     ? `<div class="form-grid two" style="gap:8px">
         ${['cash', 'card', 'transfer', 'credit'].map((k) => `
           <label class="field"><span>${{ cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya' }[k]}</span>
-            <input class="input" type="text" inputmode="decimal" data-mixed="${k}" value="${S.mixed[k] ?? ''}" placeholder="0"></label>`).join('')}
+            <input class="input" type="text" data-money inputmode="decimal" data-mixed="${k}" value="${S.mixed[k] ?? ''}" placeholder="0"></label>`).join('')}
         <div class="small" data-mixed-left style="grid-column:1/-1;font-weight:700">${mixedLeftText(t.total)}</div>
       </div>`
     : '';
 
-  const dueRow = S.method === 'credit' || (S.method === 'mixed' && Number(S.mixed.credit || 0) > 0)
+  const dueRow = S.method === 'credit' || (S.method === 'mixed' && money0(S.mixed.credit) > 0)
     ? `<label class="field"><span>To'lov muddati (ixtiyoriy)</span><input class="input" type="date" data-due value="${esc(S.dueDate)}"></label>`
     : '';
 
@@ -267,7 +269,7 @@ function mountCart(el, ctx) {
   }));
   el.querySelectorAll('[data-disc]').forEach((inp) => inp.addEventListener('change', () => {
     const l = S.cart[Number(inp.dataset.disc)];
-    const v = Number(String(inp.value || '0').replace(',', '.'));
+    const v = parseMoney(inp.value || '0');
     if (!(v >= 0)) { toast("Chegirma noto'g'ri", 'warn'); refreshAll(); return; }
     l.discount = v;
     if (calc(l).discount < v) toast('Chegirma summadan katta bo\'lishi mumkin emas', 'warn');
@@ -436,10 +438,10 @@ async function checkout(btn, ctx) {
   }));
   const payment = { method: S.method };
   if (S.method === 'mixed') {
-    payment.cash = Number(S.mixed.cash || 0);
-    payment.card = Number(S.mixed.card || 0);
-    payment.transfer = Number(S.mixed.transfer || 0);
-    payment.credit = Number(S.mixed.credit || 0);
+    payment.cash = money0(S.mixed.cash);
+    payment.card = money0(S.mixed.card);
+    payment.transfer = money0(S.mixed.transfer);
+    payment.credit = money0(S.mixed.credit);
   }
   const body = {
     items,

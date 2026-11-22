@@ -2,7 +2,7 @@
 import {
   get, post, icon, esc, num, money, dateTime, dateOnly, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, newKey, takeNewFlag, compact, monthName, download,
-  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, parseMoney,
 } from '../ui.js';
 
 const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
@@ -16,8 +16,9 @@ const EXPENSE_LABELS = {
   transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 
+// Hamma summalar pul: "12.000" ham, "12 000" ham 12 000 so'm
 const toNum = (v) => {
-  const n = Number(String(v ?? '').trim().replace(',', '.'));
+  const n = parseMoney(v);
   return Number.isFinite(n) ? n : 0;
 };
 
@@ -179,7 +180,7 @@ function openShift(refresh) {
   const { close, el } = openModal({
     title: 'Smenani ochish',
     body: `<label class="field"><span>Hozir kassada qancha naqd pul bor? (so'm)</span>
-             <input class="input" id="op" inputmode="decimal" value="0"></label>
+             <input class="input" id="op" data-money inputmode="decimal" value="0"></label>
            <p class="small muted" style="margin-top:10px">Kassadagi pulni sanab yozing. Bo'sh bo'lsa, 0 qoldiring.</p>
            <div id="err" style="margin-top:10px"></div>`,
     foot: `<button class="btn btn-outline" type="button" data-no>Bekor</button>
@@ -205,7 +206,7 @@ function openCloseShift(expected, refresh) {
     title: 'Smenani yopish',
     body: `<p>Dastur hisobi bo'yicha kassada bo'lishi kerak: <b class="num">${money(expected)}</b></p>
            <label class="field" style="margin-top:12px"><span>Kassadagi pulni sanang va yozing (so'm)</span>
-             <input class="input" id="cc" inputmode="decimal" value="${expected}"></label>
+             <input class="input" id="cc" data-money inputmode="decimal" value="${expected}"></label>
            <div id="res" style="margin-top:12px"></div>`,
     foot: `<button class="btn btn-outline" type="button" data-no>Bekor</button>
            <button class="btn btn-warn" type="button" data-yes>Yopish</button>`,
@@ -239,7 +240,7 @@ function openMovement(kind, refresh) {
     body: `<div class="form-grid two" style="gap:10px">
         <label class="field"><span>Qayerga / qayerdan</span>
           <select class="input" id="mm"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
-        <label class="field"><span>Summa (so'm) *</span><input class="input" id="ma" inputmode="decimal" placeholder="0"></label>
+        <label class="field"><span>Summa (so'm) *</span><input class="input" id="ma" data-money inputmode="decimal" placeholder="0"></label>
       </div>
       <label class="field" style="margin-top:10px"><span>Nima uchun? *</span>
         <input class="input" id="mn" maxlength="200" placeholder="${kind === 'deposit' ? 'Masalan: mayda pul qo\'shildi' : 'Masalan: bankka topshirildi'}"></label>
@@ -378,7 +379,7 @@ function openExpense(categories, refresh) {
     body: `<form id="ef" class="form-grid two" style="gap:12px" novalidate>
         <div class="field" style="grid-column:1/-1"><span>Nimaga ketdi? *</span>
           <div class="chips" id="ef-cats">${categories.map((c, i) => `<button type="button" class="chip ${i === 0 ? 'active' : ''}" data-c="${c}">${esc(EXPENSE_LABELS[c] || c)}</button>`).join('')}</div></div>
-        <label class="field"><span>Summa *</span><div class="money-input"><input class="input input-lg" name="amount" inputmode="decimal" placeholder="0" autocomplete="off"><em>so'm</em></div></label>
+        <label class="field"><span>Summa *</span><div class="money-input"><input class="input input-lg" name="amount" data-money inputmode="decimal" placeholder="0" autocomplete="off"><em>so'm</em></div></label>
         <label class="field"><span>Qayerdan to'landi?</span>
           <select class="input" name="method"><option value="cash">Naqd (kassadan)</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
         <label class="field"><span>Sana</span><input class="input" type="date" name="expense_date" value="${todayStr()}" max="${todayStr()}"></label>

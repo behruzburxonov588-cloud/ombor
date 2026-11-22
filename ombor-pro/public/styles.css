@@ -2050,3 +2050,23 @@ tr.clickable:hover td { background: #f7f9fd; }
   .stat .stat-label { font-size: 12px; }
   .stat .stat-ico { width: 26px; height: 26px; border-radius: 8px; }
 }
+
+/* ---------- Foyda: kelish narxi yozilmagan tovarlar ---------- */
+.cost-alert { align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.cost-alert .grow { min-width: 220px; }
+.cost-alert .small { font-weight: 450; margin-top: 2px; }
+.cost-alert .btn { flex: none; }
+.home > .cost-alert { margin-bottom: 0; }
+.nocost { color: var(--warn); font-weight: 650; }
+.pd-fact.warn b { color: var(--warn); }
+.pd-fact .link-btn { justify-self: start; padding: 2px 0 0; font-size: 12.5px; }
+.fc-modes { display: grid; gap: 8px; }
+.fc-modes .check { align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; min-height: 0; }
+.fc-modes .check:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.fc-modes .check input { margin-top: 2px; flex: none; }
+.fc-modes .check span { display: grid; gap: 2px; }
+.fc-modes .check small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.recost-check { align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); border: 1px solid var(--accent-soft-2); font-size: 13.5px; }
+.recost-check input { margin-top: 2px; flex: none; }
+/* Maydonlarning o'z fokus halqasi bor — qo'shimcha chiziq (outline) kerak emas */
+.input:focus-visible, .money-input .input:focus-visible { outline: none; }

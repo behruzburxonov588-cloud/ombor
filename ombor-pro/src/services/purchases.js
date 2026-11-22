@@ -140,6 +140,10 @@ export async function createPurchase(client, user, body) {
       [purchaseId, l.product.id, l.unitId, l.factor, l.qty, l.baseQty, l.price,
         l.lineTotal, l.landed, l.unitCost, batchId],
     );
+    // Tovarning «kelish narxi» — oxirgi kelgan yukdagi narx (yo'l kira va chegirma bilan, 1 asosiy birlik uchun)
+    if (l.unitCost > 0) {
+      await client.query('UPDATE products SET purchase_price = $2 WHERE id = $1', [l.product.id, round2(l.unitCost)]);
+    }
   }
 
   if (paid > 0) {

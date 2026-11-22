@@ -57,6 +57,10 @@ export async function renderHome(root, ctx, opts) {
     <div class="home">
       ${opts.actionTiles(ctx)}
       ${onbHtml || ''}
+      ${d.cost_missing?.products ? `<div class="alert alert-warn cost-alert">${icon('alert', 'ico-sm')}<div class="grow">
+        <b>Foyda ko'proq chiqib qolgan: ${d.cost_missing.products} ta tovarning kelish narxi yozilmagan</b>
+        <div class="small">${esc(word)} ular ${moneyFull(d.cost_missing.revenue)} so'mga sotilgan va bu summa to'liq foyda deb hisoblandi. Kelish narxini yozing — foyda o'zi to'g'rilanadi.</div></div>
+        <a class="btn btn-sm" href="#/products?filter=nocost">${icon('calc', 'ico-sm')} Narxini yozish</a></div>` : ''}
       <section class="home-sec" aria-label="Davr bo'yicha ko'rsatkichlar">
         <div class="sec-title"><h2>${esc(word)}</h2><span>savdo, foyda va xarajat</span></div>
         ${kpiCards(d, range, { periodOnly: true })}

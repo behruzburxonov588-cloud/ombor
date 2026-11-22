@@ -824,6 +824,14 @@ export async function dashboard(db, user, query) {
   if (financial) {
     out.pnl = { current: cur, previous: prev };
     out.supplier_debt = supDebt;
+    // Kelish narxi yozilmagan tovarlar sotilgan bo'lsa, foyda keragidan ko'p chiqadi — egasiga ko'rsatiladi
+    const { rows: nc } = await db.query(
+      `SELECT COUNT(DISTINCT si.product_id)::int AS products, COALESCE(SUM(si.line_total), 0) AS revenue
+         FROM sale_items si JOIN sales s ON s.id = si.sale_id
+        WHERE s.kind = 'sale' AND s.created_at >= $1 AND s.created_at < $2 AND si.cost_total = 0 AND si.line_total > 0`,
+      [range.fromTs, range.toTs],
+    );
+    out.cost_missing = { products: nc[0].products, revenue: round2(nc[0].revenue) };
     const items = await productStats(db, range, settings.costing_method);
     out.top = topLists(items);
     out.forecast = await forecast(db);

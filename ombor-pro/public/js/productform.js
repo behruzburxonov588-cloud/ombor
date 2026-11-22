@@ -6,7 +6,7 @@
 //     - "Shtrix-kod, kategoriya, yetkazib beruvchi"
 // Rasm yuborishdan oldin telefonda kichraytiriladi (har qanday telefon rasmi yuklanadi).
 // Sahifada (Mahsulotlar → Yangi tovar) va oynada (Yuk keldi → topilmasa) ishlaydi.
-import { get, post, esc, icon, money, num, toast, openModal, withBusy, uploadProductImage } from './ui.js';
+import { get, post, esc, icon, money, num, toast, openModal, withBusy, uploadProductImage, parseMoney } from './ui.js';
 import { openBarcodeScanner, cameraScanSupported } from './scanner.js';
 
 const MAIN_UNITS = ['piece', 'kg', 'l', 'm'];
@@ -22,6 +22,8 @@ const toNum = (v) => {
   const n = Number(String(v ?? '').replace(/\s/g, '').replace(',', '.'));
   return Number.isFinite(n) ? n : NaN;
 };
+// Narxlar: "12.000" ham, "12 000" ham 12 000 so'm (ui.js → parseMoney)
+const toMoney = (v) => parseMoney(v);
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 const round4 = (n) => Math.round((n + Number.EPSILON) * 10000) / 10000;
 const blankRow = () => ({ label: '', sell: '', cost: '', qty: '' });
@@ -131,8 +133,8 @@ async function mountWizard(host, opts) {
   }
 
   function calcHint(r) {
-    const sell = toNum(r.sell);
-    const cost = toNum(r.cost);
+    const sell = toMoney(r.sell);
+    const cost = toMoney(r.cost);
     const q = toNum(r.qty);
     const parts = [];
     if (cost > 0 && packReady() && st.costPer === 'pack') {
@@ -165,6 +167,13 @@ async function mountWizard(host, opts) {
 
   const REQ = '<span class="req" aria-hidden="true">*</span>';
   const HINT0 = "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi";
+  // Qoldiq bor, lekin kelish narxi yo'q — foyda noto'g'ri chiqishini oldindan aytamiz
+  const hint0 = () => {
+    const hasQty = st.variants ? st.rows.some((x) => toNum(x.qty) > 0) : toNum(st.single.qty) > 0;
+    return hasQty && String(st.single.cost).trim() === ''
+      ? '<span class="amber">Kelish narxini yozing: aks holda sotilganda butun tushum foyda bo\'lib ko\'rinadi</span>'
+      : HINT0;
+  };
 
   // 2-bo'lim: narxlar (o'lchamli tovarda — hamma o'lchamga umumiy narx)
   function priceBlock() {
@@ -172,11 +181,11 @@ async function mountWizard(host, opts) {
     return `
       <div class="price-grid two">
         <label class="field"><span>Sotuv narxi ${REQ}${st.variants ? " <small>— hamma o'lchamga</small>" : ''}</span>
-          <div class="money-input" data-wrap="sell"><input class="input input-lg" data-f="sell" inputmode="decimal" placeholder="0" value="${esc(r.sell)}" aria-required="true"><em>so'm · 1 ${esc(base())}</em></div></label>
+          <div class="money-input" data-wrap="sell"><input class="input input-lg" data-f="sell" data-money inputmode="decimal" placeholder="0" value="${esc(r.sell)}" aria-required="true"><em>so'm · 1 ${esc(base())}</em></div></label>
         <div class="field"><span>Kelish narxi <small>(ixtiyoriy)</small></span>
-          <div class="money-input" data-wrap="cost"><input class="input input-lg" data-f="cost" inputmode="decimal" placeholder="0" value="${esc(r.cost)}" aria-label="Kelish narxi"><em>so'm · 1 ${unitSwitch('cost')}</em></div></div>
+          <div class="money-input" data-wrap="cost"><input class="input input-lg" data-f="cost" data-money inputmode="decimal" placeholder="0" value="${esc(r.cost)}" aria-label="Kelish narxi"><em>so'm · 1 ${unitSwitch('cost')}</em></div></div>
       </div>
-      <div class="calc-box" data-hint="single">${calcHint(r) || HINT0}</div>
+      <div class="calc-box" data-hint="single">${calcHint(r) || hint0()}</div>
       <p class="fsec-note">${icon('info', 'ico-xs')} Ulgurji narx alohida yuritilmaydi: ulgurji xaridorga sotuvda chegirma bilan sotasiz.</p>`;
   }
 
@@ -200,7 +209,7 @@ async function mountWizard(host, opts) {
           <div class="size-row">
             <span class="size-tag">${esc(x.label)}</span>
             <input class="input" data-row="${i}" data-f="qty" inputmode="decimal" placeholder="0" value="${esc(x.qty)}" aria-label="${esc(x.label)}: ${QTY}">
-            ${st.sizePrice ? `<input class="input" data-row="${i}" data-f="sell" inputmode="decimal" placeholder="Narx: ${esc(r.sell || '0')}" value="${esc(x.sell)}" aria-label="${esc(x.label)}: sotuv narxi">` : ''}
+            ${st.sizePrice ? `<input class="input" data-row="${i}" data-f="sell" data-money inputmode="decimal" placeholder="Narx: ${esc(r.sell || '0')}" value="${esc(x.sell)}" aria-label="${esc(x.label)}: sotuv narxi">` : ''}
             <button class="icon-btn" type="button" data-delrow="${i}" aria-label="${esc(x.label)} o'lchamini olib tashlash">${icon('x', 'ico-sm')}</button>
           </div>`).join('') : '<div class="size-empty">Hali o\'lcham tanlanmagan. Yuqoridagi tugmalardan birini bosing.</div>'}
       </div>
@@ -317,7 +326,7 @@ async function mountWizard(host, opts) {
       const row = i === undefined ? st.single : st.rows[Number(i)];
       row[inp.dataset.f] = inp.value;
       const hint = host.querySelector('[data-hint="single"]');
-      if (hint && i === undefined) hint.innerHTML = calcHint(st.single) || HINT0;
+      if (hint && i === undefined) hint.innerHTML = calcHint(st.single) || hint0();
       const pv = host.querySelector('#vpreview');
       if (pv) pv.innerHTML = preview();
     }));
@@ -455,9 +464,9 @@ async function mountWizard(host, opts) {
       : [st.single];
     if (st.variants && !rows.length) return fail("Kamida bitta o'lchamni tanlang (masalan: S, M, L yoki 38, 39)", '[data-wrap="sizes"]');
     for (const r of rows) {
-      const sell = toNum(r.sell);
-      if (r.sell === '' || !(sell >= 0)) return fail(st.variants && st.sizePrice ? `«${r.label}» uchun narx yozing yoki umumiy narxni to'ldiring` : 'Sotuv narxini yozing', '[data-wrap="sell"]');
-      if (r.cost !== '' && !(toNum(r.cost) >= 0)) return fail("Kelish narxi noto'g'ri", '[data-wrap="cost"]');
+      const sell = toMoney(r.sell);
+      if (String(r.sell).trim() === '' || !(sell >= 0)) return fail(st.variants && st.sizePrice ? `«${r.label}» uchun narx yozing yoki umumiy narxni to'ldiring` : 'Sotuv narxini yozing', '[data-wrap="sell"]');
+      if (String(r.cost).trim() !== '' && !(toMoney(r.cost) >= 0)) return fail("Kelish narxi noto'g'ri", '[data-wrap="cost"]');
       if (r.qty !== '' && !(toNum(r.qty) >= 0)) return fail(st.variants ? `«${r.label}» uchun son noto'g'ri yozilgan` : "Nechta borligi noto'g'ri yozilgan", st.variants ? '[data-wrap="sizes"]' : '[data-wrap="qty"]');
     }
     const minStock = st.min.trim() ? toNum(st.min) : 0;
@@ -472,13 +481,13 @@ async function mountWizard(host, opts) {
     }
     const created = [];
     for (const r of rows) {
-      const cost = r.cost === '' ? 0 : toNum(r.cost);
+      const cost = String(r.cost).trim() === '' ? 0 : toMoney(r.cost);
       const qty = r.qty === '' ? 0 : toNum(r.qty);
       const body = {
         name: st.variants ? `${name} ${r.label.trim()}` : name,
         ...(st.variants ? { model_name: name, variant_label: r.label.trim() } : {}),
         base_unit_id: st.baseUnitId,
-        selling_price: toNum(r.sell),
+        selling_price: round2(toMoney(r.sell)),
         purchase_price: round2(costPerBase(cost)),
         min_stock: minStock,
         conversions: packReady() ? [{ unit_id: st.packUnitId, factor: round4(factor()) }] : [],

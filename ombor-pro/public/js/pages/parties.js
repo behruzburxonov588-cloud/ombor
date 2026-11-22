@@ -2,7 +2,7 @@
 import {
   get, post, put, icon, esc, money, dateTime, dateOnly, readForm, toast, errorToast, initials, timeAgo,
   openModal, withBusy, emptyState, newKey,
-  takeNewFlag,
+  takeNewFlag, parseMoney,
 } from '../ui.js';
 import { openDebtForm } from '../debtform.js';
 
@@ -289,7 +289,7 @@ function openPayment(cfg, id, debt, onDone) {
     title: cfg.payTitle,
     body: `<p class="small muted">Joriy qarz: <b>${money(debt)}</b></p>
       <div class="form-grid two" style="margin-top:12px;gap:10px">
-        <label class="field"><span>Summa (so'm)</span><input class="input" id="pa" inputmode="decimal" value="${debt}"></label>
+        <label class="field"><span>Summa (so'm)</span><input class="input" id="pa" data-money inputmode="decimal" value="${debt}"></label>
         <label class="field"><span>Usul</span>
           <select class="input" id="pm"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
       </div>
@@ -300,7 +300,7 @@ function openPayment(cfg, id, debt, onDone) {
   el.querySelector('[data-no]').addEventListener('click', close);
   el.querySelector('[data-yes]').addEventListener('click', (e) => {
     withBusy(e.currentTarget, async () => {
-      const amount = Number(String(el.querySelector('#pa').value).replace(',', '.'));
+      const amount = parseMoney(el.querySelector('#pa').value);
       if (!(amount > 0)) {
         el.querySelector('#perr').innerHTML = '<div class="alert alert-warn">Summani kiriting</div>';
         return;
