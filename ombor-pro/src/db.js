@@ -43,7 +43,7 @@ function poolFor(schema) {
   if (ctx?.factory) {
     let p = ctx.pools.get(schema);
     if (!p) {
-      p = ctx.factory(schema);
+      p = ctx.factory(schema, ctx.timing);
       ctx.pools.set(schema, p);
     }
     return p;
@@ -77,9 +77,10 @@ export function runWithPool(p, fn) {
 
 // So'rov uchun alohida poollar (Cloudflare Workers). closeAll() so'rov oxirida chaqiriladi.
 export function runWithPools(factory, fn) {
-  const ctx = { schema: 'public', factory, pools: new Map() };
+  // timing — bitta obyekt (ichki runWithSchema konteksti ham shu obyektni oladi): ulanishlar soni va vaqti
+  const ctx = { schema: 'public', factory, pools: new Map(), timing: { conns: 0, connMs: 0 } };
   const closeAll = () => Promise.all([...ctx.pools.values()].map((p) => p.end().catch(() => {})));
-  return { result: scope.run(ctx, fn), closeAll };
+  return { result: scope.run(ctx, fn), closeAll, timing: ctx.timing };
 }
 
 export function query(text, params) {

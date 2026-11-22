@@ -34,11 +34,20 @@ $$;
 `;
 
 let coreReady = null;
+// Umumiy jadvallar versiyasi: CORE_SQL o'zgarsa belgi ham o'zgaradi va to'liq tekshiruv qayta bajariladi
+const CORE_MARK = `ombor-core-${[...CORE_SQL].reduce((h, c) => ((h * 31) + c.charCodeAt(0)) >>> 0, 7).toString(36)}`;
 const schemaReady = new Map();
 const storeIdCache = new Map();
 
 // Umumiy jadvallarni yaratadi va birinchi (mavjud) do'konni ro'yxatga oladi. Bir necha marta chaqirish xavfsiz.
 export async function ensureCore() {
+  // Tezkor yo'l: shu versiyadagi umumiy jadvallar allaqachon tayyor — qulf va DDL'siz, bitta so'rov
+  try {
+    const { rows } = await pool.query("SELECT obj_description('core'::regnamespace, 'pg_namespace') AS m");
+    if (rows[0]?.m === CORE_MARK) return;
+  } catch {
+    // core sxemasi hali yo'q — to'liq yo'l
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -62,6 +71,13 @@ export async function ensureCore() {
           WHERE s.schema_name = 'public'
           ON CONFLICT (username) DO NOTHING`);
       }
+    }
+    // Belgi: keyingi nusxalar tezkor yo'ldan o'tadi (huquq yetmasa — shunchaki belgisiz qoladi)
+    await client.query('SAVEPOINT core_mark');
+    try {
+      await client.query(`COMMENT ON SCHEMA core IS '${CORE_MARK}'`);
+    } catch {
+      await client.query('ROLLBACK TO SAVEPOINT core_mark');
     }
     await client.query('COMMIT');
   } catch (err) {

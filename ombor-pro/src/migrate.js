@@ -24,6 +24,15 @@ async function readMigrationFiles() {
 export async function migrate(log = console.log, sources = null) {
   const list = sources || defaultSources || await readMigrationFiles();
   const schema = currentSchema();
+  // Tezkor yo'l: barcha migratsiyalar allaqachon qo'llangan bo'lsa (odatdagi holat) — bitta so'rov, qulfsiz.
+  // Cloudflare'da har bir yangi nusxa shu tekshiruvdan o'tadi, shuning uchun u arzon bo'lishi kerak.
+  try {
+    const { rows } = await pool.query('SELECT name FROM schema_migrations');
+    const have = new Set(rows.map((r) => r.name));
+    if (list.every((m) => have.has(m.name))) return [];
+  } catch {
+    // jadval yoki sxema hali yo'q — to'liq yo'l
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

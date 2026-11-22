@@ -75,7 +75,40 @@ function ensureServer() {
 }
 
 // Har bir so'rov o'z ulanishlarini oladi; do'kon sxemasi bo'yicha alohida pool (odatda bitta)
-const poolFactory = (schema) => makePool(process.env.DATABASE_URL, schema, { max: 4, connectionTimeoutMillis: 15000 });
+const poolFactory = (schema, timing) => {
+  const p = makePool(process.env.DATABASE_URL, schema, { max: 4, connectionTimeoutMillis: 15000 });
+  if (timing) {
+    const started = Date.now();
+    p.on('connect', () => { timing.conns += 1; timing.connMs = Math.max(timing.connMs, Date.now() - started); });
+  }
+  return p;
+};
+
+// Baza mintaqasi (faqat mintaqa nomi, masalan "aws:eu-central-1") — tezlikni tekshirish uchun javob sarlavhasida
+function dbRegion() {
+  try {
+    const host = new URL(process.env.DATABASE_URL).hostname;
+    const m = host.match(/\.([a-z]{2}-[a-z]+-\d)\.aws\.neon\.tech$/) || host.match(/\.([a-z0-9]+)\.azure\.neon\.tech$/);
+    if (!m) return 'boshqa';
+    return host.includes('.azure.') ? `azure:${m[1]}` : `aws:${m[1]}`;
+  } catch {
+    return '?';
+  }
+}
+
+function withTiming(res, t) {
+  try {
+    const h = new Headers(res.headers);
+    h.set('Server-Timing', [
+      `total;dur=${t.total}`, `start;dur=${t.core}`, `connect;dur=${t.connMs};desc="${t.conns} ta ulanish"`,
+      `db;desc="${dbRegion()}"`, `fresh;desc="${t.fresh ? 'yangi nusxa' : 'issiq nusxa'}"`,
+    ].join(', '));
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+  } catch {
+    return res;
+  }
+}
+let isolateFresh = true;
 
 const jsonError = (status, message) => new Response(JSON.stringify({ error: message }), {
   status,
@@ -88,14 +121,20 @@ export default {
     const problem = setupProblem();
     if (problem) return jsonError(503, problem);
     ensureServer();
+    const t0 = Date.now();
+    const fresh = isolateFresh;
+    isolateFresh = false;
+    let tCore = 0;
     // Umumiy jadvallar (do'konlar, loginlar) shu nusxada birinchi marta tekshiriladi; do'kon sxemasi esa
     // so'rov ichida (app.js) sessiyadan aniqlanadi va kerak bo'lsa yangilanadi
-    const { result, closeAll } = runWithPools(poolFactory, async () => {
+    const { result, closeAll, timing } = runWithPools(poolFactory, async () => {
       await ensureCoreOnce();
+      tCore = Date.now() - t0;
       return handleAsNodeRequest(PORT, request, env, ctx);
     });
     try {
-      return await result;
+      const res = await result;
+      return withTiming(res, { total: Date.now() - t0, core: tCore, connMs: timing.connMs, conns: timing.conns, fresh });
     } catch (err) {
       console.error(err);
       return jsonError(500, databaseErrorMessage(err));
