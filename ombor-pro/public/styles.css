@@ -1982,3 +1982,71 @@ tr.clickable:hover td { background: #f7f9fd; }
 .pd-desc { margin-top: 10px; font-size: 14px; line-height: 1.55; color: var(--text-2); white-space: pre-line; }
 .pd-hero { border-radius: 18px; }
 .pd-stock { border-radius: 14px; }
+
+/* ---------- Sotuv joyi v2: qidiruv, plitkalar, savatcha ---------- */
+.pos-search { background: linear-gradient(var(--bg) 85%, rgba(245, 247, 251, 0)); }
+.pos-search .input { min-height: 44px; }
+.pos-search .search-input .ico-sm { color: var(--muted); }
+.pos .pcard { border-radius: 14px; padding: 10px 12px 12px; gap: 4px; }
+.pos .pcard .pcard-img { margin: -10px -12px 6px; width: calc(100% + 24px); height: 96px; }
+.pos .pcard .pname { font-weight: 600; }
+.pos .pcard .pprice { color: var(--accent-strong); font-size: 15px; font-weight: 750; letter-spacing: -.01em; }
+.pos .pcard .pprice .small { color: var(--muted); font-weight: 550; letter-spacing: 0; }
+.pos .pcard .pstock { font-size: 11.5px; }
+.pcard.in-cart { border-color: var(--pos); box-shadow: 0 0 0 1px var(--pos), var(--shadow-md); }
+.pcard .qty-badge { background: var(--pos); box-shadow: 0 2px 6px rgba(21, 128, 61, .35); }
+.pos-cart.card { padding: 18px; border-radius: 18px; }
+.cart-head { margin-bottom: 8px; }
+.cart-clear { color: var(--muted); }
+.cart-clear:hover { color: var(--neg); background: var(--neg-bg); }
+.cart-lines { display: grid; }
+.cl2 { gap: 10px; padding: 12px 0; }
+.cl2.over { background: linear-gradient(90deg, var(--neg-bg), rgba(254, 243, 242, 0)); border-radius: 10px; }
+.cl-top { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.cl-img { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--border); }
+.cl-img img { width: 100%; height: 100%; object-fit: cover; }
+.cl-img.no-img span { font-size: 16px; }
+.cl-name { display: grid; min-width: 0; }
+.cl-name b { font-weight: 650; font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+.cl-name span { font-size: 12px; color: var(--muted); }
+.cl2 .cart-x { min-height: 34px; padding: 0 8px; font-size: 12px; border-color: var(--border); }
+.cl2 .cart-x:hover { background: var(--neg-bg); border-color: #fecdca; }
+.cl-mid { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cl-mid .qty-ctrl button { width: 40px; height: 40px; }
+.cl-mid .qty-ctrl input { width: 62px; height: 40px; }
+.cl-unit { width: auto; min-width: 104px; min-height: 42px; }
+.cl-unit-fixed { font-size: 13px; color: var(--muted); font-weight: 550; }
+.cl-total { margin-left: auto; font-weight: 800; font-size: 15.5px; letter-spacing: -.01em; }
+.cl-disc { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 550; flex-wrap: wrap; }
+.cl-disc > span { display: inline-flex; align-items: center; gap: 4px; }
+.cl-disc .input { min-height: 34px; max-width: 120px; padding: 4px 10px; font-size: 13.5px; }
+.cl-disc em { font-style: normal; }
+.cl-disc b { margin-left: auto; font-size: 13px; }
+.cl-warn { display: flex; align-items: center; gap: 6px; color: var(--neg); font-size: 12.5px; font-weight: 700; }
+.cart-cust { margin-top: 12px; }
+.cust-chip { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; border-radius: 12px; background: var(--accent-soft); border: 1px solid var(--accent-soft-2); }
+.cust-chip .grow { display: grid; min-width: 0; }
+.cust-chip b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cust-chip span { font-size: 12px; color: var(--text-2); }
+.cust-chip .avatar { background: var(--surface); }
+.cart-sum { display: grid; gap: 4px; }
+.cart-total { margin-top: 2px; }
+.cart-total > span:first-child { font-weight: 700; color: var(--text-2); }
+.cart-foot { border-top-color: var(--border); }
+.cart-foot .big { font-size: 26px; letter-spacing: -.03em; }
+.cart-empty { padding: 28px 8px; }
+.receipt { border-radius: 6px; box-shadow: var(--shadow-sm); }
+@media (max-width: 719px) {
+  .cl2 .cart-x span { display: none; }
+}
+/* 6 ustunli ko'rsatkichlarda raqam kesilmasin */
+@media (min-width: 1280px) {
+  .stats:not(.four):not(.three) .stat { padding: 14px 14px 12px; }
+  .stats:not(.four):not(.three) .stat .stat-value { font-size: 20px; }
+  .stats:not(.four):not(.three) .stat .stat-ico { display: none; }
+}
+@media (max-width: 559px) {
+  .stat .stat-value { font-size: 19px; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .stat .stat-label { font-size: 12px; }
+  .stat .stat-ico { width: 26px; height: 26px; border-radius: 8px; }
+}

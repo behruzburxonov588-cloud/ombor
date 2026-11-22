@@ -18,6 +18,25 @@ const ACTION_LABELS = {
   'expense.create': 'Xarajat', 'user.create': 'Xodim qo\'shildi', 'user.update': 'Xodim tahrirlandi',
   'settings.update': 'Sozlamalar o\'zgardi', 'password.change': 'Parol o\'zgartirildi',
   'unit.create': 'Birlik qo\'shildi', 'category.create': 'Kategoriya qo\'shildi',
+  login: 'Tizimga kirdi', setup: "Do'kon ochildi", 'backup.download': 'Zaxira nusxa olindi',
+  'customer.debt': 'Mijozga qarz yozildi', 'customer.payment': "Mijoz qarz to'ladi",
+  'supplier.debt': 'Yetkazib beruvchiga qarz yozildi', 'supplier.payment': "Yetkazib beruvchiga to'landi",
+  'notifications.settings': 'Bildirishnoma sozlamalari',
+};
+
+// Tafsilot kalitlari — oddiy so'zlar bilan; pul summalari «so'm» bilan
+const DETAIL_LABELS = {
+  items: 'tovar', total: 'jami', credit: 'nasiya', paid_total: "to'landi", receipt_no: 'chek', name: 'nomi',
+  barcode: 'shtrix-kod', opening: "boshlang'ich qoldiq", amount: 'summa', category: 'turkum', method: 'usul',
+  selling_price: 'sotuv narxi', purchase_price: 'kelish narxi', min_stock: 'ogohlantirish chegarasi',
+  expected: 'kutilgan', counted: 'sanalgan', difference: 'farq', username: 'login', role: 'lavozim',
+  is_active: 'faol', count_no: 'sanoq', purchase_no: 'kirim', quantity: 'miqdor', reason: 'sabab', note: 'izoh',
+};
+const MONEY_KEYS = new Set(['total', 'credit', 'paid_total', 'amount', 'selling_price', 'purchase_price', 'expected', 'counted', 'difference', 'opening_cash']);
+const VALUE_LABELS = {
+  cash: 'naqd', card: 'karta', transfer: "o'tkazma", mixed: 'aralash', owner: 'egasi', administrator: 'administrator',
+  cashier: 'kassir', warehouse: 'ombor xodimi', accountant: 'buxgalter', rent: 'ijara', salaries: 'maosh', utilities: 'kommunal',
+  delivery: 'yetkazib berish', transport: 'transport', repairs: "ta'mirlash", other: 'boshqa', true: 'ha', false: "yo'q",
 };
 
 const ENTITY_LABELS = {
@@ -71,7 +90,7 @@ async function renderHistory(root, params, ctx) {
           <td data-label="Xodim">${esc(e.user_name || 'Tizim')}</td>
           <td data-label="Amal"><b>${esc(ACTION_LABELS[e.action] || e.action)}</b>
             <div class="small muted">${esc(ENTITY_LABELS[e.entity_type] || e.entity_type || '')}${e.entity_id ? ` #${e.entity_id}` : ''}</div></td>
-          <td data-label="Tafsilot" class="small">${esc(detailsText(e.details))}</td>
+          ${detailsText(e.details) ? `<td data-label="Tafsilot" class="small">${esc(detailsText(e.details))}</td>` : '<td class="no-label"></td>'}
         </tr>`).join('')}</tbody></table></div>`
         : emptyState("Bu davrda yozuv yo'q", 'clock')}
     </div>`;
@@ -85,8 +104,15 @@ async function renderHistory(root, params, ctx) {
 function detailsText(details) {
   if (!details || typeof details !== 'object') return '';
   return Object.entries(details)
-    .filter(([, v]) => v !== null && v !== '' && v !== undefined)
-    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+    .filter(([k, v]) => v !== null && v !== '' && v !== undefined && !(k === 'credit' && Number(v) === 0))
+    .map(([k, v]) => {
+      const label = DETAIL_LABELS[k] || k.replace(/_/g, ' ');
+      if (typeof v === 'object') return `${label}: ${Array.isArray(v) ? `${v.length} ta` : Object.keys(v).length ? Object.entries(v).map(([a, b]) => `${a} ${b}`).join(', ') : '—'}`;
+      if (k === 'items') return `${v} xil tovar`;
+      if (MONEY_KEYS.has(k) && Number.isFinite(Number(v))) return `${label}: ${money(Number(v))}`;
+      if (typeof v === 'boolean' || VALUE_LABELS[v] !== undefined) return `${label}: ${VALUE_LABELS[String(v)] ?? v}`;
+      return `${label}: ${v}`;
+    })
     .join(' · ');
 }
 

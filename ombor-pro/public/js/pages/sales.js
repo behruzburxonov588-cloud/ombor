@@ -33,6 +33,11 @@ function loadState(owner = '') {
   } catch {
     // buzilgan saqlangan ma'lumot e'tiborga olinmaydi
   }
+  return emptyState0(owner);
+}
+
+// Bo'sh savatcha (egasi saqlanadi — aks holda boshqa kalit ostida saqlanib, eski savatcha qaytib chiqadi)
+function emptyState0(owner = '') {
   return { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey(), owner };
 }
 
@@ -150,36 +155,38 @@ function cartHtml(ctx) {
       const c = calc(l);
       const unitOptions = [{ unit_id: l.base_unit_id, name: l.base_unit_name, factor: 1 }, ...l.conv]
         .map((u) => `<option value="${u.unit_id}" ${u.unit_id === l.unit_id ? 'selected' : ''}>${esc(u.name)}</option>`).join('');
+      const hasUnits = l.conv && l.conv.length > 0;
       return `
-        <div class="cart-line" data-line="${i}">
-          <div class="top">
-            <div class="grow"><div class="name">${esc(l.name)}</div>
-              <div class="small muted">${num(c.f * Number(l.price), 2)} so'm / ${esc(l.unit_name)} · qoldiq ${num(l.stock, 4)} ${esc(l.base_unit_name)}</div></div>
-            <button class="cart-x" type="button" data-remove="${i}" aria-label="${esc(l.name)}ni savatchadan olib tashlash">${icon('x', 'ico-sm')}<span>Olib tashlash</span></button>
+        <div class="cart-line cl2${c.over ? ' over' : ''}" data-line="${i}">
+          <div class="cl-top">
+            ${productPhoto({ name: l.name, image_path: l.image_path }, 'cl-img')}
+            <div class="cl-name"><b>${esc(l.name)}</b>
+              <span>${money(c.f * Number(l.price))} / ${esc(l.unit_name)} · qoldiq ${num(l.stock, 4)} ${esc(l.base_unit_name)}</span></div>
+            <button class="cart-x" type="button" data-remove="${i}" aria-label="${esc(l.name)}ni savatchadan olib tashlash" title="Olib tashlash">${icon('x', 'ico-sm')}<span>Olib tashlash</span></button>
           </div>
-          <div class="row" style="justify-content:space-between">
+          <div class="cl-mid">
             <div class="qty-ctrl" aria-label="Miqdor">
               <button type="button" data-step="${i}" data-d="-1" aria-label="${Number(l.qty) <= 1 ? 'Savatchadan olib tashlash' : 'Kamaytirish'}">${Number(l.qty) <= 1 ? icon('x', 'ico-sm') : '−'}</button>
               <input type="text" inputmode="decimal" value="${String(round4(l.qty)).replace('.', ',')}" data-qty="${i}" aria-label="Miqdor">
               <button type="button" data-step="${i}" data-d="1" aria-label="Ko'paytirish">+</button>
             </div>
-            <select class="input" style="width:auto;min-width:130px;min-height:48px" data-unit="${i}" aria-label="Birlik">${unitOptions}</select>
+            ${hasUnits ? `<select class="input cl-unit" data-unit="${i}" aria-label="Birlik">${unitOptions}</select>` : `<span class="cl-unit-fixed">${esc(l.unit_name)}</span>`}
+            <span class="cl-total num">${money(c.total)}</span>
           </div>
-          ${canDiscount ? `<div class="row small"><label class="grow" style="display:flex;gap:8px;align-items:center">Chegirma (so'm)
-              <input class="input" style="min-height:42px;max-width:150px" type="text" inputmode="decimal" value="${l.discount ? num(l.discount, 2) : ''}" placeholder="0" data-disc="${i}"></label></div>` : ''}
-          <div class="between"><span class="small muted">${num(c.base, 4)} ${esc(l.base_unit_name)}${c.discount ? ` · chegirma −${num(c.discount)}` : ''}</span>
-            <span class="num" style="font-weight:800">${money(c.total)}</span></div>
-          ${c.over ? '<div class="small red" style="font-weight:700">Qoldiq yetarli emas</div>' : ''}
+          ${canDiscount ? `<label class="cl-disc"><span>${icon('percent', 'ico-xs')} Chegirma</span>
+              <input class="input" type="text" inputmode="decimal" value="${l.discount ? num(l.discount, 2) : ''}" placeholder="0" data-disc="${i}" aria-label="${esc(l.name)}: chegirma, so'm"><em>so'm</em>
+              ${c.discount ? `<b class="red">−${money(c.discount)}</b>` : ''}</label>` : ''}
+          ${c.over ? `<div class="cl-warn">${icon('alert', 'ico-xs')} Qoldiq yetarli emas</div>` : ''}
         </div>`;
     }).join('')
-    : emptyState("Savatcha bo'sh. Tovarni bosing: u shu yerga tushadi. Adashsangiz, tovar ustidagi «−» ni bosing.", 'cart');
+    : `<div class="empty-state cart-empty"><span class="es-ico">${icon('cart')}</span><b>Savatcha bo'sh</b><p>Chapdagi tovarni bosing yoki shtrix-kodni o'qiting — u shu yerga tushadi. Adashsangiz, tovar ustidagi «−» ni bosing.</p></div>`;
 
   const cust = S.customer
-    ? `<div class="alert alert-info" style="align-items:center"><div class="grow"><b>${esc(S.customer.name)}</b>
-         <div class="small">Joriy qarz: ${money(S.customer.debt)}</div></div>
-         <button class="btn btn-sm btn-outline" type="button" data-cust>O'zgartirish</button>
-         <button class="btn btn-sm btn-ghost" type="button" data-cust-clear aria-label="Mijozni olib tashlash">${icon('minus', 'ico-sm')}</button></div>`
-    : `<button class="btn btn-outline btn-block" type="button" data-cust>${icon('users', 'ico-sm')} Mijoz tanlash (ixtiyoriy)</button>`;
+    ? `<div class="cust-chip"><span class="avatar">${esc((S.customer.name || '?').trim().charAt(0).toUpperCase())}</span><div class="grow"><b>${esc(S.customer.name)}</b>
+         <span>Joriy qarz: ${money(S.customer.debt)}</span></div>
+         <button class="btn btn-sm btn-light" type="button" data-cust>O'zgartirish</button>
+         <button class="icon-btn" type="button" data-cust-clear aria-label="Mijozni olib tashlash" title="Mijozni olib tashlash">${icon('x', 'ico-sm')}</button></div>`
+    : `<button class="btn btn-light btn-block" type="button" data-cust>${icon('users', 'ico-sm')} Mijoz tanlash <span class="muted">(ixtiyoriy)</span></button>`;
 
   const pay = S.method === 'mixed'
     ? `<div class="form-grid two" style="gap:8px">
@@ -195,16 +202,20 @@ function cartHtml(ctx) {
     : '';
 
   const reason = payValidity(t);
+  const count = S.cart.reduce((n, l) => n + Number(l.qty || 0), 0);
   return `
-    <div class="card-head"><h2>Savatcha</h2><span class="badge badge-info">${S.cart.length} ta tovar</span></div>
-    <div class="stack" style="max-height:none">${lines}</div>
+    <div class="card-head cart-head"><div class="row" style="gap:8px"><h2>Savatcha</h2><span class="badge badge-info">${S.cart.length} ta tovar</span></div>
+      ${S.cart.length ? `<button class="btn btn-ghost btn-sm cart-clear" type="button" data-clear title="Savatchani butunlay tozalash">${icon('trash', 'ico-sm')}<span>Tozalash</span></button>` : ''}</div>
+    <div class="cart-lines">${lines}</div>
     ${S.cart.length ? `
-      <div style="margin-top:12px">${cust}</div>
-      <div class="stack" style="margin-top:12px">${pay}${dueRow}</div>
-      <button class="btn btn-ghost btn-block" type="button" data-clear style="margin-top:6px">Savatchani butunlay tozalash</button>
+      <div class="cart-cust">${cust}</div>
+      ${pay || dueRow ? `<div class="stack" style="margin-top:12px">${pay}${dueRow}</div>` : ''}
       <div class="cart-foot">
-        ${t.discount ? `<div class="between small"><span class="muted">Tovarlar ${money(t.gross)}, chegirma</span><span class="num red">−${money(t.discount)}</span></div>` : ''}
-        <div class="between"><span style="font-weight:700">Jami</span><span class="big num">${money(t.total)}</span></div>
+        <div class="cart-sum">
+          <div class="between small"><span class="muted">Tovarlar (${num(round4(count), 3)} birlik)</span><span class="num">${money(t.gross)}</span></div>
+          ${t.discount ? `<div class="between small"><span class="muted">Chegirma</span><span class="num red">−${money(t.discount)}</span></div>` : ''}
+          <div class="between cart-total"><span>To'lanadi</span><span class="big num">${money(t.total)}</span></div>
+        </div>
         <div class="pay-row" role="group" aria-label="Xaridor qanday to'laydi">${METHODS.map((m) => `<button type="button" data-method="${m.key}" class="${S.method === m.key ? 'active' : ''}" aria-pressed="${S.method === m.key}">${icon(m.ico)}<span>${m.label}</span></button>`).join('')}</div>
         ${reason ? `<div class="small amber" style="font-weight:650">${esc(reason)}</div>` : ''}
         <button class="btn btn-success btn-lg btn-block" type="button" data-checkout ${reason ? 'disabled' : ''}>
@@ -292,7 +303,7 @@ function mountCart(el, ctx) {
   });
   el.querySelector('[data-clear]')?.addEventListener('click', async () => {
     if (await confirmBox('Savatchadagi hamma mahsulotlar o\'chirilsinmi?', { okText: 'Ha, tozalash', danger: true })) {
-      S = { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey() };
+      S = emptyState0(S.owner);
       save();
       refreshAll();
     }
@@ -442,7 +453,7 @@ async function checkout(btn, ctx) {
       const r = await post('/sales', body);
       const sale = r.sale;
       const shown = { ...S };
-      S = { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey() };
+      S = emptyState0(S.owner);
       save();
       detailCache.clear();
       if (cartModal && cartModal.isConnected) closeModal();
@@ -521,7 +532,7 @@ async function showReceipt(sale, ctx, opts = {}) {
   const html = receiptHtml(full, s.store_name, s.receipt_footer, storeInfo);
   const { close, el } = openModal({
     title: opts.fresh ? 'Sotuv yakunlandi' : `Chek ${full.receipt_no}`,
-    body: `<div class="alert alert-info" style="margin-bottom:12px">${icon('check', 'ico-sm')}<div>Chek: <b>${esc(full.receipt_no)}</b> · jami <b>${money(full.total)}</b>${Number(full.balance_due) ? ` · qarz <b>${money(full.balance_due)}</b>` : ''}</div></div>
+    body: `<div class="alert ${opts.fresh ? "alert-ok" : "alert-info"}" style="margin-bottom:12px">${icon("check", "ico-sm")}<div>Chek: <b>${esc(full.receipt_no)}</b> · jami <b>${money(full.total)}</b>${Number(full.balance_due) ? ` · qarz <b>${money(full.balance_due)}</b>` : ''}</div></div>
            <div id="print-area">${html}</div>`,
     foot: `<button class="btn btn-outline" type="button" data-print>${icon('print', 'ico-sm')} Chop etish</button>
            <button class="btn btn-light" type="button" data-share>${icon('share', 'ico-sm')} Ulashish</button>
@@ -876,11 +887,11 @@ export async function render(root, params, ctx) {
       <div class="pos-main-col">
         <div class="pos-search">
           <div class="input-group">
-            <input class="input" id="q" type="search" placeholder="Tovar nomini yozing" autocomplete="off" aria-label="Mahsulot qidirish">
+            <div class="search-input grow">${icon('search', 'ico-sm')}<input class="input" id="q" type="search" placeholder="Tovar nomi yoki shtrix-kodini yozing" autocomplete="off" aria-label="Mahsulot qidirish"></div>
             <button class="btn btn-light" type="button" id="btn-scan" aria-label="Kamera bilan shtrix-kod" style="min-width:56px">${icon('camera')}</button>
           </div>
           <div class="input-group pos-bc" style="margin-top:8px">
-            <input class="input" id="barcode" type="text" inputmode="numeric" placeholder="Shtrix-kod (skaner yoki raqam)" autocomplete="off" aria-label="Shtrix-kod">
+            <div class="search-input grow">${icon('scan', 'ico-sm')}<input class="input" id="barcode" type="text" inputmode="numeric" placeholder="Shtrix-kod: skaner bilan o'qiting yoki raqamni yozib Enter" autocomplete="off" aria-label="Shtrix-kod"></div>
             <button class="btn btn-outline" type="button" id="btn-bc" style="min-width:56px">${icon('scan')}</button>
           </div>
           <div class="chips pos-cats" id="pcats" hidden></div>
