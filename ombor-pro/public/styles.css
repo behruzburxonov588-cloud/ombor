@@ -1452,3 +1452,63 @@ body.modal-open { overflow: hidden; }
 @media (min-width: 720px) {
   .pos-cart { max-height: calc(100vh - var(--topbar-h) - 32px); overflow-y: auto; }
 }
+
+/* ---------- Tovar qo'shish: o'lchamlar (kiyim, poyabzal) ---------- */
+.size-step { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.size-step b { font-size: 15px; }
+.size-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.size-presets .chip { min-height: 40px; }
+.size-add .input { min-height: 46px; }
+.price-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 480px) { .price-grid.two { grid-template-columns: minmax(0, 1fr); } }
+.size-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.size-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.size-row:has(input[data-f="sell"]) { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr) auto; grid-column: span 2; }
+.size-row .input { min-height: 44px; text-align: center; font-weight: 650; font-size: 16px; padding: 6px; }
+.size-row .icon-btn { width: 36px; height: 36px; }
+.size-tag { min-width: 44px; height: 44px; padding: 0 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 750; display: grid; place-items: center; font-size: 15px; }
+.size-empty { grid-column: 1 / -1; padding: 16px; text-align: center; color: var(--muted); border: 1px dashed var(--border-strong); border-radius: 12px; font-size: 14px; }
+#vpreview { font-size: 14px; }
+
+/* ---------- Ro'yxat va tovar sahifasi: o'lchamlar ---------- */
+.szs { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 4px; }
+.sz { display: inline-flex; align-items: baseline; gap: 3px; padding: 2px 7px; border-radius: 7px; background: var(--surface-2); font-size: 12.5px; line-height: 1.5; }
+.sz i { font-style: normal; color: var(--muted); font-weight: 600; }
+.sz b { font-weight: 750; color: var(--text); }
+.sz.out { background: var(--bad-soft, #fde8e6); }
+.sz.out b { color: var(--danger, #c2413a); }
+.sz-table { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.sz-cell { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--text); background: var(--surface); }
+.sz-cell:hover { border-color: var(--border-strong); }
+.sz-cell.cur { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: var(--accent-soft); }
+.sz-cell.out .sz-q { color: var(--danger, #c2413a); }
+.sz-l { font-weight: 750; font-size: 17px; }
+.sz-q { font-weight: 650; }
+.sz-q small { font-weight: 500; color: var(--muted); }
+.sz-p { font-size: 12.5px; color: var(--muted); }
+
+/* ---------- Sotuv: o'lcham tanlash ---------- */
+.pcard .szs { margin: 0; }
+.pcard .sz { font-size: 11.5px; padding: 1px 6px; }
+.size-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.szp { position: relative; display: grid; gap: 2px; justify-items: center; min-height: 78px; padding: 10px 6px; border-radius: 14px; border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; }
+.szp b { font-size: 22px; font-weight: 800; line-height: 1.1; }
+.szp span { font-size: 12.5px; color: var(--muted); }
+.szp:active { transform: scale(.96); }
+.szp.added { border-color: var(--accent); background: var(--accent-soft); }
+.szp.out { opacity: .5; cursor: not-allowed; }
+.szp em { position: absolute; top: -8px; right: -6px; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px; background: var(--accent); color: #fff; font-style: normal; font-weight: 700; font-size: 13px; display: grid; place-items: center; }
+.szp em[hidden] { display: none; }
+
+/* ---------- «Yuk keldi»: o'lchamlar bo'yicha kiritish ---------- */
+.rtile .szs { margin-top: 4px; }
+.rtile .sz { font-size: 11.5px; padding: 1px 6px; }
+.szr-list { display: grid; gap: 8px; }
+.szr-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; }
+.szr-stock { font-size: 13px; color: var(--muted); }
+.szr-row .qty-ctrl input { width: 64px; }
+
+/* telefonda o'lchamli kartochka: o'lchamlar qatori pastda, butun kenglikda */
+@media (max-width: 719px) {
+  .pc-body .szs { grid-column: 1 / -1; grid-row: 4; margin: 6px 0 0; }
+}

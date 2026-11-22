@@ -701,3 +701,44 @@ export function kpiMoney(v) {
   if (Math.abs(n) >= 1e6) return `${compact(n)}<span class="cur">so'm</span>`;
   return `${moneyFull(n)}<span class="cur">so'm</span>`;
 }
+
+// O'lchamli tovarlar (bir modelning S, M, L ... o'lchamlari) bitta guruhga yig'iladi, qolganlari o'zicha qoladi.
+// Guruh: { group: true, name, items: [o'lchamlar], stock_qty: jami, status, min_price, max_price, ... }
+export function groupBySize(list) {
+  const out = [];
+  const groups = new Map();
+  for (const p of list) {
+    if (!p.model_name || !p.variant_label) { out.push(p); continue; }
+    const key = p.model_name.toLowerCase();
+    let g = groups.get(key);
+    if (!g) {
+      g = { group: true, model_name: p.model_name, name: p.model_name, items: [] };
+      groups.set(key, g);
+      out.push(g);
+    }
+    g.items.push(p);
+  }
+  for (const g of groups.values()) {
+    g.items.sort((a, b) => a.id - b.id); // qo'shilgan tartibda: S, M, L ...
+    const f = g.items[0];
+    const prices = g.items.map((v) => Number(v.selling_price));
+    const outCount = g.items.filter((v) => Number(v.stock_qty) <= 0).length;
+    Object.assign(g, {
+      id: f.id,
+      image_path: f.image_path,
+      base_unit_name: f.base_unit_name,
+      category_id: f.category_id,
+      category_name: f.category_name,
+      stock_qty: Math.round(g.items.reduce((s, v) => s + Number(v.stock_qty), 0) * 1000) / 1000,
+      min_price: Math.min(...prices),
+      max_price: Math.max(...prices),
+      out_count: outCount,
+      status: outCount === g.items.length ? 'out' : (outCount || g.items.some((v) => v.status === 'low') ? 'low' : 'ok'),
+    });
+  }
+  return out;
+}
+
+export function priceRange(g) {
+  return g.min_price === g.max_price ? money(g.min_price) : `${num(g.min_price)} – ${money(g.max_price)}`;
+}

@@ -37,6 +37,16 @@ async function loadRefs() {
 }
 
 // host — forma joylashadigan element; opts: { name, modal, onSaved(created, { again }), onCancel }
+// Tez tanlanadigan o'lchamlar (kiyim, poyabzal, ichimlik)
+const SIZE_PRESETS = [
+  { name: 'S M L XL XXL', labels: ['S', 'M', 'L', 'XL', 'XXL'] },
+  { name: 'XS – 3XL', labels: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'] },
+  { name: 'Kiyim 42–56', labels: ['42', '44', '46', '48', '50', '52', '54', '56'] },
+  { name: 'Poyabzal 36–45', labels: ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'] },
+  { name: 'Bolalar 92–140', labels: ['92', '98', '104', '110', '116', '122', '128', '134', '140'] },
+  { name: '0,5 L · 1 L · 1,5 L', labels: ['0,5 L', '1 L', '1,5 L'] },
+];
+
 async function mountWizard(host, opts) {
   const refs = await loadRefs();
   let units = refs.units;
@@ -49,8 +59,9 @@ async function mountWizard(host, opts) {
     packUnitId: null,
     packFactor: '',
     variants: false,
+    sizePrice: false,
     more: false,
-    rows: [blankRow(), blankRow()],
+    rows: [],
     single: blankRow(),
     costPer: 'pack',
     qtyIn: 'pack',
@@ -136,29 +147,48 @@ async function mountWizard(host, opts) {
   }
 
   function preview() {
-    const name = st.name.trim() || 'Tovar';
-    const labels = st.rows.map((r) => r.label.trim()).filter(Boolean);
-    return labels.length ? `Saqlanadi: ${labels.map((l) => `<b>${esc(`${name} ${l}`)}</b>`).join(', ')}` : '';
+    const rows = st.rows.filter((r) => r.label.trim());
+    if (!rows.length) return '';
+    const total = rows.reduce((s, r) => s + (toNum(r.qty) || 0), 0);
+    return `Jami: <b>${rows.length} ta o'lcham</b>${total > 0 ? `, <b>${num(round4(total), 4)} ${esc(qtyUnit())}</b>` : ''}`;
+  }
+
+  function addSizes(labels) {
+    for (const raw of labels) {
+      const label = String(raw).trim().replace(/\s+/g, ' ');
+      if (!label || st.rows.some((r) => r.label.trim().toLowerCase() === label.toLowerCase())) continue;
+      st.rows.push({ ...blankRow(), label });
+    }
   }
 
   function priceSection() {
     if (st.variants) {
+      const r = st.single;
       return `
-        ${packReady() ? `<div class="row small" style="gap:6px;flex-wrap:wrap">Kelish narxini qaysi biri uchun yozasiz: ${unitSwitch('cost')} · ${QTY} — ${unitSwitch('qty')}da</div>` : ''}
-        <div class="vtable">
-          <div class="vhead"><span>Hajmi yoki turi</span><span>Sotuv narxi (1 ${esc(base())})</span><span>Kelish narxi (1 ${esc(costUnit())})</span><span>${QTY} (${esc(qtyUnit())})</span><span></span></div>
-          ${st.rows.map((r, i) => `
-            <div class="vrow">
-              <input class="input" data-row="${i}" data-f="label" placeholder="${['0,5 L', '1 L', '1,5 L'][i] || '2 L'}" value="${esc(r.label)}" aria-label="Hajmi">
-              <input class="input" data-row="${i}" data-f="sell" inputmode="decimal" placeholder="Sotuv narxi" value="${esc(r.sell)}" aria-label="Sotuv narxi">
-              <input class="input" data-row="${i}" data-f="cost" inputmode="decimal" placeholder="Kelish narxi" value="${esc(r.cost)}" aria-label="Kelish narxi">
-              <input class="input" data-row="${i}" data-f="qty" inputmode="decimal" placeholder="${QTY}" value="${esc(r.qty)}" aria-label="${QTY}">
-              <button class="icon-btn" type="button" data-delrow="${i}" aria-label="O'chirish" ${st.rows.length <= 1 ? 'disabled' : ''}>${icon('x', 'ico-sm')}</button>
-              <div class="vhint" data-hint="${i}">${calcHint(r)}</div>
-            </div>`).join('')}
+        <div class="size-step"><b>Qaysi o'lchamlari bor?</b> <span class="small muted">Tugmani bosing yoki o'zingiz yozing</span></div>
+        <div class="size-presets">${SIZE_PRESETS.map((p, i) => `<button type="button" class="chip" data-preset="${i}">${icon('plus', 'ico-xs')} ${esc(p.name)}</button>`).join('')}</div>
+        <div class="input-group size-add"><input class="input" id="size-new" maxlength="40" placeholder="Boshqa o'lcham: masalan 3XL, 41, Qizil M" autocomplete="off" aria-label="Yangi o'lcham">
+          <button class="btn btn-light" type="button" id="size-add">${icon('plus', 'ico-sm')} Qo'shish</button></div>
+        <div class="size-step"><b>Narxi</b> <span class="small muted">— hamma o'lchamlarga bir xil</span></div>
+        <div class="price-grid two">
+          <label class="field"><span>Sotuv narxi *</span>
+            <div class="money-input"><input class="input input-lg" data-f="sell" inputmode="decimal" placeholder="0" value="${esc(r.sell)}"><em>so'm · 1 ${esc(base())}</em></div></label>
+          <div class="field"><span>Kelish narxi <small>(ixtiyoriy)</small></span>
+            <div class="money-input"><input class="input input-lg" data-f="cost" inputmode="decimal" placeholder="0" value="${esc(r.cost)}"><em>so'm · 1 ${unitSwitch('cost')}</em></div></div>
         </div>
-        <button class="btn btn-light btn-sm" type="button" id="addrow" style="justify-self:start">${icon('plus', 'ico-sm')} Yana hajm qo'shish</button>
-        <div class="small muted" id="vpreview">${preview()}</div>`;
+        <div class="calc-box" data-hint="single">${calcHint(r) || "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi"}</div>
+        <div class="size-step"><b>${opts.arrival ? 'Har bir o\'lchamdan nechta keldi?' : 'Har bir o\'lchamdan nechta bor?'}</b>${packReady() ? ` ${unitSwitch('qty')}` : ''}</div>
+        <div class="size-list">
+          ${st.rows.length ? st.rows.map((s, i) => `
+            <div class="size-row">
+              <span class="size-tag">${esc(s.label)}</span>
+              <input class="input" data-row="${i}" data-f="qty" inputmode="decimal" placeholder="0" value="${esc(s.qty)}" aria-label="${esc(s.label)}: ${QTY}">
+              ${st.sizePrice ? `<input class="input" data-row="${i}" data-f="sell" inputmode="decimal" placeholder="Narx: ${esc(r.sell || '0')}" value="${esc(s.sell)}" aria-label="${esc(s.label)}: sotuv narxi">` : ''}
+              <button class="icon-btn" type="button" data-delrow="${i}" aria-label="${esc(s.label)} o'lchamini olib tashlash">${icon('x', 'ico-sm')}</button>
+            </div>`).join('') : '<div class="size-empty">Hali o\'lcham tanlanmagan. Yuqoridagi tugmalardan birini bosing.</div>'}
+        </div>
+        ${st.rows.length ? `<button type="button" class="link-btn" id="size-price-toggle">${st.sizePrice ? "Hamma o'lchamga bir xil narx" : "Ba'zi o'lchamlarning narxi boshqacha"}</button>` : ''}
+        <div class="small" id="vpreview">${preview()}</div>`;
     }
     const r = st.single;
     return `
@@ -183,7 +213,7 @@ async function mountWizard(host, opts) {
   function moreFields() {
     return `
       <div class="form-grid two" style="gap:12px">
-        ${st.variants ? '<p class="small muted" style="grid-column:1/-1">Shtrix-kodni har bir hajm uchun keyin tovar sahifasida qo\'shasiz.</p>' : `
+        ${st.variants ? '<p class="small muted" style="grid-column:1/-1">Shtrix-kodni har bir o\'lcham uchun keyin tovar sahifasida qo\'shasiz.</p>' : `
         <div class="field"><span>Shtrix-kod</span>
           <div class="input-group"><input class="input" id="wbarcode" inputmode="numeric" maxlength="64" placeholder="Skaner bilan o'qiting yoki yozing" value="${esc(st.barcode)}">
             ${cameraScanSupported() ? `<button class="btn btn-light" type="button" id="wscan" aria-label="Kamera bilan o'qish" style="min-width:52px">${icon('camera')}</button>` : ''}</div></div>`}
@@ -219,11 +249,11 @@ async function mountWizard(host, opts) {
         <div class="pf-opts">
           ${optToggle('packed', 'box', 'Qutida, rulonda yoki blokda keladi', 'Masalan: 1 rulon ichida 100 metr — kelish narxini rulon uchun yozasiz')}
           ${st.packed ? `<div class="opt-body">${packRow()}</div>` : ''}
-          ${optToggle('variants', 'layers', 'Har xil hajmi bor', 'Masalan: Pepsi 0,5 L, 1 L, 1,5 L — bitta formada hammasini kiritasiz')}
+          ${optToggle('variants', 'layers', "O'lchamlari bor (kiyim, poyabzal...)", "Masalan: S, M, L yoki 38, 39, 40. Har bir o'lchamdan nechta borligi alohida ko'rinadi")}
         </div>
 
         <div class="pf-block">
-          <div class="wq">${st.variants ? `Har bir hajm: narxi va ${opts.arrival ? 'nechta kelgani' : 'nechta borligi'}` : `Narxi va ${opts.arrival ? 'nechta keldi' : 'nechta bor'}`}</div>
+          <div class="wq">${st.variants ? `O'lchamlari, narxi va ${opts.arrival ? 'nechta kelgani' : 'nechta borligi'}` : `Narxi va ${opts.arrival ? 'nechta keldi' : 'nechta bor'}`}</div>
           <div id="prices" class="pf-prices">${priceSection()}</div>
         </div>
 
@@ -254,15 +284,30 @@ async function mountWizard(host, opts) {
       row[inp.dataset.f] = inp.value;
       const hint = host.querySelector(`[data-hint="${i === undefined ? 'single' : i}"]`);
       if (hint) hint.innerHTML = calcHint(row) || (i === undefined ? "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi" : '');
-      if (inp.dataset.f === 'label') host.querySelector('#vpreview').innerHTML = preview();
+      const pv = host.querySelector('#vpreview');
+      if (pv) pv.innerHTML = preview();
     }));
+    host.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => {
+      addSizes(SIZE_PRESETS[Number(b.dataset.preset)].labels);
+      refreshPrices();
+      host.querySelector('.size-row input[data-f="qty"]')?.focus();
+    }));
+    const addOne = () => {
+      const inp = host.querySelector('#size-new');
+      if (!inp || !inp.value.trim()) return;
+      addSizes(inp.value.split(/[,;]+/));
+      refreshPrices();
+      host.querySelector('#size-new')?.focus();
+    };
+    host.querySelector('#size-add')?.addEventListener('click', addOne);
+    host.querySelector('#size-new')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOne(); } });
+    host.querySelector('#size-price-toggle')?.addEventListener('click', () => {
+      st.sizePrice = !st.sizePrice;
+      if (!st.sizePrice) st.rows.forEach((r) => { r.sell = ''; });
+      refreshPrices();
+    });
     host.querySelectorAll('[data-cost-unit]').forEach((b) => b.addEventListener('click', () => { st.costPer = b.dataset.costUnit; refreshPrices(); }));
     host.querySelectorAll('[data-qty-unit]').forEach((b) => b.addEventListener('click', () => { st.qtyIn = b.dataset.qtyUnit; refreshPrices(); }));
-    host.querySelector('#addrow')?.addEventListener('click', () => {
-      st.rows.push(blankRow());
-      refreshPrices();
-      host.querySelector(`[data-row="${st.rows.length - 1}"][data-f="label"]`)?.focus();
-    });
     host.querySelectorAll('[data-delrow]').forEach((b) => b.addEventListener('click', () => { st.rows.splice(Number(b.dataset.delrow), 1); refreshPrices(); }));
   }
 
@@ -354,14 +399,16 @@ async function mountWizard(host, opts) {
     if (!st.baseUnitId) return fail('Qanday sotishingizni tanlang (dona, kilogramm, litr, metr...)');
     if (st.packed && !st.packUnitId) return fail("Qadoq turini tanlang (quti, rulon, blok...) yoki «Qutida, rulonda keladi» belgisini olib tashlang");
     if (st.packed && !(factor() > 0)) return fail(`1 ${pack()} ichida nechta ${base()} borligini yozing`);
-    const rows = st.variants ? st.rows.filter((r) => r.label.trim() || r.sell || r.cost || r.qty) : [st.single];
-    if (!rows.length) return fail('Kamida bitta hajmni yozing (masalan: 0,5 L)');
+    // O'lchamlarda: narx umumiy (o'lchamda alohida yozilmagan bo'lsa), har bir o'lchamning o'z soni
+    const rows = st.variants
+      ? st.rows.filter((r) => r.label.trim()).map((r) => ({ ...r, sell: r.sell !== '' ? r.sell : st.single.sell, cost: r.cost !== '' ? r.cost : st.single.cost }))
+      : [st.single];
+    if (st.variants && !rows.length) return fail("Kamida bitta o'lchamni tanlang (masalan: S, M, L yoki 38, 39)");
     for (const r of rows) {
-      if (st.variants && !r.label.trim()) return fail('Har bir qatorda hajmi yoki turini yozing (masalan: 1 L)');
       const sell = toNum(r.sell);
-      if (r.sell === '' || !(sell >= 0)) return fail(st.variants ? `«${r.label}» uchun sotuv narxini yozing` : 'Sotuv narxini yozing');
+      if (r.sell === '' || !(sell >= 0)) return fail(st.variants ? (st.sizePrice ? `«${r.label}» uchun narx yozing yoki umumiy narxni to'ldiring` : 'Sotuv narxini yozing') : 'Sotuv narxini yozing');
       if (r.cost !== '' && !(toNum(r.cost) >= 0)) return fail("Kelish narxi noto'g'ri");
-      if (r.qty !== '' && !(toNum(r.qty) >= 0)) return fail("Nechta borligi noto'g'ri yozilgan");
+      if (r.qty !== '' && !(toNum(r.qty) >= 0)) return fail(st.variants ? `«${r.label}» uchun son noto'g'ri yozilgan` : "Nechta borligi noto'g'ri yozilgan");
     }
     const minStock = st.min.trim() ? toNum(st.min) : 0;
     if (!(minStock >= 0)) return fail("Ogohlantirish miqdori noto'g'ri");
@@ -378,6 +425,7 @@ async function mountWizard(host, opts) {
       const qty = r.qty === '' ? 0 : toNum(r.qty);
       const body = {
         name: st.variants ? `${name} ${r.label.trim()}` : name,
+        ...(st.variants ? { model_name: name, variant_label: r.label.trim() } : {}),
         base_unit_id: st.baseUnitId,
         selling_price: toNum(r.sell),
         purchase_price: round2(costPerBase(cost)),
@@ -409,11 +457,12 @@ async function mountWizard(host, opts) {
         }
       }
     }
-    toast(created.length > 1 ? `${created.length} ta tovar qo'shildi` : `«${created[0].name}» qo'shildi`, 'ok');
+    toast(st.variants ? `«${name}» qo'shildi: ${created.length} ta o'lcham` : `«${created[0].name}» qo'shildi`, 'ok');
     if (again) {
       if (st.imageUrl) URL.revokeObjectURL(st.imageUrl);
       // Keyingi tovar uchun: birlik, qadoq va yetkazib beruvchi qoladi, qolgani tozalanadi
-      Object.assign(st, { name: '', single: blankRow(), rows: [blankRow(), blankRow()], barcode: '', sku: '', image: null, imageUrl: '' });
+      // O'lchamlar ro'yxati qoladi (keyingi modelda ham odatda shu o'lchamlar), sonlari tozalanadi
+      Object.assign(st, { name: '', single: blankRow(), rows: st.rows.map((r) => ({ ...blankRow(), label: r.label })), barcode: '', sku: '', image: null, imageUrl: '' });
       render();
       window.scrollTo({ top: 0 });
     }

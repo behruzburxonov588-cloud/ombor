@@ -2,6 +2,7 @@
 import {
   get, post, put, icon, esc, num, money, qty, dateTime, toast, errorToast, openModal, withBusy,
   productThumb, emptyState, confirmBox, readForm, api, uploadProductImage, packText, productPhoto,
+  groupBySize, priceRange,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { renderProductWizard } from '../productform.js';
@@ -54,6 +55,24 @@ function productCard(p) {
         </div>
         <div class="pc-pack">${pk ? `= ${esc(pk)}` : '&nbsp;'}</div>
         <div class="pc-price">${money(p.selling_price)}<small> / ${esc(p.base_unit_name)}</small></div>
+      </div>
+    </a>`;
+}
+
+// Bir modelning o'lchamlari bitta kartochkada: har bir o'lcham va undan nechta qolgani
+function modelCard(g) {
+  const flag = g.status === 'out' ? 'Tugagan' : g.out_count ? `${g.out_count} ta o'lcham tugagan` : (g.status === 'low' ? 'Kam qoldi' : '');
+  return `
+    <a class="pc st-${g.status}" href="#/products/${g.items[0].id}">
+      <div class="pc-top">
+        ${productPhoto(g.items[0])}
+        ${flag ? `<span class="pc-flag ${g.status}">${esc(flag)}</span>` : ''}
+      </div>
+      <div class="pc-body">
+        <div class="pc-name">${esc(g.name)}</div>
+        <div class="szs" aria-label="O'lchamlar va qoldig'i">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}"><i>${esc(v.variant_label)}</i><b>${num(v.stock_qty, 3)}</b></span>`).join('')}</div>
+        <div class="pc-left"><span class="pc-label">Jami</span><span class="pc-qty">${num(g.stock_qty, 3)}</span><span class="pc-unit">${esc(g.base_unit_name)}</span></div>
+        <div class="pc-price">${priceRange(g)}<small> / ${esc(g.base_unit_name)}</small></div>
       </div>
     </a>`;
 }
@@ -120,7 +139,7 @@ async function renderList(root, params, ctx) {
       return;
     }
     listEl.innerHTML = `
-      <div class="pc-grid">${rows.slice(0, shown).map(productCard).join('')}</div>
+      <div class="pc-grid">${groupBySize(rows.slice(0, shown)).map((x) => (x.group ? modelCard(x) : productCard(x))).join('')}</div>
       ${rows.length > shown ? `<div class="home-foot"><button class="btn btn-light" type="button" id="more">Yana ko'rsatish (${rows.length - shown} ta qoldi)</button></div>` : ''}`;
     listEl.querySelector('#more')?.addEventListener('click', () => { shown += PAGE; draw(); });
   };
@@ -230,6 +249,65 @@ function moveRow(m, p) {
     </${tag}>`;
 }
 
+// Tovar sahifasi: shu modelning hamma o'lchamlari (qoldig'i va narxi), yangi o'lcham qo'shish
+async function mountSizes(root, p, ctx) {
+  const box = root.querySelector('#sizes');
+  if (!box) return;
+  const draw = async () => {
+    const { products: list } = await get(`/products?model=${encodeURIComponent(p.model_name)}`);
+    const items = list.filter((v) => v.variant_label).sort((a, b) => a.id - b.id);
+    const total = items.reduce((s, v) => s + Number(v.stock_qty), 0);
+    box.innerHTML = `
+      <div class="card-head"><h2>${esc(p.model_name)}: o'lchamlari</h2><span class="small muted">jami ${num(total, 3)} ${esc(p.base_unit_name)}</span></div>
+      <div class="sz-table">${items.map((v) => `
+        <a class="sz-cell${v.id === p.id ? ' cur' : ''}${Number(v.stock_qty) <= 0 ? ' out' : ''}" href="#/products/${v.id}">
+          <span class="sz-l">${esc(v.variant_label)}</span>
+          <span class="sz-q">${num(v.stock_qty, 3)} <small>${esc(v.base_unit_name)}</small></span>
+          <span class="sz-p">${money(v.selling_price)}</span>
+        </a>`).join('')}</div>
+      ${ctx.can('products.manage') && !p.is_archived ? `<button class="btn btn-light" type="button" id="sz-add" style="margin-top:12px">${icon('plus', 'ico-sm')} Yangi o'lcham qo'shish</button>` : ''}`;
+    box.querySelector('#sz-add')?.addEventListener('click', () => addSize(items));
+  };
+  const addSize = (items) => {
+    const { el, close } = openModal({
+      title: `${p.model_name}: yangi o'lcham`,
+      body: `<form id="szf" class="form-grid">
+        <label class="field"><span>O'lcham</span><input class="input input-lg" name="label" maxlength="40" required placeholder="Masalan: XXL yoki 45" autocomplete="off"></label>
+        <label class="field"><span>Nechta bor?</span><input class="input input-lg" name="qty" inputmode="decimal" placeholder="0"></label>
+        <label class="field"><span>Sotuv narxi</span><input class="input input-lg" name="sell" inputmode="decimal" value="${Number(p.selling_price)}"></label>
+        <div id="szerr"></div>
+        <button class="btn btn-lg btn-block" type="submit">${icon('check')} Qo'shish</button></form>`,
+    });
+    el.querySelector('[name=label]').focus();
+    el.querySelector('#szf').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.currentTarget));
+      const label = String(f.label || '').trim();
+      const qty = Number(String(f.qty || '0').replace(',', '.').replace(/\s/g, ''));
+      const sell = Number(String(f.sell || '').replace(',', '.').replace(/\s/g, ''));
+      const err = (m) => { el.querySelector('#szerr').innerHTML = `<div class="alert alert-bad">${esc(m)}</div>`; };
+      if (!label) return err("O'lchamni yozing");
+      if (items.some((v) => v.variant_label.toLowerCase() === label.toLowerCase())) return err(`«${label}» o'lchami allaqachon bor`);
+      if (!(qty >= 0)) return err("Son noto'g'ri");
+      if (!(sell >= 0)) return err("Narx noto'g'ri");
+      try {
+        await post('/products', {
+          name: `${p.model_name} ${label}`, model_name: p.model_name, variant_label: label,
+          base_unit_id: p.base_unit_id, selling_price: sell, purchase_price: Number(p.purchase_price) || 0,
+          min_stock: Number(p.min_stock) || 0, category_id: p.category_id || null, supplier_id: p.supplier_id || null,
+          conversions: (p.conversions || []).map((c) => ({ unit_id: c.unit_id, factor: c.factor })),
+          ...(qty > 0 ? { opening_qty: qty } : {}),
+        });
+        close();
+        toast(`«${label}» o'lchami qo'shildi`, 'ok');
+        await draw();
+      } catch (e2) { err(e2.message); }
+      return undefined;
+    });
+  };
+  try { await draw(); } catch (e) { box.innerHTML = `<div class="alert alert-bad">${esc(e.message)}</div>`; }
+}
+
 async function renderDetail(root, id, ctx) {
   const [{ product: p, batches }, hist] = await Promise.all([get(`/products/${id}`), get(`/products/${id}/history`)]);
   const canManage = ctx.can('products.manage');
@@ -275,6 +353,8 @@ async function renderDetail(root, id, ctx) {
       </div>
     </section>
 
+    ${p.model_name ? '<section class="card" id="sizes"><div class="empty small">O\'lchamlar yuklanmoqda...</div></section>' : ''}
+
     <div class="pd-facts">
       <div class="pd-fact"><span>Sotuv narxi</span><b>${money(p.selling_price)}</b><small>1 ${unit} uchun${p.pack ? ` · 1 ${esc(p.pack.name)} = ${money(Number(p.selling_price) * p.pack.factor)}` : ''}</small></div>
       ${showCost ? `<div class="pd-fact"><span>Kelish narxi</span><b>${cost > 0 ? money(cost) : '—'}</b><small>${cost > 0 ? `1 ${unit} sizga shunga tushgan` : 'hali kiritilmagan'}</small></div>` : ''}
@@ -314,6 +394,7 @@ async function renderDetail(root, id, ctx) {
       </div>
     </details>`;
 
+  mountSizes(root, p, ctx); // o'lchamlar (bo'lsa) alohida yuklanadi
   root.querySelector('#mv-more')?.addEventListener('click', (e) => {
     root.querySelector('#mv').innerHTML = moves.map((m) => moveRow(m, p)).join('');
     e.currentTarget.remove();

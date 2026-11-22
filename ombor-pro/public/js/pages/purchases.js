@@ -2,7 +2,7 @@
 import {
   get, post, icon, esc, num, money, dateOnly, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, productPhoto, packText,
-  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, groupBySize,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { openProductWizard } from '../productform.js';
@@ -268,6 +268,67 @@ async function renderNew(root, ctx, preselect = null) {
         <span class="rt-stock">Omborda: <b>${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}</b>${pk ? `<br><small>${esc(pk)}</small>` : ''}</span></span>
       </button>`;
   }
+  // O'lchamli tovar: bitta plitka, bosilganda har bir o'lchamdan nechta kelganini yozasiz
+  let groups = new Map();
+  function modelTile(g) {
+    const got = g.items.map((v) => inCart(v.id)).filter(Boolean);
+    const sum = got.reduce((s, l) => s + toNum(l.quantity), 0);
+    return `
+      <button type="button" class="pcard rtile st-${g.status} ${got.length ? 'picked' : ''}" data-model="${esc(g.model_name)}" aria-label="${esc(g.name)} — o'lchamlari bo'yicha kiritish">
+        ${productPhoto(g.items[0], 'rt-img')}
+        ${got.length ? `<span class="qty-badge">+${num(sum, 3)}</span>` : ''}
+        <span class="rt-text"><span class="pname">${esc(g.name)}</span>
+        <span class="szs">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}"><i>${esc(v.variant_label)}</i><b>${num(v.stock_qty, 3)}</b></span>`).join('')}</span></span>
+      </button>`;
+  }
+  function openSizeArrival(g) {
+    const first = g.items[0];
+    const price0 = inCart(first.id)?.unit_price ?? priceFor(first, 1);
+    const { close, el } = openModal({
+      title: `${g.name}: nechta keldi?`,
+      body: `<form id="szr" class="stack">
+        <p class="muted" style="margin:0">Har bir o'lchamdan nechta kelganini yozing. Kelmaganini bo'sh qoldiring.</p>
+        <div class="szr-list">${g.items.map((v) => `
+          <label class="szr-row"><span class="size-tag">${esc(v.variant_label)}</span>
+            <span class="szr-stock">Omborda: <b>${num(v.stock_qty, 3)}</b></span>
+            <span class="qty-ctrl"><button type="button" data-szd="${v.id}" aria-label="Kamaytirish">−</button><input type="text" inputmode="decimal" data-szq="${v.id}" placeholder="0" value="${inCart(v.id) ? esc(String(inCart(v.id).quantity)) : ''}" aria-label="${esc(v.variant_label)}: nechta keldi"><button type="button" data-szi="${v.id}" aria-label="Ko'paytirish">+</button></span>
+          </label>`).join('')}</div>
+        <label class="field"><span>1 ${esc(first.base_unit_name)} kelish narxi (hamma o'lchamga)</span>
+          <div class="money-input"><input class="input input-lg" id="szp" inputmode="decimal" value="${esc(String(price0 ?? ''))}" placeholder="0"><em>so'm</em></div></label>
+        <div class="small" id="szsum"></div>
+        <div id="szerr"></div>
+        <button class="btn btn-lg btn-block" type="submit">${icon('check')} Qo'shish</button></form>`,
+    });
+    const sumEl = el.querySelector('#szsum');
+    const refresh = () => {
+      const total = g.items.reduce((s, v) => s + (toNum(el.querySelector(`[data-szq="${v.id}"]`).value) || 0), 0);
+      const price = toNum(el.querySelector('#szp').value) || 0;
+      sumEl.innerHTML = total > 0 ? `Jami: <b>${num(round4(total), 3)} ${esc(first.base_unit_name)}</b>${price > 0 ? ` · <b>${money(round2(total * price))}</b>` : ''}` : '';
+    };
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-szi], [data-szd]');
+      if (!b) return;
+      const id = b.dataset.szi || b.dataset.szd;
+      const inp = el.querySelector(`[data-szq="${id}"]`);
+      inp.value = String(Math.max(0, round4((toNum(inp.value) || 0) + (b.dataset.szi ? 1 : -1)))) || '';
+      if (inp.value === '0') inp.value = '';
+      refresh();
+    });
+    el.addEventListener('input', refresh);
+    refresh();
+    el.querySelector('#szr').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const price = el.querySelector('#szp').value.trim();
+      if (toNum(price) < 0) { el.querySelector('#szerr').innerHTML = '<div class="alert alert-warn">Narx manfiy bo\'lishi mumkin emas</div>'; return; }
+      let any = false;
+      for (const v of g.items) {
+        const q = toNum(el.querySelector(`[data-szq="${v.id}"]`).value) || 0;
+        if (q > 0) { putLine(v, { quantity: String(round4(q)), unitId: v.base_unit_id, price }); any = true; } else if (inCart(v.id)) removeLine(v.id);
+      }
+      if (!any && !g.items.some((v) => inCart(v.id))) { el.querySelector('#szerr').innerHTML = '<div class="alert alert-warn">Kamida bitta o\'lchamdan nechta kelganini yozing</div>'; return; }
+      close();
+    });
+  }
   function drawGrid() {
     const rows = gridRows();
     const newTile = canNewProduct ? `
@@ -277,15 +338,25 @@ async function renderNew(root, ctx, preselect = null) {
         <span class="rt-stock">Ro'yxatda yo'q bo'lsa</span></span>
       </button>` : '';
     $('#grid').innerHTML = rows.length || canNewProduct
-      ? newTile + rows.slice(0, shown).map(tile).join('')
+      ? newTile + (() => {
+        const items = groupBySize(rows.slice(0, shown));
+        groups = new Map(items.filter((x) => x.group).map((x) => [x.model_name, x]));
+        return items.map((x) => (x.group ? modelTile(x) : tile(x))).join('');
+      })()
       : `<div class="empty" style="grid-column:1/-1">${q ? `«${esc(q)}» topilmadi` : "Hali tovar yo'q"}</div>`;
     $('#grid-more').innerHTML = rows.length > shown
       ? `<div class="home-foot"><button class="btn btn-light" type="button" id="gmore">Yana ko'rsatish (${rows.length - shown})</button></div>` : '';
     $('#gmore')?.addEventListener('click', () => { shown += GRID_PAGE; drawGrid(); });
   }
   function refreshTile(pid) {
-    const old = $(`[data-pid="${pid}"]`);
     const p = catalog.find((x) => x.id === pid);
+    if (p?.model_name) { // o'lchamli tovar: model plitkasi qayta chiziladi
+      const g = groups.get(p.model_name);
+      const oldM = g && $(`[data-model="${CSS.escape(p.model_name)}"]`);
+      if (oldM) oldM.outerHTML = modelTile(g);
+      return;
+    }
+    const old = $(`[data-pid="${pid}"]`);
     if (old && p) old.outerHTML = tile(p);
   }
 
@@ -518,6 +589,8 @@ async function renderNew(root, ctx, preselect = null) {
   // ----- hodisalar -----
   $('#grid').addEventListener('click', (e) => {
     if (e.target.closest('[data-newprod]')) { newProduct().catch(errorToast); return; }
+    const m = e.target.closest('[data-model]');
+    if (m) { const g = groups.get(m.dataset.model); if (g) openSizeArrival(g); return; }
     const t = e.target.closest('[data-pid]');
     if (!t) return;
     const p = catalog.find((x) => x.id === Number(t.dataset.pid));

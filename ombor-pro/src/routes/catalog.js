@@ -123,6 +123,8 @@ function shapeProduct(row, conversions = row.conv_json || []) {
     name: row.name,
     barcode: row.barcode,
     sku: row.sku || null,
+    model_name: row.model_name || null,
+    variant_label: row.variant_label || null,
     category_id: row.category_id,
     category_name: row.category_name,
     supplier_id: row.supplier_id,
@@ -158,6 +160,10 @@ router.get('/products', requirePerm('products.view', 'sales.create', 'purchases.
   if (q) {
     params.push(q);
     where.push(`(p.name ILIKE '%' || $${params.length} || '%' OR p.barcode = $${params.length} OR lower(p.sku) = lower($${params.length}))`);
+  }
+  if (req.query.model) { // bitta modelning hamma o'lchamlari
+    params.push(String(req.query.model).trim());
+    where.push(`lower(p.model_name) = lower($${params.length})`);
   }
   if (req.query.category_id) {
     params.push(Number(req.query.category_id));
@@ -211,6 +217,19 @@ async function validateProductBody(client, body, existingId = null) {
     );
     if (dupSku[0]) throw new HttpError(409, `Bu artikul "${dupSku[0].name}" mahsulotida allaqachon bor`);
   }
+  // O'lcham: model nomi va o'lcham birga keladi (masalan: "Futbolka" + "M"); yuborilmasa — o'zgarmaydi
+  const sizeGiven = body.model_name !== undefined || body.variant_label !== undefined;
+  const modelName = sizeGiven ? (str(body.model_name, 'Model nomi', { max: 150 }) || null) : null;
+  const variantLabel = sizeGiven ? (str(body.variant_label, "O'lcham", { max: 40 }) || null) : null;
+  if (Boolean(modelName) !== Boolean(variantLabel)) throw new HttpError(400, "O'lcham uchun tovar nomi va o'lchamning o'zi ikkalasi ham kerak");
+  if (modelName) {
+    const { rows: dupSize } = await client.query(
+      `SELECT id FROM products WHERE lower(model_name) = lower($1) AND lower(variant_label) = lower($2)
+          AND NOT is_archived AND ($3::int IS NULL OR id <> $3)`,
+      [modelName, variantLabel, existingId],
+    );
+    if (dupSize[0]) throw new HttpError(409, `«${modelName}» tovarida «${variantLabel}» o'lchami allaqachon bor`);
+  }
   const baseUnitId = num(body.base_unit_id, "Asosiy o'lchov birligi", { positive: true });
   const { rows: unit } = await client.query('SELECT id FROM units WHERE id = $1', [baseUnitId]);
   if (!unit[0]) throw new HttpError(400, "Asosiy birlik topilmadi");
@@ -235,6 +254,9 @@ async function validateProductBody(client, body, existingId = null) {
     barcode,
     sku,
     skuGiven,
+    sizeGiven,
+    modelName,
+    variantLabel,
     categoryId: body.category_id ? num(body.category_id, 'Kategoriya', { positive: true }) : null,
     supplierId: body.supplier_id ? num(body.supplier_id, 'Yetkazib beruvchi', { positive: true }) : null,
     baseUnitId,
@@ -262,9 +284,9 @@ router.post('/products', requirePerm('products.manage'), async (req, res) => {
     const opening = round4(num(body.opening_qty, 'Boshlang\'ich qoldiq', { min: 0, optional: true }));
     const { rows } = await client.query(
       `INSERT INTO products
-         (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock, sku)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku],
+         (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock, sku, model_name, variant_label)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+      [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.modelName, v.variantLabel],
     );
     const id = rows[0].id;
     await saveConversions(client, id, v.conversions);
@@ -296,9 +318,11 @@ router.put('/products/:id', requirePerm('products.manage'), async (req, res) => 
     await client.query(
       `UPDATE products SET name = $2, barcode = $3, category_id = $4, supplier_id = $5,
               base_unit_id = $6, purchase_price = $7, selling_price = $8, min_stock = $9,
-              sku = CASE WHEN $11 THEN $10 ELSE sku END, updated_at = now()
+              sku = CASE WHEN $11 THEN $10 ELSE sku END,
+              model_name = CASE WHEN $14 THEN $12 ELSE model_name END,
+              variant_label = CASE WHEN $14 THEN $13 ELSE variant_label END, updated_at = now()
         WHERE id = $1`,
-      [id, v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.skuGiven],
+      [id, v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.skuGiven, v.modelName, v.variantLabel, v.sizeGiven],
     );
     await saveConversions(client, id, v.conversions);
     await audit(client, req.user.id, 'product.update', 'product', id, {

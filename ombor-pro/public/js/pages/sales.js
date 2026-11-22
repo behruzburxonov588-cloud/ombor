@@ -3,6 +3,7 @@ import {
   resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
   get, post, icon, esc, num, money, dateTime, dateOnly, readForm, toast, errorToast,
   openModal, closeModal, withBusy, productThumb, emptyState, confirmBox, todayStr, productPhoto,
+  groupBySize, priceRange,
 } from '../ui.js';
 import { openBarcodeScanner } from '../scanner.js';
 
@@ -317,6 +318,20 @@ function refreshAll() {
 
 // Plitkalardagi «nechta tanlandi» belgisi va yashil chegara savatcha bilan doim bir xil
 function syncTiles() {
+  document.querySelectorAll('#grid [data-model]').forEach((tile) => {
+    const g = C?.groups?.get(tile.dataset.model);
+    if (!g) return;
+    const ids = new Set(g.items.map((v) => v.id));
+    const n = S.cart.filter((l) => ids.has(l.pid)).reduce((sum, l) => sum + Number(l.qty), 0);
+    tile.classList.toggle('in-cart', n > 0);
+    const minus = tile.parentElement?.querySelector('[data-minus-model]');
+    if (minus) minus.hidden = !(n > 0);
+    let b = tile.querySelector('.qty-badge');
+    if (n > 0) {
+      if (!b) { b = document.createElement('span'); b.className = 'qty-badge'; tile.prepend(b); }
+      b.textContent = num(n, 2);
+    } else if (b) b.remove();
+  });
   document.querySelectorAll('#grid [data-pid]').forEach((tile) => {
     const pid = Number(tile.dataset.pid);
     const n = S.cart.filter((l) => l.pid === pid).reduce((sum, l) => sum + Number(l.qty), 0);
@@ -535,7 +550,10 @@ async function showReceipt(sale, ctx, opts = {}) {
 
 function gridHtml(list) {
   if (!list.length) return emptyState('Mahsulot topilmadi', 'box');
-  return list.map((p) => {
+  const items = groupBySize(list);
+  C.groups = new Map(items.filter((x) => x.group).map((g) => [g.model_name, g]));
+  return items.map((p) => {
+    if (p.group) return modelTile(p);
     const inCart = S.cart.filter((l) => l.pid === p.id).reduce((s, l) => s + Number(l.qty), 0);
     const out = Number(p.stock_qty) <= 0;
     return `<div class="pwrap">
@@ -551,11 +569,58 @@ function gridHtml(list) {
   }).join('');
 }
 
+// O'lchamli tovar plitkasi: o'lchamlar va har biridan nechta qolgani ko'rinadi, bosilganda o'lcham tanlanadi
+function modelTile(g) {
+  const ids = new Set(g.items.map((v) => v.id));
+  const inCart = S.cart.filter((l) => ids.has(l.pid)).reduce((s, l) => s + Number(l.qty), 0);
+  const out = g.status === 'out';
+  return `<div class="pwrap">
+      <button class="pcard ${inCart > 0 ? 'in-cart' : ''}" type="button" data-model="${esc(g.model_name)}" ${out ? 'disabled' : ''} aria-label="${esc(g.name)}: o'lchamini tanlash">
+        ${inCart > 0 ? `<span class="qty-badge">${num(inCart, 2)}</span>` : ''}
+        ${productPhoto(g.items[0], 'pcard-img')}
+        <div class="pname">${esc(g.name)}</div>
+        <div class="pprice">${priceRange(g)}</div>
+        <div class="szs">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}"><i>${esc(v.variant_label)}</i><b>${num(v.stock_qty, 3)}</b></span>`).join('')}</div>
+      </button>
+      <button class="pcard-minus" type="button" data-minus-model="${esc(g.model_name)}" aria-label="${esc(g.name)}: oxirgi qo'shilganini olib tashlash" ${inCart > 0 ? '' : 'hidden'}>${icon('minus')}</button>
+    </div>`;
+}
+
+// O'lcham tanlash oynasi: o'lchamni bosish — savatchaga 1 ta qo'shadi (bir nechta o'lcham olish mumkin)
+function openSizePick(g) {
+  const count = (id) => S.cart.filter((l) => l.pid === id).reduce((s, l) => s + Number(l.qty), 0);
+  const { el, close } = openModal({
+    title: g.name,
+    body: `<p class="muted" style="margin:0 0 12px">Xaridor qaysi o'lchamni oladi? Bosing. Bir nechta o'lcham olsa, har birini bosing.</p>
+      <div class="size-pick">${g.items.map((v) => {
+        const out = Number(v.stock_qty) <= 0;
+        return `<button type="button" class="szp${out ? ' out' : ''}" data-vid="${v.id}" ${out ? 'disabled' : ''} aria-label="${esc(v.variant_label)} o'lchami">
+          <b>${esc(v.variant_label)}</b><span>${out ? 'Tugagan' : `${num(v.stock_qty, 3)} ta bor`}</span>
+          <em data-c="${v.id}"${count(v.id) ? '' : ' hidden'}>${num(count(v.id), 2)}</em></button>`;
+      }).join('')}</div>
+      <button class="btn btn-lg btn-block" type="button" data-done style="margin-top:14px">${icon('check')} Tayyor</button>`,
+  });
+  el.querySelectorAll('[data-vid]').forEach((b) => b.addEventListener('click', async () => {
+    const v = g.items.find((x) => String(x.id) === b.dataset.vid);
+    try {
+      await addProduct(v, 1);
+      const c = el.querySelector(`[data-c="${v.id}"]`);
+      c.hidden = false;
+      c.textContent = num(count(v.id), 2);
+      b.classList.remove('added');
+      void b.offsetWidth;
+      b.classList.add('added');
+      if (navigator.vibrate) navigator.vibrate(12);
+    } catch (err) { errorToast(err); }
+  }));
+  el.querySelector('[data-done]').addEventListener('click', close);
+}
+
 // Plitka ustidagi «−»: oxirgi qo'shilgan qatordan bittasini kamaytiradi, qolmasa savatchadan chiqaradi
-function removeOne(pid) {
+function removeOne(pid, ids = null) {
   for (let i = S.cart.length - 1; i >= 0; i -= 1) {
     const l = S.cart[i];
-    if (l.pid !== pid) continue;
+    if (ids ? !ids.has(l.pid) : l.pid !== pid) continue;
     const next = round4(Number(l.qty) - 1);
     if (next <= 0) S.cart.splice(i, 1);
     else l.qty = next;
@@ -570,6 +635,15 @@ function bindGrid() {
   document.querySelectorAll('#grid [data-minus]').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();
     removeOne(Number(b.dataset.minus));
+  }));
+  document.querySelectorAll('#grid [data-minus-model]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const g = C.groups?.get(b.dataset.minusModel);
+    if (g) removeOne(null, new Set(g.items.map((v) => v.id)));
+  }));
+  document.querySelectorAll('#grid [data-model]').forEach((b) => b.addEventListener('click', () => {
+    const g = C.groups?.get(b.dataset.model);
+    if (g) openSizePick(g);
   }));
   document.querySelectorAll('[data-pid]').forEach((b) => b.addEventListener('click', async () => {
     const p = products.find((x) => String(x.id) === b.dataset.pid);
