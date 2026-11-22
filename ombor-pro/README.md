@@ -105,7 +105,7 @@ GitHub'ga har bir push'da Cloudflare saytni o'zi yangilaydi.
 
 **Bepul reja haqida.** Bepul rejada har bir so'rovga 10 ms protsessor vaqti beriladi. Cloudflare'da parol tekshiruvi bazada bajariladi (tizimga kirish ~15 ms), oddiy amallar (sotuv, mahsulotlar) 10–25 ms, bosh sahifa va katta hisobotlar 30–60 ms oladi. Shuning uchun bepul rejada og'ir sahifalar ba'zan "1102" xatosini berishi mumkin; barqaror ishlash uchun **Workers Paid** (oyiga $5) yoki Render tavsiya etiladi.
 
-**Tezlik.** `wrangler.jsonc` da *Smart Placement* yoqilgan: Worker foydalanuvchi yonida emas, Neon bazasi yonida ishlaydi, shuning uchun har bir sahifadagi bir nechta baza so'rovlari qisqa masofada bajariladi. Yoqilgandan keyin Cloudflare joyni taxminan 15 daqiqada tanlaydi. Neon'ning bepul rejasida baza 5 daqiqa ishlatilmasa "uxlaydi": shundan keyingi birinchi ochilish 1–2 soniya sekinroq bo'ladi, keyingilari tez.
+**Tezlik.** `wrangler.jsonc` dagi `placement.region` Worker'ni Neon bazasi turgan mintaqada (hozir `aws:eu-central-1`, Frankfurt) ishga tushiradi: har bir sahifadagi baza so'rovlari bir shahar ichida bajariladi. Neon loyihasi boshqa mintaqada bo'lsa, shu qiymatni almashtiring — joriy mintaqa har bir API javobining `Server-Timing` sarlavhasida (`db`) ko'rinadi, u yerda ulanish va umumiy vaqt ham bor. Neon'ning bepul rejasida baza 5 daqiqa ishlatilmasa "uxlaydi": shundan keyingi birinchi ochilish 1–2 soniya sekinroq bo'ladi, keyingilari tez.
 
 **Hyperdrive ulamang** va Neon'ning *pooler* manzilini ishlatmang: ikkalasi ham ulanishlarni bo'lishadi va har bir do'kon o'z ma'lumotlariga o'tishi (search_path) saqlanmaydi. Server Neon'ning `-pooler` manzilini avtomatik ravishda to'g'ridan-to'g'ri manzilga almashtiradi.
 
