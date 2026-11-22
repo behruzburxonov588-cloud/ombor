@@ -162,6 +162,23 @@ export async function pnlTotals(db, fromTs, toTs, fromDate, toDate) {
 
 // ---------- Oylik natija: so'nggi N oy (joriy oy — bugungacha) ----------
 
+// Bosh sahifa: so'nggi N kun (odatda 7) kunma-kun savdo. Foyda faqat hisobot ruxsati bilan beriladi.
+export async function dailyTrend(db, user, query = {}) {
+  const n = Math.min(Math.max(Number(query.days) || 7, 2), 31);
+  const to = todayLocal();
+  const from = addDays(to, -(n - 1));
+  const financial = Boolean(user?.permissions?.['reports.view']);
+  const days = await dailyPnl(db, from, to);
+  return {
+    from,
+    to,
+    financial,
+    days: days.map((d) => (financial
+      ? { day: d.day, sales_count: d.sales_count, net_revenue: d.net_revenue, gross_profit: d.gross_profit, net_profit: d.net_profit }
+      : { day: d.day, sales_count: d.sales_count, net_revenue: d.net_revenue })),
+  };
+}
+
 export async function monthly(db, query = {}) {
   const count = Math.min(Math.max(Number(query.months) || 6, 1), 12);
   const today = todayLocal();

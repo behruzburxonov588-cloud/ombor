@@ -7,7 +7,7 @@ import {
 import { chart, sparkline } from '../charts.js';
 
 const ROLE = { owner: 'Egasi', administrator: 'Administrator', cashier: 'Kassir', warehouse: 'Ombor xodimi', accountant: 'Buxgalter' };
-const SERIES = ['#2a78d6', '#eb6834', '#1baf7a'];
+const SERIES = ['#2563eb', '#eb6834', '#16a34a'];
 const ACTIONS = {
   'sale.create': 'Savdo', 'sale.return': 'Qaytarish', 'purchase.create': 'Kirim', 'expense.create': 'Xarajat',
   'customer.payment': "Mijoz to'lovi", 'supplier.payment': "Yetkazib beruvchiga to'lov", 'stock.damage': 'Zarar yozildi',

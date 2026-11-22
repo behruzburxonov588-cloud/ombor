@@ -7,7 +7,7 @@ import {
 } from '../ui.js';
 import { chart, sparkline, segbar, tableView } from '../charts.js';
 
-const C = { s1: '#2a78d6', s2: '#1a9a62', prev: '#b9bfc9', pos: '#16794c', neg: '#c03a35', warn: '#d08a0d', cost: '#8fa3bf' };
+const C = { s1: '#2563eb', s2: '#16a34a', prev: '#c3cad6', pos: '#15803d', neg: '#d92d20', warn: '#d97706', cost: '#94a3b8' };
 const WIDGET_LABELS = {
   assistant: 'Bugungi xulosa (yordamchi)',
   kpis: "Asosiy ko'rsatkichlar",
@@ -298,42 +298,45 @@ function assistantCard(b) {
 
 // ---------- KPI kartochkalari ----------
 
-export function kpiCards(d, range, { cash = null, home = false } = {}) {
+// periodOnly: faqat davrga bog'liq 4 ta karta (savdo, foyda, xarajat, cheklar) — bosh sahifada hozirgi holat alohida
+export function kpiCards(d, range, { cash = null, home = false, periodOnly = false } = {}) {
   const k = d.kpis;
   const q = `from=${range.from}&to=${range.to}`;
   const cmp = compareLabel(range);
   const shortCmp = shortCompare(range);
   const today = range.key === 'today';
   const startNote = today ? 'bugun ertalabga nisbatan' : 'davr boshiga nisbatan';
-  const card = ({ label, kpi, href, note, goodWhenUp = true, color = C.s1, valueHtml, snapshot = false, hint, unit = 'money' }) => `
+  const ico = (name, tone = '') => (name ? `<span class="stat-ico ${tone}">${icon(name, 'ico-sm')}</span>` : '');
+  const card = ({ label, kpi, href, note, goodWhenUp = true, color = C.s1, valueHtml, snapshot = false, hint, unit = 'money', i, tone }) => `
     <a class="stat" href="${href}" title="${esc(hint || '')}">
-      <div class="stat-label">${esc(label)}<span class="go">${icon('arrowUpRight', 'ico-xs')}</span></div>
+      <div class="stat-label">${ico(i, tone)}${esc(label)}<span class="go">${icon('arrowUpRight', 'ico-xs')}</span></div>
       <div class="stat-value ${kpi.value < 0 ? 'neg' : ''}" title="${esc(`${moneyFull(kpi.value)} so'm`)}">${valueHtml || kpiMoney(kpi.value)}</div>
       ${sparkline(kpi.spark, { color })}
       <div class="stat-foot">${deltaAmount(kpi.value, kpi.previous, { goodWhenUp, unit, title: snapshot ? startNote : cmp })}<span class="stat-note">${esc(note || (snapshot ? startNote : shortCmp))}</span></div>
     </a>`;
   const cards = [];
   cards.push(card({
-    label: today ? 'Bugun sotildi' : 'Sotuvdan tushum', kpi: k.revenue, href: `#/reports?tab=sales&${q}`,
+    label: today ? 'Bugun sotildi' : 'Sotuvdan tushum', kpi: k.revenue, href: `#/reports?tab=sales&${q}`, i: 'cart',
     hint: "Sotuvdan tushgan pul (chegirma va qaytarilgan tovar ayirilgan). Qarz to'lovlari kirmaydi.",
   }));
   if (k.net_profit) {
     cards.push(card({
-      label: today ? 'Bugungi sof foyda' : 'Sof foyda', kpi: k.net_profit, href: `#/reports?tab=pnl&${q}`,
+      label: today ? 'Bugungi sof foyda' : 'Sof foyda', kpi: k.net_profit, href: `#/reports?tab=pnl&${q}`, i: 'trendUp', tone: k.net_profit.value < 0 ? 'neg' : 'pos',
       color: k.net_profit.value >= 0 ? C.s2 : C.neg,
       hint: "Qo'lingizda qoladigan pul: tushum − tovarlarning kelish narxi − xarajatlar − buzilgan tovar",
     }));
   }
   if (k.expenses) {
     cards.push(card({
-      label: 'Xarajatlar', kpi: k.expenses, href: `#/cash?tab=expenses&${q}`, goodWhenUp: false, color: C.cost,
+      label: 'Xarajatlar', kpi: k.expenses, href: `#/cash?tab=expenses&${q}`, goodWhenUp: false, color: C.cost, i: 'expense', tone: 'warn',
       note: k.expenses.losses > 0 ? `+ buzilgan tovar ${compact(k.expenses.losses)}` : '', hint: 'Ijara, maosh, kommunal va boshqa chiqimlar',
     }));
   }
   cards.push(card({
-    label: 'Cheklar soni', kpi: k.sales_count, href: `#/sales/history?${q}`, valueHtml: `${num(k.sales_count.value, 0)}<span class="cur">ta</span>`,
+    label: 'Cheklar soni', kpi: k.sales_count, href: `#/sales/history?${q}`, i: 'receipt', tone: 'slate', valueHtml: `${num(k.sales_count.value, 0)}<span class="cur">ta</span>`,
     unit: 'ta', note: k.sales_count.value ? `o'rtacha chek ${compact(k.sales_count.avg_order)}` : '', hint: 'Nechta xaridor xarid qildi (yakunlangan cheklar)',
   }));
+  if (periodOnly) return `<div class="stats four">${cards.join('')}</div>`;
   // Davrga bog'liq bo'lmagan «hozirgi holat» kartasi (grafiksiz)
   const nowCard = ({ label, value, href, note, hint, tone = '' }) => `
     <a class="stat" href="${href}" title="${esc(hint || '')}">

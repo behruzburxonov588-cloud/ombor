@@ -928,6 +928,19 @@ export async function render(root, params, ctx) {
   refreshAll();
   // Qoldiq ma'lumoti yangi bo'lishi uchun keshni tozalaymiz
   detailCache.clear();
-  await loadProducts('');
+  // Mahsulotlar sahifasidan kelganda: ?q= — shu nom bo'yicha qidiruv (o'lchamli tovar), ?add= — tovar savatchaga qo'shiladi
+  const preQ = String(params.query.q || '').trim();
+  const addId = Number(params.query.add) || 0;
+  if (preQ || addId) history.replaceState(null, '', '#/sales');
+  if (preQ) { q.value = preQ; C.query = preQ; }
+  await loadProducts(C.query);
   refreshAll();
+  if (addId) {
+    try {
+      const line = await addProduct({ id: addId }, 1);
+      toast(`«${line.name}» savatchaga qo'shildi`, 'ok');
+    } catch (err) {
+      errorToast(err);
+    }
+  }
 }

@@ -7,7 +7,7 @@ import fs from 'node:fs/promises';
 import { pool, withTransaction } from '../db.js';
 import { requirePerm, can } from '../auth.js';
 import { config } from '../config.js';
-import { HttpError, num, str, round2, round4, paging } from '../util.js';
+import { HttpError, num, str, round2, round4, paging, dateStr, todayLocal, addDays } from '../util.js';
 import { audit } from '../audit.js';
 import { productUnits } from '../services/catalog.js';
 import { receiveStock } from '../services/inventory.js';
@@ -116,6 +116,11 @@ function shapeProduct(row, conversions = row.conv_json || []) {
   let status = 'ok';
   if (stock <= 0) status = 'out';
   else if (minStock > 0 && stock <= minStock) status = 'low';
+  // Yaroqlilik muddati: o'tgan (expired) yoki 30 kun ichida tugaydi (soon)
+  const expiry = row.expiry_date ? (row.expiry_date instanceof Date ? row.expiry_date.toISOString().slice(0, 10) : String(row.expiry_date).slice(0, 10)) : null;
+  const today = todayLocal();
+  let expiryStatus = null;
+  if (expiry) expiryStatus = expiry < today ? 'expired' : (expiry <= addDays(today, 30) ? 'soon' : 'ok');
   const revenue = round2(row.sold_revenue);
   const cost = round2(row.sold_cost);
   return {
@@ -125,6 +130,9 @@ function shapeProduct(row, conversions = row.conv_json || []) {
     sku: row.sku || null,
     model_name: row.model_name || null,
     variant_label: row.variant_label || null,
+    description: row.description || null,
+    expiry_date: expiry,
+    expiry_status: expiryStatus,
     category_id: row.category_id,
     category_name: row.category_name,
     supplier_id: row.supplier_id,
@@ -171,6 +179,7 @@ router.get('/products', requirePerm('products.view', 'sales.create', 'purchases.
   }
   if (req.query.stock === 'low') where.push('p.min_stock > 0 AND p.stock_qty > 0 AND p.stock_qty <= p.min_stock');
   if (req.query.stock === 'out') where.push('p.stock_qty <= 0');
+  if (req.query.expiry === 'soon') where.push("p.expiry_date IS NOT NULL AND p.expiry_date <= (now() AT TIME ZONE 'Asia/Tashkent')::date + 30");
   const { limit, offset } = paging(req.query, { limit: 200, max: 1000 });
   const { rows } = await pool.query(
     `${PRODUCT_SELECT} WHERE ${where.join(' AND ')} ORDER BY p.name LIMIT ${limit} OFFSET ${offset}`,
@@ -222,6 +231,11 @@ async function validateProductBody(client, body, existingId = null) {
   const modelName = sizeGiven ? (str(body.model_name, 'Model nomi', { max: 150 }) || null) : null;
   const variantLabel = sizeGiven ? (str(body.variant_label, "O'lcham", { max: 40 }) || null) : null;
   if (Boolean(modelName) !== Boolean(variantLabel)) throw new HttpError(400, "O'lcham uchun tovar nomi va o'lchamning o'zi ikkalasi ham kerak");
+  // Izoh va yaroqlilik muddati: yuborilmasa — o'zgarmaydi; bo'sh satr — o'chiriladi
+  const descGiven = body.description !== undefined;
+  const description = descGiven ? (str(body.description, 'Izoh', { max: 1000 }) || null) : null;
+  const expiryGiven = body.expiry_date !== undefined;
+  const expiryDate = expiryGiven ? dateStr(body.expiry_date, 'Yaroqlilik muddati', { optional: true }) : null;
   if (modelName) {
     const { rows: dupSize } = await client.query(
       `SELECT id FROM products WHERE lower(model_name) = lower($1) AND lower(variant_label) = lower($2)
@@ -257,6 +271,10 @@ async function validateProductBody(client, body, existingId = null) {
     sizeGiven,
     modelName,
     variantLabel,
+    description,
+    descGiven,
+    expiryDate,
+    expiryGiven,
     categoryId: body.category_id ? num(body.category_id, 'Kategoriya', { positive: true }) : null,
     supplierId: body.supplier_id ? num(body.supplier_id, 'Yetkazib beruvchi', { positive: true }) : null,
     baseUnitId,
@@ -284,9 +302,11 @@ router.post('/products', requirePerm('products.manage'), async (req, res) => {
     const opening = round4(num(body.opening_qty, 'Boshlang\'ich qoldiq', { min: 0, optional: true }));
     const { rows } = await client.query(
       `INSERT INTO products
-         (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock, sku, model_name, variant_label)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-      [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.modelName, v.variantLabel],
+         (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock, sku, model_name, variant_label,
+          description, expiry_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+      [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.modelName, v.variantLabel,
+        v.description, v.expiryDate],
     );
     const id = rows[0].id;
     await saveConversions(client, id, v.conversions);
@@ -320,9 +340,12 @@ router.put('/products/:id', requirePerm('products.manage'), async (req, res) => 
               base_unit_id = $6, purchase_price = $7, selling_price = $8, min_stock = $9,
               sku = CASE WHEN $11 THEN $10 ELSE sku END,
               model_name = CASE WHEN $14 THEN $12 ELSE model_name END,
-              variant_label = CASE WHEN $14 THEN $13 ELSE variant_label END, updated_at = now()
+              variant_label = CASE WHEN $14 THEN $13 ELSE variant_label END,
+              description = CASE WHEN $16 THEN $15 ELSE description END,
+              expiry_date = CASE WHEN $18 THEN $17::date ELSE expiry_date END, updated_at = now()
         WHERE id = $1`,
-      [id, v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.skuGiven, v.modelName, v.variantLabel, v.sizeGiven],
+      [id, v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.skuGiven, v.modelName, v.variantLabel, v.sizeGiven,
+        v.description, v.descGiven, v.expiryDate, v.expiryGiven],
     );
     await saveConversions(client, id, v.conversions);
     await audit(client, req.user.id, 'product.update', 'product', id, {

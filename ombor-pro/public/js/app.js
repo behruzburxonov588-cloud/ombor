@@ -1,7 +1,7 @@
 // OMBOR PRO - asosiy ilova: kirish, tuzilma (yon panel, yuqori panel), marshrutlar, bildirishnomalar
 import {
   icon, esc, get, post, onUnauthorized, openModal, closeModal, toast, errorToast, num, money,
-  openPopover, closePopover, initials, timeAgo, confirmBox,
+  openPopover, closePopover, initials, timeAgo, confirmBox, skeletonPage,
 } from './ui.js';
 
 // Marshrut -> sahifa moduli
@@ -598,7 +598,9 @@ async function route() {
   $('#page-title').textContent = active?.label || EXTRA_TITLES[key] || '';
   setBadge(state.unread);
   const page = $('#page');
-  page.innerHTML = '<div class="empty">Yuklanmoqda…</div>';
+  // page-in: sahifaning har bir yangi bo'limi yumshoq paydo bo'ladi (CSS animatsiya qo'shilganda bir marta ishlaydi)
+  page.classList.add('page-in');
+  page.innerHTML = skeletonPage({ cards: key === 'dashboard' ? 4 : 3, block: key !== 'sales' });
   try {
     const mod = await ROUTES[key].load();
     window.scrollTo(0, 0);

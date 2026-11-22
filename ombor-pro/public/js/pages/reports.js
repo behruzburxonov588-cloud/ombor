@@ -6,7 +6,7 @@ import {
 } from '../ui.js';
 import { chart, hbars, segbar } from '../charts.js';
 
-const C = { s1: '#2a78d6', prev: '#b9bfc9', pos: '#1a9a62', neg: '#c03a35', warn: '#d08a0d', cost: '#8fa3bf' };
+const C = { s1: '#2563eb', prev: '#c3cad6', pos: '#16a34a', neg: '#d92d20', warn: '#d97706', cost: '#94a3b8' };
 const TABS = [
   { key: 'pnl', label: 'Foyda va zarar', icon: 'coins', perms: ['reports.view'], export: 'pnl' },
   { key: 'sales', label: 'Savdo', icon: 'chart', perms: ['reports.view'], export: 'sales' },

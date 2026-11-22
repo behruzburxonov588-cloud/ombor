@@ -70,6 +70,8 @@ async function mountWizard(host, opts) {
     cat: '',
     sup: '',
     min: '',
+    desc: '',
+    expiry: '',
     image: null,
     imageUrl: '',
   });
@@ -161,46 +163,49 @@ async function mountWizard(host, opts) {
     }
   }
 
-  function priceSection() {
-    if (st.variants) {
+  const REQ = '<span class="req" aria-hidden="true">*</span>';
+  const HINT0 = "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi";
+
+  // 2-bo'lim: narxlar (o'lchamli tovarda — hamma o'lchamga umumiy narx)
+  function priceBlock() {
+    const r = st.single;
+    return `
+      <div class="price-grid two">
+        <label class="field"><span>Sotuv narxi ${REQ}${st.variants ? " <small>— hamma o'lchamga</small>" : ''}</span>
+          <div class="money-input" data-wrap="sell"><input class="input input-lg" data-f="sell" inputmode="decimal" placeholder="0" value="${esc(r.sell)}" aria-required="true"><em>so'm · 1 ${esc(base())}</em></div></label>
+        <div class="field"><span>Kelish narxi <small>(ixtiyoriy)</small></span>
+          <div class="money-input" data-wrap="cost"><input class="input input-lg" data-f="cost" inputmode="decimal" placeholder="0" value="${esc(r.cost)}" aria-label="Kelish narxi"><em>so'm · 1 ${unitSwitch('cost')}</em></div></div>
+      </div>
+      <div class="calc-box" data-hint="single">${calcHint(r) || HINT0}</div>
+      <p class="fsec-note">${icon('info', 'ico-xs')} Ulgurji narx alohida yuritilmaydi: ulgurji xaridorga sotuvda chegirma bilan sotasiz.</p>`;
+  }
+
+  // 3-bo'lim: qoldiq (oddiy tovar — bitta son; o'lchamli — har bir o'lcham soni)
+  function stockBlock() {
+    if (!st.variants) {
       const r = st.single;
       return `
-        <div class="size-step"><b>Qaysi o'lchamlari bor?</b> <span class="small muted">Tugmani bosing yoki o'zingiz yozing</span></div>
-        <div class="size-presets">${SIZE_PRESETS.map((p, i) => `<button type="button" class="chip" data-preset="${i}">${icon('plus', 'ico-xs')} ${esc(p.name)}</button>`).join('')}</div>
-        <div class="input-group size-add"><input class="input" id="size-new" maxlength="40" placeholder="Boshqa o'lcham: masalan 3XL, 41, Qizil M" autocomplete="off" aria-label="Yangi o'lcham">
-          <button class="btn btn-light" type="button" id="size-add">${icon('plus', 'ico-sm')} Qo'shish</button></div>
-        <div class="size-step"><b>Narxi</b> <span class="small muted">— hamma o'lchamlarga bir xil</span></div>
-        <div class="price-grid two">
-          <label class="field"><span>Sotuv narxi *</span>
-            <div class="money-input"><input class="input input-lg" data-f="sell" inputmode="decimal" placeholder="0" value="${esc(r.sell)}"><em>so'm · 1 ${esc(base())}</em></div></label>
-          <div class="field"><span>Kelish narxi <small>(ixtiyoriy)</small></span>
-            <div class="money-input"><input class="input input-lg" data-f="cost" inputmode="decimal" placeholder="0" value="${esc(r.cost)}"><em>so'm · 1 ${unitSwitch('cost')}</em></div></div>
-        </div>
-        <div class="calc-box" data-hint="single">${calcHint(r) || "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi"}</div>
-        <div class="size-step"><b>${opts.arrival ? 'Har bir o\'lchamdan nechta keldi?' : 'Har bir o\'lchamdan nechta bor?'}</b>${packReady() ? ` ${unitSwitch('qty')}` : ''}</div>
-        <div class="size-list">
-          ${st.rows.length ? st.rows.map((s, i) => `
-            <div class="size-row">
-              <span class="size-tag">${esc(s.label)}</span>
-              <input class="input" data-row="${i}" data-f="qty" inputmode="decimal" placeholder="0" value="${esc(s.qty)}" aria-label="${esc(s.label)}: ${QTY}">
-              ${st.sizePrice ? `<input class="input" data-row="${i}" data-f="sell" inputmode="decimal" placeholder="Narx: ${esc(r.sell || '0')}" value="${esc(s.sell)}" aria-label="${esc(s.label)}: sotuv narxi">` : ''}
-              <button class="icon-btn" type="button" data-delrow="${i}" aria-label="${esc(s.label)} o'lchamini olib tashlash">${icon('x', 'ico-sm')}</button>
-            </div>`).join('') : '<div class="size-empty">Hali o\'lcham tanlanmagan. Yuqoridagi tugmalardan birini bosing.</div>'}
-        </div>
-        ${st.rows.length ? `<button type="button" class="link-btn" id="size-price-toggle">${st.sizePrice ? "Hamma o'lchamga bir xil narx" : "Ba'zi o'lchamlarning narxi boshqacha"}</button>` : ''}
-        <div class="small" id="vpreview">${preview()}</div>`;
+        <label class="field"><span>${opts.arrival ? 'Nechta keldi?' : 'Hozir nechta bor?'} <small>(boshlang'ich qoldiq, ixtiyoriy)</small></span>
+          <div class="money-input" data-wrap="qty"><input class="input input-lg" data-f="qty" inputmode="decimal" placeholder="0" value="${esc(r.qty)}"><em>${unitSwitch('qty')}</em></div></label>`;
     }
     const r = st.single;
     return `
-      <div class="price-grid">
-        <label class="field"><span>Sotuv narxi *</span>
-          <div class="money-input"><input class="input input-lg" data-f="sell" inputmode="decimal" placeholder="0" value="${esc(r.sell)}"><em>so'm · 1 ${esc(base())}</em></div></label>
-        <div class="field"><span>Kelish narxi <small>(ixtiyoriy)</small></span>
-          <div class="money-input"><input class="input input-lg" data-f="cost" inputmode="decimal" placeholder="0" value="${esc(r.cost)}"><em>so'm · 1 ${unitSwitch('cost')}</em></div></div>
-        <div class="field"><span>${opts.arrival ? 'Nechta keldi?' : 'Hozir nechta bor?'} <small>(ixtiyoriy)</small></span>
-          <div class="money-input"><input class="input input-lg" data-f="qty" inputmode="decimal" placeholder="0" value="${esc(r.qty)}"><em>${unitSwitch('qty')}</em></div></div>
+      <div class="size-step"><b>Qaysi o'lchamlari bor?</b> <span class="small muted">Tugmani bosing yoki o'zingiz yozing</span></div>
+      <div class="size-presets">${SIZE_PRESETS.map((x, i) => `<button type="button" class="chip" data-preset="${i}">${icon('plus', 'ico-xs')} ${esc(x.name)}</button>`).join('')}</div>
+      <div class="input-group size-add"><input class="input" id="size-new" maxlength="40" placeholder="Boshqa o'lcham: masalan 3XL, 41, Qizil M" autocomplete="off" aria-label="Yangi o'lcham">
+        <button class="btn btn-light" type="button" id="size-add">${icon('plus', 'ico-sm')} Qo'shish</button></div>
+      <div class="size-step"><b>${opts.arrival ? "Har bir o'lchamdan nechta keldi?" : "Har bir o'lchamdan nechta bor?"}</b>${packReady() ? ` ${unitSwitch('qty')}` : ''}</div>
+      <div class="size-list" data-wrap="sizes">
+        ${st.rows.length ? st.rows.map((x, i) => `
+          <div class="size-row">
+            <span class="size-tag">${esc(x.label)}</span>
+            <input class="input" data-row="${i}" data-f="qty" inputmode="decimal" placeholder="0" value="${esc(x.qty)}" aria-label="${esc(x.label)}: ${QTY}">
+            ${st.sizePrice ? `<input class="input" data-row="${i}" data-f="sell" inputmode="decimal" placeholder="Narx: ${esc(r.sell || '0')}" value="${esc(x.sell)}" aria-label="${esc(x.label)}: sotuv narxi">` : ''}
+            <button class="icon-btn" type="button" data-delrow="${i}" aria-label="${esc(x.label)} o'lchamini olib tashlash">${icon('x', 'ico-sm')}</button>
+          </div>`).join('') : '<div class="size-empty">Hali o\'lcham tanlanmagan. Yuqoridagi tugmalardan birini bosing.</div>'}
       </div>
-      <div class="calc-box" data-hint="single">${calcHint(r) || "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi"}</div>`;
+      ${st.rows.length ? `<button type="button" class="link-btn" id="size-price-toggle">${st.sizePrice ? "Hamma o'lchamga bir xil narx" : "Ba'zi o'lchamlarning narxi boshqacha"}</button>` : ''}
+      <div class="small" id="vpreview">${preview()}</div>`;
   }
 
   const optToggle = (key, ico, title, hint) => `
@@ -210,80 +215,109 @@ async function mountWizard(host, opts) {
       <span class="opt-text"><b>${esc(title)}</b><small>${esc(hint)}</small></span>
     </button>`;
 
-  function moreFields() {
-    return `
-      <div class="form-grid two" style="gap:12px">
-        ${st.variants ? '<p class="small muted" style="grid-column:1/-1">Shtrix-kodni har bir o\'lcham uchun keyin tovar sahifasida qo\'shasiz.</p>' : `
-        <div class="field"><span>Shtrix-kod</span>
-          <div class="input-group"><input class="input" id="wbarcode" inputmode="numeric" maxlength="64" placeholder="Skaner bilan o'qiting yoki yozing" value="${esc(st.barcode)}">
-            ${cameraScanSupported() ? `<button class="btn btn-light" type="button" id="wscan" aria-label="Kamera bilan o'qish" style="min-width:52px">${icon('camera')}</button>` : ''}</div></div>`}
-        ${st.variants ? '' : `<label class="field"><span>Artikul (SKU) <small>— o'zingizning ichki kodingiz</small></span><input class="input" id="wsku" maxlength="64" placeholder="Masalan: PEP-05" value="${esc(st.sku)}"></label>`}
-        <label class="field"><span>Kategoriya</span><input class="input" id="wcat" list="wcats" maxlength="60" placeholder="Masalan: Ichimliklar" value="${esc(st.cat)}">
-          <datalist id="wcats">${refs.cats.map((c) => `<option value="${esc(c.name)}">`).join('')}</datalist></label>
-        <label class="field"><span>Kimdan olasiz? (yetkazib beruvchi)</span>
-          <select class="input" id="wsup"><option value="">— tanlanmagan —</option>${refs.sups.map((s) => `<option value="${s.id}" ${String(s.id) === String(st.sup) ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>
-        <label class="field"><span>Shundan kam qolsa ogohlantirsin (${esc(base())})</span><input class="input" id="wmin" inputmode="decimal" placeholder="0" value="${esc(st.min)}"></label>
-      </div>`;
-  }
+  const secHead = (n, title, sub) => `<header class="fsec-head"><span class="fsec-num">${n}</span><div><h3>${title}</h3><p>${sub}</p></div></header>`;
 
   function render() {
     host.innerHTML = `
-      <form id="wiz" class="pform" novalidate>
-        <div class="pf-head">
-          <label class="photo-pick${st.imageUrl ? ' has' : ''}" title="Rasm qo'shish">
-            ${st.imageUrl ? `<img src="${esc(st.imageUrl)}" alt="Tovar rasmi">` : `${icon('camera')}<span>Rasm</span>`}
-            <input type="file" accept="image/*" id="wimg" aria-label="Tovar rasmi">
-          </label>
-          <div class="pf-name">
-            <label class="field"><span class="wq">Tovar nomi *</span>
-              <input class="input input-lg" id="wname" maxlength="150" placeholder="Masalan: Pepsi, Mato atlas, Un oliy nav" value="${esc(st.name)}" autocomplete="off"></label>
-            <small class="muted">${st.imageUrl ? 'Rasm tanlandi. Almashtirish uchun rasmni bosing' : 'Rasm ixtiyoriy: chapdagi katakni bosib suratga oling yoki galereyadan tanlang'}</small>
+      <form id="wiz" class="pform pform-v2" novalidate>
+        <section class="fsec">
+          ${secHead(1, "Asosiy ma'lumot", "Nomi, rasmi, turkumi va shtrix-kodi")}
+          <div class="fsec-body">
+            <div class="pf-head">
+              <label class="photo-pick${st.imageUrl ? ' has' : ''}" title="Rasm qo'shish">
+                ${st.imageUrl ? `<img src="${esc(st.imageUrl)}" alt="Tovar rasmi">` : `${icon('camera')}<span>Rasm</span>`}
+                <input type="file" accept="image/*" id="wimg" aria-label="Tovar rasmi">
+              </label>
+              <div class="pf-name">
+                <label class="field"><span>Tovar nomi ${REQ}</span>
+                  <input class="input input-lg" id="wname" maxlength="150" placeholder="Masalan: Pepsi 1 L, Futbolka oq, Un oliy nav" value="${esc(st.name)}" autocomplete="off" aria-required="true"></label>
+                <small class="muted">${st.imageUrl ? 'Rasm tanlandi. Almashtirish uchun rasmni bosing' : 'Rasm ixtiyoriy: katakni bosib suratga oling yoki galereyadan tanlang'}</small>
+              </div>
+            </div>
+            <div class="form-grid two">
+              <label class="field"><span>Turkum (kategoriya)</span><input class="input" id="wcat" list="wcats" maxlength="60" placeholder="Masalan: Ichimliklar" value="${esc(st.cat)}">
+                <datalist id="wcats">${refs.cats.map((c) => `<option value="${esc(c.name)}">`).join('')}</datalist></label>
+              ${st.variants ? '<p class="small muted" style="align-self:end">Shtrix-kod va artikulni har bir o\'lcham uchun keyin tovar sahifasida qo\'shasiz.</p>' : `
+              <div class="field"><span>Shtrix-kod</span>
+                <div class="input-group"><input class="input" id="wbarcode" inputmode="numeric" maxlength="64" placeholder="Skaner bilan o'qiting yoki yozing" value="${esc(st.barcode)}">
+                  ${cameraScanSupported() ? `<button class="btn btn-light btn-icon" type="button" id="wscan" title="Kamera bilan o'qish" aria-label="Kamera bilan o'qish">${icon('camera')}</button>` : ''}</div></div>
+              <label class="field"><span>Artikul (SKU) <small>— ichki kodingiz</small></span><input class="input" id="wsku" maxlength="64" placeholder="Masalan: PEP-05" value="${esc(st.sku)}"></label>`}
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="pf-block">
-          <div class="wq">Xaridorga qanday sotasiz?</div>
-          ${unitChips()}
-        </div>
+        <section class="fsec">
+          ${secHead(2, 'Narx', "Sotuv va kelish narxi — foyda o'zi hisoblanadi")}
+          <div class="fsec-body" id="prices">${priceBlock()}</div>
+        </section>
 
-        <div class="pf-opts">
-          ${optToggle('packed', 'box', 'Qutida, rulonda yoki blokda keladi', 'Masalan: 1 rulon ichida 100 metr — kelish narxini rulon uchun yozasiz')}
-          ${st.packed ? `<div class="opt-body">${packRow()}</div>` : ''}
-          ${optToggle('variants', 'layers', "O'lchamlari bor (kiyim, poyabzal...)", "Masalan: S, M, L yoki 38, 39, 40. Har bir o'lchamdan nechta borligi alohida ko'rinadi")}
-        </div>
+        <section class="fsec">
+          ${secHead(3, 'Ombor', "Qanday sotasiz, nechta bor va qachon ogohlantirish")}
+          <div class="fsec-body">
+            <div class="pf-block">
+              <div class="wq">Xaridorga qanday sotasiz?</div>
+              ${unitChips()}
+            </div>
+            <div class="pf-opts">
+              ${optToggle('packed', 'box', 'Qutida, rulonda yoki blokda keladi', 'Masalan: 1 rulon ichida 100 metr — kelish narxini rulon uchun yozasiz')}
+              ${st.packed ? `<div class="opt-body">${packRow()}</div>` : ''}
+              ${optToggle('variants', 'layers', "O'lchamlari bor (kiyim, poyabzal...)", "Masalan: S, M, L yoki 38, 39, 40. Har bir o'lchamdan nechta borligi alohida ko'rinadi")}
+            </div>
+            <div id="stockblk" class="pf-block">${stockBlock()}</div>
+            <label class="field"><span>Shundan kam qolsa ogohlantirsin <small>(${esc(base())})</small></span>
+              <input class="input" id="wmin" inputmode="decimal" placeholder="Masalan: 5" value="${esc(st.min)}"></label>
+            <p class="fsec-note">${icon('warehouse', 'ico-xs')} Hamma tovar bitta omborda hisoblanadi.</p>
+          </div>
+        </section>
 
-        <div class="pf-block">
-          <div class="wq">${st.variants ? `O'lchamlari, narxi va ${opts.arrival ? 'nechta kelgani' : 'nechta borligi'}` : `Narxi va ${opts.arrival ? 'nechta keldi' : 'nechta bor'}`}</div>
-          <div id="prices" class="pf-prices">${priceSection()}</div>
-        </div>
+        <section class="fsec fsec-more${st.more ? ' open' : ''}">
+          <button type="button" class="fsec-head fsec-toggle" data-opt="more" aria-expanded="${st.more}">
+            <span class="fsec-num">4</span><div><h3>Qo'shimcha <small>(ixtiyoriy)</small></h3><p>Yetkazib beruvchi, yaroqlilik muddati, izoh</p></div>
+            ${icon('chevronDown', 'ico-sm fsec-chev')}
+          </button>
+          ${st.more ? `<div class="fsec-body">
+            <div class="form-grid two">
+              <label class="field"><span>Kimdan olasiz? (yetkazib beruvchi)</span>
+                <select class="input" id="wsup"><option value="">— tanlanmagan —</option>${refs.sups.map((x) => `<option value="${x.id}" ${String(x.id) === String(st.sup) ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+              <label class="field"><span>Yaroqlilik muddati <small>(oziq-ovqat, dori...)</small></span>
+                <input class="input" id="wexp" type="date" value="${esc(st.expiry)}"></label>
+            </div>
+            <label class="field"><span>Izoh</span>
+              <textarea class="input" id="wdesc" maxlength="1000" rows="3" placeholder="Masalan: tarkibi, rangi, qaysi javonda turadi">${esc(st.desc)}</textarea></label>
+          </div>` : ''}
+        </section>
 
-        <div class="pf-opts">
-          ${optToggle('more', 'sliders', "Shtrix-kod, kategoriya, kimdan olasiz", 'Ixtiyoriy — keyin ham qo\'shish mumkin')}
-          ${st.more ? `<div class="opt-body">${moreFields()}</div>` : ''}
-        </div>
-
-        <div id="werr"></div>
+        <div id="werr" aria-live="polite"></div>
         <div class="wactions">
           <button class="btn btn-lg" type="submit" data-save>${icon('check')} Saqlash</button>
-          ${opts.modal ? '' : `<button class="btn btn-lg btn-light" type="submit" data-again="1">${icon('plus')} Saqlab, yana qo'shish</button>`}
-          <button class="btn btn-lg btn-outline" type="button" data-cancel>Bekor qilish</button>
+          ${opts.arrival ? '' : `<button class="btn btn-lg btn-light" type="submit" data-again="1">${icon('plus')} Saqlab, yana qo'shish</button>`}
+          <button class="btn btn-lg btn-ghost" type="button" data-cancel>Bekor qilish</button>
         </div>
       </form>`;
     bind();
   }
 
   function refreshPrices() {
-    host.querySelector('#prices').innerHTML = priceSection();
+    host.querySelector('#prices').innerHTML = priceBlock();
+    host.querySelector('#stockblk').innerHTML = stockBlock();
     bindPrices();
   }
 
+  // Xato bo'lgan maydon qizil bo'ladi va xabar shu maydon ostida chiqadi
+  function clearInvalid(el) {
+    const wrap = el.closest('[data-wrap]') || el;
+    wrap.classList.remove('invalid');
+    wrap.parentElement?.querySelector(':scope > .field-err')?.remove();
+  }
+
   function bindPrices() {
-    host.querySelectorAll('#prices [data-f]').forEach((inp) => inp.addEventListener('input', () => {
+    host.querySelectorAll('#prices [data-f], #stockblk [data-f]').forEach((inp) => inp.addEventListener('input', () => {
+      clearInvalid(inp);
       const i = inp.dataset.row;
       const row = i === undefined ? st.single : st.rows[Number(i)];
       row[inp.dataset.f] = inp.value;
-      const hint = host.querySelector(`[data-hint="${i === undefined ? 'single' : i}"]`);
-      if (hint) hint.innerHTML = calcHint(row) || (i === undefined ? "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi" : '');
+      const hint = host.querySelector('[data-hint="single"]');
+      if (hint && i === undefined) hint.innerHTML = calcHint(st.single) || HINT0;
       const pv = host.querySelector('#vpreview');
       if (pv) pv.innerHTML = preview();
     }));
@@ -330,6 +364,7 @@ async function mountWizard(host, opts) {
     const $ = (s) => host.querySelector(s);
     $('#wname').addEventListener('input', (e) => {
       st.name = e.target.value;
+      clearInvalid(e.target);
       const pv = host.querySelector('#vpreview');
       if (pv) pv.innerHTML = preview();
     });
@@ -377,7 +412,9 @@ async function mountWizard(host, opts) {
     $('#wsku')?.addEventListener('input', (e) => { st.sku = e.target.value; });
     $('#wcat')?.addEventListener('input', (e) => { st.cat = e.target.value; });
     $('#wsup')?.addEventListener('change', (e) => { st.sup = e.target.value; });
-    $('#wmin')?.addEventListener('input', (e) => { st.min = e.target.value; });
+    $('#wmin')?.addEventListener('input', (e) => { st.min = e.target.value; clearInvalid(e.target); });
+    $('#wexp')?.addEventListener('input', (e) => { st.expiry = e.target.value; });
+    $('#wdesc')?.addEventListener('input', (e) => { st.desc = e.target.value; });
     bindPrices();
     $('#wscan')?.addEventListener('click', () => openBarcodeScanner((code) => { st.barcode = code; $('#wbarcode').value = code; }));
     host.querySelector('[data-cancel]').addEventListener('click', () => opts.onCancel?.());
@@ -392,26 +429,40 @@ async function mountWizard(host, opts) {
 
   async function save(again) {
     const errEl = host.querySelector('#werr');
-    const fail = (msg) => { errEl.innerHTML = `<div class="alert alert-bad">${esc(msg)}</div>`; errEl.scrollIntoView({ block: 'center' }); };
+    host.querySelectorAll('.invalid').forEach((x) => x.classList.remove('invalid'));
+    host.querySelectorAll('.field-err').forEach((x) => x.remove());
+    // sel — xato bo'lgan maydon: qizil chiziladi, ostida xabar chiqadi va unga o'tiladi
+    const fail = (msg, sel) => {
+      errEl.innerHTML = `<div class="alert alert-bad">${icon('alert', 'ico-sm')}<div>${esc(msg)}</div></div>`;
+      const el = sel && host.querySelector(sel);
+      if (el) {
+        const wrap = el.closest('[data-wrap]') || el;
+        wrap.classList.add('invalid');
+        wrap.insertAdjacentHTML('afterend', `<div class="field-err">${icon('alert', 'ico-xs')} ${esc(msg)}</div>`);
+        wrap.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        (el.matches('input, select, textarea') ? el : el.querySelector('input'))?.focus({ preventScroll: true });
+      } else errEl.scrollIntoView({ block: 'center' });
+    };
     errEl.innerHTML = '';
     const name = st.name.trim();
-    if (!name) return fail('Tovar nomini yozing');
+    if (!name) return fail('Tovar nomini yozing', '#wname');
     if (!st.baseUnitId) return fail('Qanday sotishingizni tanlang (dona, kilogramm, litr, metr...)');
     if (st.packed && !st.packUnitId) return fail("Qadoq turini tanlang (quti, rulon, blok...) yoki «Qutida, rulonda keladi» belgisini olib tashlang");
-    if (st.packed && !(factor() > 0)) return fail(`1 ${pack()} ichida nechta ${base()} borligini yozing`);
+    if (st.packed && !(factor() > 0)) return fail(`1 ${pack()} ichida nechta ${base()} borligini yozing`, '#pack-factor');
     // O'lchamlarda: narx umumiy (o'lchamda alohida yozilmagan bo'lsa), har bir o'lchamning o'z soni
     const rows = st.variants
       ? st.rows.filter((r) => r.label.trim()).map((r) => ({ ...r, sell: r.sell !== '' ? r.sell : st.single.sell, cost: r.cost !== '' ? r.cost : st.single.cost }))
       : [st.single];
-    if (st.variants && !rows.length) return fail("Kamida bitta o'lchamni tanlang (masalan: S, M, L yoki 38, 39)");
+    if (st.variants && !rows.length) return fail("Kamida bitta o'lchamni tanlang (masalan: S, M, L yoki 38, 39)", '[data-wrap="sizes"]');
     for (const r of rows) {
       const sell = toNum(r.sell);
-      if (r.sell === '' || !(sell >= 0)) return fail(st.variants ? (st.sizePrice ? `«${r.label}» uchun narx yozing yoki umumiy narxni to'ldiring` : 'Sotuv narxini yozing') : 'Sotuv narxini yozing');
-      if (r.cost !== '' && !(toNum(r.cost) >= 0)) return fail("Kelish narxi noto'g'ri");
-      if (r.qty !== '' && !(toNum(r.qty) >= 0)) return fail(st.variants ? `«${r.label}» uchun son noto'g'ri yozilgan` : "Nechta borligi noto'g'ri yozilgan");
+      if (r.sell === '' || !(sell >= 0)) return fail(st.variants && st.sizePrice ? `«${r.label}» uchun narx yozing yoki umumiy narxni to'ldiring` : 'Sotuv narxini yozing', '[data-wrap="sell"]');
+      if (r.cost !== '' && !(toNum(r.cost) >= 0)) return fail("Kelish narxi noto'g'ri", '[data-wrap="cost"]');
+      if (r.qty !== '' && !(toNum(r.qty) >= 0)) return fail(st.variants ? `«${r.label}» uchun son noto'g'ri yozilgan` : "Nechta borligi noto'g'ri yozilgan", st.variants ? '[data-wrap="sizes"]' : '[data-wrap="qty"]');
     }
     const minStock = st.min.trim() ? toNum(st.min) : 0;
-    if (!(minStock >= 0)) return fail("Ogohlantirish miqdori noto'g'ri");
+    if (!(minStock >= 0)) return fail("Ogohlantirish miqdori noto'g'ri", '#wmin');
+    if (st.expiry && !/^\d{4}-\d{2}-\d{2}$/.test(st.expiry)) return fail("Yaroqlilik muddati noto'g'ri", '#wexp');
 
     let categoryId = null;
     try {
@@ -435,6 +486,8 @@ async function mountWizard(host, opts) {
         category_id: categoryId,
         barcode: st.variants ? null : (st.barcode.trim() || null),
         sku: st.variants ? null : (st.sku.trim() || null),
+        ...(st.desc.trim() ? { description: st.desc.trim() } : {}),
+        ...(st.expiry ? { expiry_date: st.expiry } : {}),
       };
       const q = round4(qtyBase(qty));
       if (q > 0 && !opts.arrival) body.opening_qty = q;
@@ -462,9 +515,10 @@ async function mountWizard(host, opts) {
       if (st.imageUrl) URL.revokeObjectURL(st.imageUrl);
       // Keyingi tovar uchun: birlik, qadoq va yetkazib beruvchi qoladi, qolgani tozalanadi
       // O'lchamlar ro'yxati qoladi (keyingi modelda ham odatda shu o'lchamlar), sonlari tozalanadi
-      Object.assign(st, { name: '', single: blankRow(), rows: st.rows.map((r) => ({ ...blankRow(), label: r.label })), barcode: '', sku: '', image: null, imageUrl: '' });
+      Object.assign(st, { name: '', single: blankRow(), rows: st.rows.map((r) => ({ ...blankRow(), label: r.label })), barcode: '', sku: '', desc: '', expiry: '', image: null, imageUrl: '' });
       render();
       window.scrollTo({ top: 0 });
+      host.closest('.modal-body')?.scrollTo({ top: 0 });
     }
     await opts.onSaved?.(created, { again });
     return undefined;
@@ -477,27 +531,38 @@ async function mountWizard(host, opts) {
 export async function renderProductWizard(root, { name = '', onSaved, onCancel } = {}) {
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Yangi tovar</h1><p class="muted">Faqat nomi va sotuv narxi majburiy. Qolganini keyin ham qo'shish mumkin</p></div>
+      <div><a class="link-btn" href="#/products">${icon('back', 'ico-xs')} Mahsulotlar</a><h1>Yangi tovar</h1><p class="muted">Faqat <b>nomi</b> va <b>sotuv narxi</b> majburiy (<span class="req">*</span>). Qolganini keyin ham qo'shish mumkin</p></div>
     </div>
-    <div class="card" id="wizhost"><div class="empty">Yuklanmoqda…</div></div>`;
+    <div class="pform-page" id="wizhost"><div class="card"><div class="empty">Yuklanmoqda…</div></div></div>`;
   await mountWizard(root.querySelector('#wizhost'), { name, onSaved, onCancel });
 }
 
 // Oyna ko'rinishi (masalan, Yuk keldi → tovar topilmasa). Saqlangan tovarlar ro'yxatini qaytaradi.
-export function openProductWizard({ name = '', arrival = false } = {}) {
+// drawer: kompyuterda o'ngdan chiqadigan panel. onAdded(created) — «Saqlab, yana qo'shish»da har safar chaqiriladi
+export function openProductWizard({ name = '', arrival = false, drawer = false, onAdded } = {}) {
   return new Promise((resolve) => {
     let done = false;
+    const all = [];
     const { close, el } = openModal({
       title: 'Yangi tovar',
-      wide: true,
-      body: '<div id="wizmodal"><div class="empty">Yuklanmoqda…</div></div>',
-      onClose: () => { if (!done) resolve([]); },
+      wide: !drawer,
+      drawer,
+      body: `<p class="muted small" style="margin:0 0 14px">Faqat <b>nomi</b> va <b>sotuv narxi</b> majburiy (<span class="req">*</span>). Qolganini keyin ham qo'shish mumkin</p><div id="wizmodal"><div class="empty">Yuklanmoqda…</div></div>`,
+      onClose: () => { if (!done) resolve(all); },
     });
+    el.classList.add('pform-modal');
     mountWizard(el.querySelector('#wizmodal'), {
       name,
       arrival,
       modal: true,
-      onSaved: (created) => { done = true; close(); resolve(created); },
+      onSaved: (created, { again } = {}) => {
+        all.push(...created);
+        onAdded?.(created);
+        if (again) return;
+        done = true;
+        close();
+        resolve(all);
+      },
       onCancel: () => close(),
     });
   });

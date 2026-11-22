@@ -5,8 +5,8 @@ import { compact, esc } from './ui.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const SURFACE = '#ffffff';
-const GRID = '#eceef1';
-const AXIS = '#d4d8de';
+const GRID = '#edf0f5';
+const AXIS = '#d3d9e3';
 
 function niceTicks(min, max, count = 4) {
   if (min === max) {
@@ -159,7 +159,7 @@ export function chart(container, opts) {
     }
 
     // Hover fon (ustunlar uchun)
-    const hoverBg = el('rect', { y: pad.t, height: plotH, width: band, fill: '#f3f4f6', opacity: 0, rx: 4 }, svg);
+    const hoverBg = el('rect', { y: pad.t, height: plotH, width: band, fill: '#f1f5f9', opacity: 0, rx: 6 }, svg);
 
     // Taxminiy oraliq (prognoz)
     if (opts.band) {
@@ -289,7 +289,7 @@ export function chart(container, opts) {
 }
 
 // ---------- Kichik grafik (KPI kartochkalari uchun) ----------
-export function sparkline(values, { color = '#2a78d6', width = 120, height = 28, area = true, dot = false } = {}) {
+export function sparkline(values, { color = '#2563eb', width = 120, height = 28, area = true, dot = false } = {}) {
   const vals = values.map((v) => Number(v || 0));
   if (!vals.length) return '';
   const min = Math.min(...vals);

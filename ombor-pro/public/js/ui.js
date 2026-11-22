@@ -21,6 +21,7 @@ export const ICONS = {
   logout: '<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
   back: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
   edit: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
   restore: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h2"/><path d="M20 8v11a2 2 0 0 1-2 2h-2"/><path d="m9 15 3-3 3 3"/><path d="M12 12v9"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
@@ -248,10 +249,11 @@ export function errorToast(err) {
 
 // Oynalar ustma-ust ochiladi: ichki oyna (masalan, savatchadan «Mijoz tanlash») yopilganda
 // oldingi oyna (savatcha) o'z holicha qoladi. Esc va fonni bosish — faqat eng ustidagisini yopadi.
-export function openModal({ title, body = '', foot = '', wide = false, onMount, onClose } = {}) {
+// drawer: kompyuterda o'ng tomondan chiqadigan panel (telefonda — pastdan chiqadigan oyna)
+export function openModal({ title, body = '', foot = '', wide = false, drawer = false, onMount, onClose } = {}) {
   const root = document.getElementById('modal-root');
   const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
+  backdrop.className = `modal-backdrop${drawer ? ' drawer' : ''}`;
   backdrop.dataset.backdrop = '';
   backdrop.innerHTML = `
       <div class="modal${wide ? ' wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title || '')}">
@@ -426,6 +428,19 @@ export function takeNewFlag(params) {
 
 export function emptyState(text, iconName = 'box') {
   return `<div class="empty">${icon(iconName)}<div>${esc(text)}</div></div>`;
+}
+
+// Sahifa yuklanayotganda: haqiqiy tuzilishga o'xshash kulrang bloklar (bo'sh oq ekran o'rniga)
+export function skeletonPage({ cards = 4, block = true } = {}) {
+  return `<div class="skel-page" aria-busy="true" aria-label="Yuklanmoqda">
+    <div class="skel-head"><span class="skel" style="width:220px;height:26px"></span><span class="skel" style="width:320px;max-width:80%;height:14px"></span></div>
+    <div class="skel-row">${'<span class="skel skel-card"></span>'.repeat(cards)}</div>
+    ${block ? '<span class="skel skel-block"></span>' : ''}
+  </div>`;
+}
+
+export function skeletonGrid(n = 8) {
+  return `<div class="pc-grid" aria-busy="true" aria-label="Yuklanmoqda">${'<div class="pc pc-skel"><span class="skel pc-skel-img"></span><div class="pc-body"><span class="skel" style="height:14px;width:80%"></span><span class="skel" style="height:12px;width:50%;margin-top:8px"></span><span class="skel" style="height:22px;width:40%;margin-top:14px"></span></div></div>'.repeat(n)}</div>`;
 }
 
 // ---------- Tahlil uchun formatlash ----------

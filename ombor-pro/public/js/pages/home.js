@@ -1,20 +1,21 @@
 // Bosh sahifa: do'kon egasi 5 soniyada tushunadigan asosiy raqamlar.
 //   1) Tez amallar (Sotish, Yuk keldi, ...)
-//   2) 8 ta asosiy raqam: savdo, sof foyda, xarajat, cheklar, kassadagi pul, ombor, mijozlar qarzi, sizning qarzingiz
-//      (har biri bosilsa — tegishli bo'lim ochiladi)
-//   3) Savdo grafigi va tugayotgan tovarlar
-//   4) Eng ko'p sotilganlar va so'nggi savdolar
-//   5) Pul nima bo'ldi? (oddiy so'zlar bilan), nima keldi va nima ketdi
-//   6) Oylik natija (so'nggi 6 oy)
-// Hamma raqamlar haqiqiy yozuvlardan: /api/analytics/dashboard, /overview, /cash/summary, /sales, /analytics/monthly.
+//   2) Davr bo'yicha: savdo, sof foyda, xarajat, cheklar (grafikchali kartalar)
+//   3) Hozirgi holat: naqd pul, karta, mijozlar qarzi, sizning qarzingiz, mahsulotlar, kam qolgan, tugagan, ombor qiymati
+//   4) Savdo grafigi + bildirishnomalar; haftalik/oylik dinamika + tugayotgan tovarlar
+//   5) Eng ko'p sotilganlar va so'nggi amallar
+//   6) Pul nima bo'ldi? (oddiy so'zlar bilan), nima keldi va nima ketdi
+// Hamma raqamlar haqiqiy yozuvlardan: /api/analytics/dashboard, /overview, /daily, /monthly, /cash/summary, /notifications.
 import {
   get, put, esc, icon, num, compact, moneyFull, longDate, errorToast, dateTime, timeAgo, emptyState,
-  periodPicker, bindPeriod, resolvePeriod, periodWord, periodQuery, monthName,
+  periodPicker, bindPeriod, resolvePeriod, periodWord, periodQuery, monthName, shortDate, weekdayShort,
 } from '../ui.js';
 import { kpiCards, salesCard, mountSalesChart, topCard, mountTop, destroyCharts } from './dashboard.js';
+import { chart, tableView } from '../charts.js';
 
 const SHOW = 8;
 const qtyText = (q, unit) => `${num(q, 3)} ${unit}`;
+let homeCharts = [];
 
 function greeting() {
   const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hour12: false }).format(new Date()));
@@ -27,18 +28,19 @@ function greeting() {
 export async function renderHome(root, ctx, opts) {
   const range = resolvePeriod(opts.query || {}, opts.prefs.dashboard.simple_range || 'today');
   const q = `from=${range.from}&to=${range.to}`;
-  const canSales = ctx.canAny(['sales.view', 'reports.view']);
-  const [d, ov, cash, sales, onbHtml] = await Promise.all([
+  const [d, ov, cash, notes, onbHtml] = await Promise.all([
     get(`/analytics/dashboard?${q}`),
     get(`/analytics/overview?${q}`),
     ctx.can('cash.view') ? get('/cash/summary').catch(() => null) : null,
-    canSales ? get(`/sales?${q}&limit=6`).catch(() => null) : null,
+    get('/notifications?limit=5').catch(() => null),
     opts.onboarding ? opts.onboarding().catch(() => '') : '',
   ]);
   const word = periodWord(range);
   const canBuy = ctx.can('purchases.create');
   const canSell = ctx.can('sales.create');
   destroyCharts();
+  homeCharts.forEach((c) => c.destroy());
+  homeCharts = [];
 
   root.innerHTML = `
     <div class="dash-head">
@@ -55,18 +57,25 @@ export async function renderHome(root, ctx, opts) {
     <div class="home">
       ${opts.actionTiles(ctx)}
       ${onbHtml || ''}
-      ${kpiCards(d, range, { cash, home: true })}
+      <section class="home-sec" aria-label="Davr bo'yicha ko'rsatkichlar">
+        <div class="sec-title"><h2>${esc(word)}</h2><span>savdo, foyda va xarajat</span></div>
+        ${kpiCards(d, range, { periodOnly: true })}
+      </section>
+      ${snapshotSection(d, ov, cash)}
       <div class="home-row wide-narrow">
         ${salesCard(d, range)}
+        ${notesCard(notes)}
+      </div>
+      <div class="home-row wide-narrow">
+        ${trendCard(d.access.financial)}
         ${lowStockCard(ov, canBuy)}
       </div>
       <div class="home-row halves">
         ${d.access.financial ? topCard(d) : ''}
-        ${sales ? recentSalesCard(sales.sales, word, canSell) : ''}
+        ${recentCard(d, canSell)}
       </div>
       ${moneySection(ov, word)}
       ${movesSection(ov, word, { canBuy, canSell })}
-      ${d.access.financial ? `<section class="card" id="monthly"><div class="card-head"><div><h2>Oylik natija</h2><div class="card-sub">So'nggi 6 oy: savdo, xarajat va sof foyda</div></div></div><div class="empty small">Yuklanmoqda…</div></section>` : ''}
       ${d.access.financial ? `<div class="home-foot no-print"><a class="btn btn-light" href="#/analytics?${periodQuery(range)}">${icon('chart', 'ico-sm')} Grafiklar, prognoz va batafsil tahlil</a></div>` : ''}
     </div>`;
 
@@ -79,6 +88,7 @@ export async function renderHome(root, ctx, opts) {
   opts.afterMount?.(root);
   mountSalesChart(root, d, range);
   mountTop(root, d);
+  mountTrend(root, d.access.financial);
 
   // «Hammasini ko'rsatish»
   root.querySelectorAll('[data-more]').forEach((b) => b.addEventListener('click', () => {
@@ -86,18 +96,143 @@ export async function renderHome(root, ctx, opts) {
     b.remove();
   }));
   root.querySelectorAll('.mv-row[data-go]').forEach((r) => r.addEventListener('click', () => ctx.go(r.dataset.go)));
+}
 
-  // Oylik natija — sahifa ochilgandan keyin yuklanadi (asosiy raqamlarni kutdirmaslik uchun)
-  const mBox = root.querySelector('#monthly');
-  if (mBox) {
-    get('/analytics/monthly?months=6')
-      .then((r) => {
-        if (!mBox.isConnected) return;
-        mBox.outerHTML = monthlyCard(r.months);
-        root.querySelectorAll('#monthly [data-href]').forEach((tr) => tr.addEventListener('click', () => ctx.go(tr.dataset.href)));
-      })
-      .catch(() => { if (mBox.isConnected) mBox.remove(); });
+// ---------- Hozirgi holat: pul, qarzlar, ombor ----------
+function snapshotSection(d, ov, cash) {
+  const k = d.kpis;
+  const st = ov.stock;
+  const tile = ({ label, value, money = true, unit = '', href, ico, tone = '', note = '', hint = '' }) => `
+    <a class="snap ${tone}" href="${href}" title="${esc(hint)}">
+      <span class="snap-ico ${tone}">${icon(ico, 'ico-sm')}</span>
+      <span class="snap-text">
+        <span class="snap-l">${esc(label)}</span>
+        <b class="snap-v ${money && value < 0 ? 'neg' : ''}" title="${money ? esc(`${moneyFull(value)} so'm`) : ''}">${money ? `${compact(value)}<small>so'm</small>` : `${num(value, 0)}<small>${esc(unit)}</small>`}</b>
+        ${note ? `<span class="snap-n">${note}</span>` : ''}
+      </span>
+    </a>`;
+  const tiles = [];
+  if (cash) {
+    const b = cash.balances;
+    tiles.push(tile({ label: 'Naqd pul', value: b.cash, href: '#/cash?tab=cash', ico: 'money', tone: b.cash < 0 ? 'neg' : 'pos', note: 'kassada hozir', hint: "Kassadagi naqd pul (barcha kirim va chiqimlardan keyin)" }));
+    tiles.push(tile({ label: 'Karta', value: b.card, href: '#/cash?tab=cash', ico: 'card', tone: 'blue', note: b.transfer ? `o'tkazma ${esc(compact(b.transfer))}` : 'plastik karta orqali', hint: "Karta hisobidagi pul" }));
   }
+  if (k.customer_debt) {
+    tiles.push(tile({ label: 'Mijozlar qarzi', value: k.customer_debt.value, href: '#/debts', ico: 'debt', tone: k.customer_debt.value > 0 ? 'warn' : '', note: 'sizga qaytarishlari kerak', hint: "Mijozlarning hali to'lanmagan nasiyasi" }));
+  }
+  if (d.access.debts !== false && d.supplier_debt !== undefined && d.supplier_debt !== null) {
+    tiles.push(tile({ label: 'Sizning qarzingiz', value: d.supplier_debt, href: '#/debts?tab=suppliers', ico: 'store', tone: d.supplier_debt > 0 ? 'warn' : '', note: "yetkazib beruvchilarga", hint: "Yuk olib, hali to'lanmagan summa" }));
+  }
+  tiles.push(tile({ label: 'Jami mahsulot', value: st.products, money: false, unit: 'xil', href: '#/products', ico: 'box', tone: 'blue', note: "sotuvdagi tovarlar" }));
+  tiles.push(tile({ label: 'Kam qolgan', value: st.low, money: false, unit: 'ta', href: '#/products?filter=low', ico: 'alert', tone: st.low ? 'warn' : '', note: st.low ? 'tez orada tugaydi' : 'hammasi yetarli' }));
+  tiles.push(tile({ label: 'Tugagan', value: st.out, money: false, unit: 'ta', href: '#/products?filter=out', ico: 'warnCircle', tone: st.out ? 'neg' : '', note: st.out ? 'yuk kiritish kerak' : "tugagan tovar yo'q" }));
+  if (k.inventory_value) {
+    tiles.push(tile({ label: 'Ombordagi tovar', value: k.inventory_value.value, href: '#/stock', ico: 'warehouse', tone: 'slate', note: 'kelish narxida', hint: "Ombordagi barcha tovarlar kelish narxida qancha turadi" }));
+  }
+  return `
+    <section class="home-sec" aria-label="Hozirgi holat">
+      <div class="sec-title"><h2>Hozirgi holat</h2><span>pul, qarzlar va ombor — shu daqiqada</span></div>
+      <div class="snap-grid">${tiles.join('')}</div>
+    </section>`;
+}
+
+// ---------- Bildirishnomalar ----------
+const LVL = { critical: 'Muhim', warning: 'Diqqat', success: 'Yaxshi', info: "Ma'lumot" };
+function notesCard(r) {
+  const items = r?.items || [];
+  return `
+    <section class="card home-card">
+      <div class="card-head">
+        <div><h2>Bildirishnomalar</h2><div class="card-sub">${r?.unread ? `${r.unread} ta o'qilmagan` : "Hammasi o'qilgan"}</div></div>
+        <a class="link-btn" href="#/notifications">Hammasi ${icon('right', 'ico-xs')}</a>
+      </div>
+      ${items.length ? `<div class="nt-list">${items.map((n) => `
+        <a class="nt-row ${n.is_read ? '' : 'unread'}" href="${esc(n.link || '#/notifications')}">
+          <span class="nt-ico lvl-${esc(n.level)}" title="${esc(LVL[n.level] || '')}">${icon(n.level === 'critical' ? 'critical' : n.level === 'warning' ? 'alert' : n.level === 'success' ? 'ok' : 'info', 'ico-xs')}</span>
+          <span class="nt-text"><b>${esc(n.title)}</b><span>${esc(n.body)}</span></span>
+          <span class="nt-when">${esc(timeAgo(n.created_at))}</span>
+        </a>`).join('')}</div>`
+    : `<div class="empty-state"><span class="es-ico">${icon('bell')}</span><b>Yangi xabar yo'q</b><p>Kam qolgan tovar, qarz muddati va kunlik xulosa shu yerda chiqadi</p></div>`}
+    </section>`;
+}
+
+// ---------- Haftalik va oylik dinamika ----------
+function trendCard(financial) {
+  return `
+    <section class="card" id="trend" style="height:100%">
+      <div class="card-head" style="margin-bottom:10px">
+        <div><h2>Savdo dinamikasi</h2><div class="card-sub" data-trend-sub>So'nggi 7 kun, kunma-kun</div></div>
+        <div class="row">
+          ${financial ? `<div class="seg" role="tablist" aria-label="Davr"><button type="button" class="active" data-trend="week">7 kun</button><button type="button" data-trend="month">6 oy</button></div>` : ''}
+          <button class="btn btn-ghost btn-sm" type="button" data-trend-table>${icon('table', 'ico-sm')} Jadval</button>
+        </div>
+      </div>
+      <div class="legend" data-trend-legend></div>
+      <div data-trend-chart style="margin-top:8px"><span class="skel" style="display:block;height:230px;border-radius:12px"></span></div>
+      <div data-trend-tbl hidden style="margin-top:12px"></div>
+    </section>`;
+}
+
+function mountTrend(root, financial) {
+  const box = root.querySelector('#trend');
+  if (!box) return;
+  const cache = {};
+  let mode = 'week';
+  const fmt = (v) => `${moneyFull(v)} so'm`;
+  const draw = (data) => {
+    if (!box.isConnected) return;
+    const chartBox = box.querySelector('[data-trend-chart]');
+    chartBox.replaceChildren();
+    homeCharts.forEach((c) => c.destroy());
+    homeCharts = [];
+    const week = mode === 'week';
+    const rows = week ? data.days : data.months;
+    const labels = rows.map((x) => (week ? x.day : x.month));
+    const revenue = rows.map((x) => (week ? x.net_revenue : x.revenue));
+    const profit = financial ? rows.map((x) => x.net_profit) : null;
+    const series = [{ name: 'Savdo', values: revenue, color: '#2563eb', kind: 'bar' }];
+    if (profit) series.push({ name: 'Sof foyda', values: profit, color: '#16a34a', width: 2, endDot: true });
+    box.querySelector('[data-trend-legend]').innerHTML = `<span><i class="box" style="background:#2563eb"></i>Savdo</span>${profit ? '<span><i style="background:#16a34a"></i>Sof foyda</span>' : ''}`;
+    box.querySelector('[data-trend-sub]').textContent = week ? "So'nggi 7 kun, kunma-kun" : "So'nggi 6 oy, oyma-oy (joriy oy — bugungacha)";
+    const label = (i) => (week ? `${weekdayShort(labels[i])} ${shortDate(labels[i])}` : `${monthName(labels[i].slice(5))}`);
+    homeCharts.push(chart(chartBox, {
+      labels,
+      tickLabel: (i) => (week ? weekdayShort(labels[i]) : monthName(labels[i].slice(5)).slice(0, 3)),
+      titleFor: (i) => (week ? `${weekdayShort(labels[i])}, ${shortDate(labels[i])}` : `${monthName(labels[i].slice(5))} ${labels[i].slice(0, 4)}`),
+      series,
+      format: fmt,
+      axisFormat: (v) => compact(v),
+      height: 240,
+      ariaLabel: week ? "So'nggi 7 kunlik savdo grafigi" : "So'nggi 6 oylik savdo grafigi",
+    }));
+    const cols = [
+      { label: week ? 'Kun' : 'Oy', get: (r, i) => label(i) },
+      { label: 'Savdo', right: true, get: (r) => fmt(week ? r.net_revenue : r.revenue) },
+      { label: 'Cheklar', right: true, get: (r) => `${num(r.sales_count, 0)} ta` },
+    ];
+    if (financial) cols.push({ label: 'Sof foyda', right: true, get: (r) => fmt(r.net_profit) });
+    box.querySelector('[data-trend-tbl]').innerHTML = tableView(cols.map((c) => ({ ...c, get: (r) => c.get(r, rows.indexOf(r)) })), rows);
+  };
+  const load = async () => {
+    try {
+      if (!cache[mode]) cache[mode] = await get(mode === 'week' ? '/analytics/daily?days=7' : '/analytics/monthly?months=6');
+      draw(cache[mode]);
+    } catch (err) {
+      const c = box.querySelector('[data-trend-chart]');
+      if (c) c.innerHTML = `<div class="empty small">Grafik yuklanmadi: ${esc(err.message)}</div>`;
+    }
+  };
+  box.querySelectorAll('[data-trend]').forEach((b) => b.addEventListener('click', () => {
+    if (mode === b.dataset.trend) return;
+    mode = b.dataset.trend;
+    box.querySelectorAll('[data-trend]').forEach((x) => x.classList.toggle('active', x === b));
+    load();
+  }));
+  box.querySelector('[data-trend-table]').addEventListener('click', () => {
+    const t = box.querySelector('[data-trend-tbl]');
+    t.hidden = !t.hidden;
+  });
+  load();
 }
 
 // ---------- Tugayotgan tovarlar ----------
@@ -123,48 +258,35 @@ function lowStockCard(ov, canBuy) {
     </section>`;
 }
 
-// ---------- So'nggi savdolar ----------
-const PAY = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya', mixed: 'Aralash' };
-function recentSalesCard(rows, word, canSell) {
+// ---------- So'nggi amallar: savdo, kirim, xarajat, qarz to'lovi ----------
+const KIND = {
+  sale: { label: 'Savdo', sign: 1, icon: 'cart', tone: 'blue' },
+  purchase: { label: 'Yuk keldi', sign: -1, icon: 'truck', tone: 'slate' },
+  expense: { label: 'Xarajat', sign: -1, icon: 'expense', tone: 'warn' },
+  payment: { label: "Qarz to'lovi", sign: 1, icon: 'debt', tone: 'pos' },
+};
+const EXPENSE_LABEL = {
+  rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
+};
+function recentCard(d, canSell) {
+  const rows = (d.recent || []).slice(0, 7);
   return `
     <section class="card home-card">
       <div class="card-head">
-        <div><h2>So'nggi savdolar</h2><div class="card-sub">${esc(word)}</div></div>
-        <a class="link-btn" href="#/sales/history">Hammasi ${icon('right', 'ico-xs')}</a>
+        <div><h2>So'nggi amallar</h2><div class="card-sub">Savdo, yuk, xarajat va qarz to'lovlari</div></div>
+        <a class="link-btn" href="#/sales/history">Savdolar ${icon('right', 'ico-xs')}</a>
       </div>
-      ${rows.length ? `<div class="rs-list">${rows.map((s) => `
-        <a class="rs-row" href="#/sales/${s.id}">
-          <span class="rs-ico">${icon('receipt', 'ico-sm')}</span>
-          <span class="rs-meta"><b>${esc(s.receipt_no)}</b><span>${esc(timeAgo(s.created_at))}${s.customer_name ? ` · ${esc(s.customer_name)}` : ''}${s.cashier_name ? ` · ${esc(s.cashier_name)}` : ''}</span></span>
-          <span class="rs-sum"><b>${moneyFull(s.total)}</b><span class="${Number(s.balance_due) > 0 ? 'amber' : ''}">${Number(s.balance_due) > 0 ? `qarz ${compact(s.balance_due)}` : esc(PAY[s.payment_method] || '')}</span></span>
-        </a>`).join('')}</div>`
-    : `${emptyState(`${word} savdo bo'lmadi`, 'cart')}${canSell ? '<div style="text-align:center"><a class="btn btn-sm" href="#/sales">Sotish</a></div>' : ''}`}
-    </section>`;
-}
-
-// ---------- Oylik natija ----------
-function monthlyCard(all) {
-  // Do'kon ochilishidan oldingi bo'sh oylar ko'rsatilmaydi
-  const first = all.findIndex((m) => m.sales_count > 0 || m.expenses > 0 || m.losses !== 0);
-  const months = first < 0 ? all.slice(-1) : all.slice(first);
-  const max = Math.max(1, ...months.map((m) => Math.max(m.revenue, Math.abs(m.net_profit))));
-  const label = (m) => `${monthName(m.month.slice(5))} ${m.month.slice(0, 4)}`;
-  return `
-    <section class="card" id="monthly">
-      <div class="card-head"><div><h2>Oylik natija</h2><div class="card-sub">Har oy: savdo, xarajat va sof foyda (joriy oy — bugungacha). Oyni bossangiz — batafsil hisobot</div></div>
-        <a class="link-btn" href="#/reports?tab=pnl">Foyda va zarar ${icon('right', 'ico-xs')}</a></div>
-      <div class="table-wrap cards"><table class="month-table">
-        <thead><tr><th>Oy</th><th class="right">Savdo</th><th class="right">Savdo foydasi</th><th class="right">Xarajat</th><th class="right">Sof natija</th><th class="mt-bar-h"></th></tr></thead>
-        <tbody>${months.slice().reverse().map((m) => `
-          <tr class="clickable" data-href="#/reports?tab=pnl&from=${m.from}&to=${m.to}">
-            <td data-label="Oy"><b>${esc(label(m))}</b>${m.partial ? ' <span class="badge badge-info">hozirgi</span>' : ''}<div class="small muted">${m.sales_count} ta savdo</div></td>
-            <td data-label="Savdo" class="right num">${moneyFull(m.revenue)}</td>
-            <td data-label="Savdo foydasi" class="right num">${moneyFull(m.gross_profit)}</td>
-            <td data-label="Xarajat" class="right num">${moneyFull(m.expenses + m.losses)}</td>
-            <td data-label="Sof natija" class="right num ${m.net_profit < 0 ? 'red' : 'green'}"><b>${m.net_profit < 0 ? '−' : '+'}${moneyFull(Math.abs(m.net_profit))}</b></td>
-            <td class="mt-bar" aria-hidden="true"><span class="mt-rev" style="width:${(m.revenue / max) * 100}%"></span><span class="mt-net ${m.net_profit < 0 ? 'neg' : ''}" style="width:${(Math.abs(m.net_profit) / max) * 100}%"></span></td>
-          </tr>`).join('')}</tbody></table></div>
-      <div class="mt-legend small muted"><span><i class="mt-rev"></i>Savdo</span><span><i class="mt-net"></i>Sof foyda</span><span><i class="mt-net neg"></i>Zarar</span></div>
+      ${rows.length ? `<div class="rs-list">${rows.map((r) => {
+        const k = KIND[r.kind] || { label: r.kind, sign: 1, icon: 'list', tone: 'slate' };
+        const ref = r.kind === 'expense' ? (EXPENSE_LABEL[r.ref] || r.ref) : r.ref;
+        const href = r.kind === 'sale' ? `#/sales/${r.id}` : r.kind === 'purchase' ? `#/purchases/${r.id}` : r.kind === 'expense' ? '#/cash?tab=expenses' : '#/debts';
+        return `<a class="rs-row" href="${href}">
+          <span class="rs-ico ${k.tone}">${icon(k.icon, 'ico-sm')}</span>
+          <span class="rs-meta"><b>${esc(k.label)}${ref ? ` · ${esc(ref)}` : ''}</b><span>${esc(timeAgo(r.at))}${r.party ? ` · ${esc(r.party)}` : ''}</span></span>
+          <span class="rs-sum"><b class="${k.sign > 0 ? 'green' : ''}">${k.sign > 0 ? '+' : '−'}${moneyFull(r.amount)}</b><span>so'm</span></span>
+        </a>`;
+      }).join('')}</div>`
+    : `<div class="empty-state"><span class="es-ico">${icon('clock')}</span><b>Hozircha amallar yo'q</b><p>Birinchi sotuvdan keyin shu yerda ko'rinadi</p>${canSell ? `<a class="btn btn-sm" href="#/sales" style="margin-top:6px">${icon('cart', 'ico-sm')} Sotish</a>` : ''}</div>`}
     </section>`;
 }
 
