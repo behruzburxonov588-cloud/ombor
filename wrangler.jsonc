@@ -35,5 +35,11 @@
     { "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true }
   ],
 
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+
+  // Tezlik: Worker ma'lumotlar bazasi (Neon, Frankfurt — aws:eu-central-1) yonida ishlaydi.
+  // O'lchov: Worker boshqa joyda ishlaganda bazaga har bir ulanish ~650 ms, sahifa 1–2,5 soniya edi.
+  // Neon boshqa mintaqaga ko'chirilsa, shu qiymatni ham o'zgartiring (API javobidagi Server-Timing → db).
+  // DIQQAT: Hyperdrive ulamang — u har bir do'kon sxemasiga o'tishni saqlamaydi.
+  "placement": { "region": "aws:eu-central-1" }
 }
