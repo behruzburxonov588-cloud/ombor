@@ -786,6 +786,10 @@ export async function dashboard(db, user, query) {
   if (financial) {
     kpis.net_profit = kpi(cur.net_profit, prev.net_profit, spark('net_profit'), { margin: cur.net_margin });
     kpis.expenses = kpi(cur.expenses, prev.expenses, spark('expenses'), { losses: cur.losses });
+    // Tovardan foyda (sotuv − kelish narxi) va savdodan qolgan pul (savdo − xarajat: obed, suv... savdo pulidan olinadi)
+    kpis.gross_profit = kpi(cur.gross_profit, prev.gross_profit, spark('gross_profit'));
+    kpis.sales_left = kpi(cur.net_revenue - cur.expenses, prev.net_revenue - prev.expenses,
+      trendSeries.map((d) => round2(d.net_revenue - d.expenses)));
   }
   if (stockAccess) {
     const snap = snapshotSeries(invNow, invD, trendDays, range.from);

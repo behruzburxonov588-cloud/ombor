@@ -242,7 +242,7 @@ async function renderNew(root, ctx, preselect = null) {
     const sell = Number(l.p.selling_price);
     if (price > 0 && sell > 0) {
       const m = round2(sell - price / un.factor);
-      parts.push(m >= 0 ? `har biridan ${money(m)} foyda` : `<span class="red">sotuv narxidan qimmat (${money(m)})</span>`);
+      parts.push(m >= 0 ? `har 1 ${esc(l.p.base_unit_name)}dan ${money(m)} foyda` : `<span class="red">sotuv narxidan qimmat (${money(m)})</span>`);
     }
     return parts.join(' · ');
   }

@@ -10,7 +10,7 @@ import { get, post, esc, icon, money, num, toast, openModal, withBusy, uploadPro
 import { openBarcodeScanner, cameraScanSupported } from './scanner.js';
 
 const MAIN_UNITS = ['piece', 'kg', 'l', 'm'];
-const PACK_CODES = ['box', 'pack', 'roll', 'set'];
+const PACK_CODES = ['box', 'pack', 'roll', 'set', 'can', 'barrel', 'bag', 'block', 'crate', 'bottle'];
 const UNIT_HINT = {
   piece: 'bittalab',
   kg: 'tortib',
@@ -43,11 +43,27 @@ async function loadRefs() {
 const SIZE_PRESETS = [
   { name: 'S M L XL XXL', labels: ['S', 'M', 'L', 'XL', 'XXL'] },
   { name: 'XS – 3XL', labels: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'] },
+  { name: "Ko'ylak 48–60", labels: ['48', '50', '52', '54', '56', '58', '60'] },
   { name: 'Kiyim 42–56', labels: ['42', '44', '46', '48', '50', '52', '54', '56'] },
   { name: 'Poyabzal 36–45', labels: ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'] },
   { name: 'Bolalar 92–140', labels: ['92', '98', '104', '110', '116', '122', '128', '134', '140'] },
   { name: '0,5 L · 1 L · 1,5 L', labels: ['0,5 L', '1 L', '1,5 L'] },
+  { name: 'Standart', labels: ['Standart'] },
 ];
+
+// «48-60» yoki «48–60» → 48, 50, ... 60. Kiyim o'lchamlari (42 va undan katta, juft) — 2 tadan, poyabzal va boshqalar — 1 tadan
+function expandRange(text, stepGiven) {
+  const m = String(text).trim().match(/^(\d{1,3})\s*[-–—]\s*(\d{1,3})$/);
+  if (!m) return [text];
+  let a = Number(m[1]);
+  let b = Number(m[2]);
+  if (a > b) [a, b] = [b, a];
+  const step = stepGiven || (a >= 42 && a % 2 === 0 && b % 2 === 0 ? 2 : 1);
+  if ((b - a) / step > 40) return [text];
+  const out = [];
+  for (let v = a; v <= b; v += step) out.push(String(v));
+  return out;
+}
 
 async function mountWizard(host, opts) {
   const refs = await loadRefs();
@@ -201,8 +217,15 @@ async function mountWizard(host, opts) {
     return `
       <div class="size-step"><b>Qaysi o'lchamlari bor?</b> <span class="small muted">Tugmani bosing yoki o'zingiz yozing</span></div>
       <div class="size-presets">${SIZE_PRESETS.map((x, i) => `<button type="button" class="chip" data-preset="${i}">${icon('plus', 'ico-xs')} ${esc(x.name)}</button>`).join('')}</div>
-      <div class="input-group size-add"><input class="input" id="size-new" maxlength="40" placeholder="Boshqa o'lcham: masalan 3XL, 41, Qizil M" autocomplete="off" aria-label="Yangi o'lcham">
+      <div class="input-group size-add"><input class="input" id="size-new" maxlength="40" placeholder="Boshqa o'lcham: 3XL, 41 yoki oraliq 48-60" autocomplete="off" aria-label="Yangi o'lcham yoki oraliq">
         <button class="btn btn-light" type="button" id="size-add">${icon('plus', 'ico-sm')} Qo'shish</button></div>
+      <div class="size-range"><span>Oraliq:</span>
+        <input class="input" id="sr-from" inputmode="numeric" maxlength="3" placeholder="48" aria-label="Qaysi o'lchamdan">
+        <span>dan</span>
+        <input class="input" id="sr-to" inputmode="numeric" maxlength="3" placeholder="60" aria-label="Qaysi o'lchamgacha">
+        <span>gacha,</span>
+        <select class="input" id="sr-step" aria-label="Qadam"><option value="2">2 tadan (48, 50, 52…)</option><option value="1">1 tadan (36, 37, 38…)</option></select>
+        <button class="btn btn-light" type="button" id="sr-add">${icon('plus', 'ico-sm')} Qo'shish</button></div>
       <div class="size-step"><b>${opts.arrival ? "Har bir o'lchamdan nechta keldi?" : "Har bir o'lchamdan nechta bor?"}</b>${packReady() ? ` ${unitSwitch('qty')}` : ''}</div>
       <div class="size-list" data-wrap="sizes">
         ${st.rows.length ? st.rows.map((x, i) => `
@@ -338,11 +361,19 @@ async function mountWizard(host, opts) {
     const addOne = () => {
       const inp = host.querySelector('#size-new');
       if (!inp || !inp.value.trim()) return;
-      addSizes(inp.value.split(/[,;]+/));
+      addSizes(inp.value.split(/[,;]+/).flatMap((x) => expandRange(x)));
       refreshPrices();
       host.querySelector('#size-new')?.focus();
     };
     host.querySelector('#size-add')?.addEventListener('click', addOne);
+    host.querySelector('#sr-add')?.addEventListener('click', () => {
+      const from = host.querySelector('#sr-from').value.trim();
+      const to = host.querySelector('#sr-to').value.trim();
+      if (!/^\d{1,3}$/.test(from) || !/^\d{1,3}$/.test(to)) { toast("Oraliqni raqam bilan yozing: masalan 48 dan 60 gacha", 'warn'); return; }
+      addSizes(expandRange(`${from}-${to}`, Number(host.querySelector('#sr-step').value)));
+      refreshPrices();
+      host.querySelector('.size-row input[data-f="qty"]')?.focus();
+    });
     host.querySelector('#size-new')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOne(); } });
     host.querySelector('#size-price-toggle')?.addEventListener('click', () => {
       st.sizePrice = !st.sizePrice;
@@ -402,8 +433,10 @@ async function mountWizard(host, opts) {
       const key = b.dataset.opt;
       st[key] = !st[key];
       if (key === 'packed' && st.packed && !st.packUnitId) {
-        const guess = { m: 'roll', kg: 'pack', piece: 'box', l: 'box' }[units.find((u) => u.id === st.baseUnitId)?.code];
-        st.packUnitId = (guess && byCode(guess)?.id) || null;
+        // Odatdagi qadoq: metr — rulon, kilogramm — qop, litr — kanistr, dona — quti
+        const code = units.find((u) => u.id === st.baseUnitId)?.code;
+        const guess = { m: ['roll'], kg: ['bag', 'pack'], piece: ['box'], l: ['can', 'box'] }[code] || [];
+        st.packUnitId = guess.map((c) => byCode(c)?.id).find(Boolean) || null;
       }
       render();
       if (key === 'packed' && st.packed) host.querySelector('#pack-factor')?.focus();

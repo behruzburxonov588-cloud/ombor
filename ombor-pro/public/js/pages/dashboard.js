@@ -29,7 +29,7 @@ const KIND = {
   payment: { label: "Qarz to'lovi", sign: 1, icon: 'debt' },
 };
 const EXPENSE_LABEL = {
-  rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
+  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 
 // Yangi do'kon uchun "Qayerdan boshlash" qadamlari (faqat ruxsat berilganlari ko'rinadi)
@@ -314,6 +314,30 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
       ${sparkline(kpi.spark, { color })}
       <div class="stat-foot">${deltaAmount(kpi.value, kpi.previous, { goodWhenUp, unit, title: snapshot ? startNote : cmp })}<span class="stat-note">${esc(note || (snapshot ? startNote : shortCmp))}</span></div>
     </a>`;
+  // Bosh sahifa: xarajat (obed, suv...) savdo pulidan olinadi — savdo, xarajat, savdodan qolgan pul, tovardan foyda
+  if (periodOnly && k.gross_profit && k.sales_left && k.expenses) {
+    const sc = k.sales_count.value;
+    return `<div class="stats four">${[
+      card({
+        label: today ? 'Bugun sotildi' : 'Savdo (tushum)', kpi: k.revenue, href: `#/reports?tab=sales&${q}`, i: 'cart',
+        note: sc ? `${num(sc, 0)} ta chek · o'rtacha ${compact(k.sales_count.avg_order)}` : '',
+        hint: "Sotuvdan tushgan pul (chegirma va qaytarilgan tovar ayirilgan). Qarz to'lovlari kirmaydi.",
+      }),
+      card({
+        label: 'Xarajatlar', kpi: k.expenses, href: `#/cash?tab=expenses&${q}`, goodWhenUp: false, color: C.cost, i: 'expense', tone: 'warn',
+        note: 'obed, suv va boshqalar', hint: "Savdo pulidan olingan xarajatlar: ovqat, suv, ijara, maosh va boshqalar",
+      }),
+      card({
+        label: 'Savdodan qolgan pul', kpi: k.sales_left, href: '#/cash?tab=cash', i: 'wallet', tone: k.sales_left.value < 0 ? 'neg' : 'pos', color: C.s2,
+        note: 'savdo − xarajat', hint: "Savdodan tushgan puldan xarajatlar (obed, suv, ijara...) ayirilgandan keyin qolgan pul",
+      }),
+      card({
+        label: 'Foyda (tovardan)', kpi: k.gross_profit, href: `#/reports?tab=pnl&${q}`, i: 'trendUp', tone: k.gross_profit.value < 0 ? 'neg' : 'pos', color: C.s2,
+        note: k.net_profit ? `xarajatdan keyin ${k.net_profit.value < 0 ? '−' : ''}${compact(Math.abs(k.net_profit.value))}` : '',
+        hint: "Sotuv narxi − kelish narxi. Masalan: 5 000 ga kelib 10 000 ga sotilsa — 5 000 foyda",
+      }),
+    ].join('')}</div>`;
+  }
   const cards = [];
   cards.push(card({
     label: today ? 'Bugun sotildi' : 'Sotuvdan tushum', kpi: k.revenue, href: `#/reports?tab=sales&${q}`, i: 'cart',

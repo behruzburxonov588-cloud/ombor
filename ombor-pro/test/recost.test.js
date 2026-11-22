@@ -98,3 +98,23 @@ test("tahrirlashda narx o'zgarmasa boshlang'ich qoldiq tannarxi tegilmaydi; bosh
   const list = (await owner.get('/api/products?cost=missing')).body.products.map((x) => x.name);
   assert.deepEqual(list, ['Gugurt']);
 });
+
+test("xarajat (obed, suv) savdo pulidan ayiriladi: savdodan qolgan pul va tovardan foyda alohida", async () => {
+  const t = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
+  const before = (await owner.get(`/api/analytics/dashboard?from=${t}&to=${t}`)).body.kpis;
+  const { id } = (await owner.post('/api/products', { name: 'Non', base_unit_id: piece, selling_price: 10000, purchase_price: 5000, opening_qty: 20 })).body;
+  await sell(id, 10); // savdo 100 000, tovardan foyda 50 000
+  for (const [category, amount] of [['food', 30000], ['household', 5000]]) {
+    const r = await owner.post('/api/expenses', { category, amount, method: 'cash', expense_date: t, description: category === 'food' ? 'Obed' : 'Suv' });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  }
+  const k = (await owner.get(`/api/analytics/dashboard?from=${t}&to=${t}`)).body.kpis;
+  const d = (key) => Math.round(k[key].value - before[key].value);
+  assert.equal(d('revenue'), 100000);
+  assert.equal(d('expenses'), 35000);
+  assert.equal(d('sales_left'), 65000, 'savdo − xarajat');
+  assert.equal(d('gross_profit'), 50000, 'tovardan foyda xarajatga bog\'liq emas');
+  assert.equal(d('net_profit'), 15000, 'sof foyda = tovardan foyda − xarajat');
+  const cats = (await owner.get('/api/expenses?limit=5')).body;
+  assert.ok((cats.categories || []).includes('food') && cats.categories.includes('household'));
+});

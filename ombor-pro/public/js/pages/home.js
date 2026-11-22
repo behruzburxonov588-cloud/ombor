@@ -270,7 +270,7 @@ const KIND = {
   payment: { label: "Qarz to'lovi", sign: 1, icon: 'debt', tone: 'pos' },
 };
 const EXPENSE_LABEL = {
-  rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
+  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 function recentCard(d, canSell) {
   const rows = (d.recent || []).slice(0, 7);
@@ -307,11 +307,15 @@ function moneySection(d, word) {
     { label: 'Foyda', value: Math.max(0, profit), cls: 'seg-profit' },
   ];
   const total = parts.reduce((s, p) => s + p.value, 0) || 1;
+  const goods = Math.round((m.revenue - m.cogs) * 100) / 100;
+  const left = Math.round((m.revenue - m.expenses) * 100) / 100;
   const sentence = m.sales_count === 0 && m.expenses === 0
     ? `${word} savdo ham, xarajat ham bo'lmadi.`
-    : `${word} <b>${moneyFull(m.revenue)} so'm</b> savdo bo'ldi (${m.sales_count} ta). Sotilgan tovarlar o'zingizga <b>${moneyFull(m.cogs)} so'm</b>ga tushgan, xarajatlar <b>${moneyFull(m.expenses)} so'm</b>${m.losses > 0 ? `, buzilgan/yo'qolgan tovar <b>${moneyFull(m.losses)} so'm</b>` : ''}. ${loss
-      ? `<span class="red">Natija: <b>${moneyFull(Math.abs(profit))} so'm zarar</b> — minusga ketdingiz.</span>`
-      : `<span class="green">Qo'lingizda <b>${moneyFull(profit)} so'm foyda</b> qoldi.</span>`}`;
+    : `${word} <b>${moneyFull(m.revenue)} so'm</b> savdo bo'ldi (${m.sales_count} ta).${m.expenses > 0
+      ? ` Xarajatlarga (obed, suv va boshqalar) savdo pulidan <b>${moneyFull(m.expenses)} so'm</b> olindi — savdodan <b class="${left < 0 ? 'red' : ''}">${left < 0 ? '−' : ''}${moneyFull(Math.abs(left))} so'm</b> qoldi.`
+      : ''}<br>Tovarlardan foyda (sotuv narxi − kelish narxi): <b class="${goods < 0 ? 'red' : 'green'}">${goods < 0 ? '−' : ''}${moneyFull(Math.abs(goods))} so'm</b>${m.losses > 0 ? `, buzilgan/yo'qolgan tovar <b>${moneyFull(m.losses)} so'm</b>` : ''}. ${loss
+      ? `<span class="red">Xarajatlar ayirilgach: <b>${moneyFull(Math.abs(profit))} so'm zarar</b>.</span>`
+      : `<span class="green">Xarajatlar ayirilgach sof foyda: <b>${moneyFull(profit)} so'm</b>.</span>`}`;
   return `
     <section class="card home-card">
       <div class="hc-head">

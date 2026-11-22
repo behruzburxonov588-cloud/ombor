@@ -369,7 +369,7 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
 }
 
 export const EXPENSE_LABELS = {
-  rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish',
+  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish',
   transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 

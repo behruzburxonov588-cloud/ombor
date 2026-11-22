@@ -24,6 +24,8 @@ import m006 from '../migrations/006_manual_debts.sql';
 import m007 from '../migrations/007_due_dates_sku.sql';
 import m008 from '../migrations/008_sizes.sql';
 import m009 from '../migrations/009_product_details.sql';
+import m010 from '../migrations/010_more_units.sql';
+import m011 from '../migrations/011_expense_categories.sql';
 import interRegular from '../assets/fonts/Inter-Regular.ttf';
 import interSemiBold from '../assets/fonts/Inter-SemiBold.ttf';
 
@@ -38,6 +40,8 @@ const MIGRATIONS = [
   { name: '007_due_dates_sku.sql', sql: m007 },
   { name: '008_sizes.sql', sql: m008 },
   { name: '009_product_details.sql', sql: m009 },
+  { name: '010_more_units.sql', sql: m010 },
+  { name: '011_expense_categories.sql', sql: m011 },
 ];
 
 setMigrationSources(MIGRATIONS);

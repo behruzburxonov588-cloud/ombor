@@ -2070,3 +2070,10 @@ tr.clickable:hover td { background: #f7f9fd; }
 .recost-check input { margin-top: 2px; flex: none; }
 /* Maydonlarning o'z fokus halqasi bor — qo'shimcha chiziq (outline) kerak emas */
 .input:focus-visible, .money-input .input:focus-visible { outline: none; }
+.price-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.price-head .unit-fixed { font-size: 12.5px; color: var(--muted); font-weight: 550; }
+#ed-calc .green, #fc-prof .green { color: var(--pos); }
+.size-range { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; color: var(--text-2); }
+.size-range .input { width: 76px; min-height: 42px; text-align: center; }
+.size-range select.input { width: auto; text-align: left; }
+@media (max-width: 559px) { .size-range select.input { flex: 1 1 100%; } .size-range .btn { flex: 1 1 100%; } }

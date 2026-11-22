@@ -24,7 +24,7 @@ const PERIODS = [
   { key: 'year', label: 'Shu yil' },
 ];
 const EXPENSE_LABEL = {
-  rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
+  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 const CASH_LABEL = {
   sale: 'Savdo tushumi', refund: 'Qaytarilgan pul', customer_payment: "Mijoz qarz to'lovlari", supplier_payment: "Yetkazib beruvchilarga to'lov",

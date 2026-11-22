@@ -36,7 +36,7 @@ const MONEY_KEYS = new Set(['total', 'credit', 'paid_total', 'amount', 'selling_
 const VALUE_LABELS = {
   cash: 'naqd', card: 'karta', transfer: "o'tkazma", mixed: 'aralash', owner: 'egasi', administrator: 'administrator',
   cashier: 'kassir', warehouse: 'ombor xodimi', accountant: 'buxgalter', rent: 'ijara', salaries: 'maosh', utilities: 'kommunal',
-  delivery: 'yetkazib berish', transport: 'transport', repairs: "ta'mirlash", other: 'boshqa', true: 'ha', false: "yo'q",
+  food: 'ovqat (obed)', household: 'suv, choy, mayda', delivery: 'yetkazib berish', transport: 'transport', repairs: "ta'mirlash", other: 'boshqa', true: 'ha', false: "yo'q",
 };
 
 const ENTITY_LABELS = {

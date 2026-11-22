@@ -12,7 +12,7 @@ const CATEGORY_LABELS = {
   deposit: 'Kirim (depozit)', withdrawal: 'Pul olish',
 };
 const EXPENSE_LABELS = {
-  rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish',
+  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish',
   transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 

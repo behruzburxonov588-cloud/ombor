@@ -10,7 +10,8 @@ import { audit } from '../audit.js';
 import { createBackup } from '../services/backup.js';
 
 const router = Router();
-const EXPENSE_CATEGORIES = ['rent', 'salaries', 'utilities', 'delivery', 'transport', 'repairs', 'other'];
+// Birinchilari — har kuni bo'ladigan mayda xarajatlar (ovqat, suv, choy)
+const EXPENSE_CATEGORIES = ['food', 'household', 'rent', 'salaries', 'utilities', 'delivery', 'transport', 'repairs', 'other'];
 const METHODS = ['cash', 'card', 'transfer'];
 
 // ---------- Kassa ----------

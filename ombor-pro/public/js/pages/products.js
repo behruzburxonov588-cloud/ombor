@@ -109,8 +109,8 @@ function productCard(p, perm) {
         <a class="pcx-name" href="#/products/${p.id}">${esc(p.name)}</a>
         <div class="pcx-code ${code ? '' : 'none'}">${icon('scan', 'ico-xs')}<span>${code ? esc(p.barcode || `SKU ${p.sku}`) : "shtrix-kod yo'q"}</span></div>
         <div class="pcx-prices">
-          <div class="pcx-price"><span>Sotuv narxi</span><b>${money(p.selling_price)}</b></div>
-          ${cost === null ? '' : `<div class="pcx-price cost"><span>Kelish narxi</span><b>${costCell(cost)}</b></div>`}
+          <div class="pcx-price"><span>Sotuv · 1 ${esc(p.base_unit_name)}</span><b>${money(p.selling_price)}</b></div>
+          ${cost === null ? '' : `<div class="pcx-price cost"><span>Kelish · 1 ${esc(p.base_unit_name)}</span><b>${costCell(cost)}</b></div>`}
         </div>
         <div class="pcx-stock">
           <div class="pcx-stock-row"><span>Qoldiq</span><b class="pcx-qty">${num(p.stock_qty, 3)} <small>${esc(p.base_unit_name)}</small></b></div>
@@ -560,8 +560,8 @@ async function renderDetail(root, id, ctx) {
 
     <div class="pd-facts">
       <div class="pd-fact"><span>Sotuv narxi</span><b>${money(p.selling_price)}</b><small>1 ${unit} uchun${p.pack ? ` · 1 ${esc(p.pack.name)} = ${money(Number(p.selling_price) * p.pack.factor)}` : ''}</small></div>
-      ${showCost ? `<div class="pd-fact ${cost > 0 ? '' : 'warn'}"><span>Kelish narxi</span><b>${cost > 0 ? money(cost) : 'yozilmagan'}</b><small>${cost > 0 ? `1 ${unit} — oxirgi kelgan narx${avgDiffers ? ` · ombordagisi o'rtacha ${money(p.avg_cost)}` : ''}` : 'foyda hisoblanishi uchun yozing'}</small>${canManage && !p.is_archived ? `<button class="link-btn" type="button" id="fix-cost2">${cost > 0 ? "To'g'irlash" : 'Yozish'}</button>` : ''}</div>` : ''}
-      ${margin !== null ? `<div class="pd-fact ${margin >= 0 ? 'good' : 'bad'}"><span>Har biridan foyda</span><b>${money(margin)}</b><small>1 ${unit} sotsangiz</small></div>` : ''}
+      ${showCost ? `<div class="pd-fact ${cost > 0 ? '' : 'warn'}"><span>Kelish narxi</span><b>${cost > 0 ? money(cost) : 'yozilmagan'}</b><small>${cost > 0 ? `1 ${unit} — oxirgi kelgan narx${p.pack ? ` · 1 ${esc(p.pack.name)} = ${money(cost * p.pack.factor)}` : ''}${avgDiffers ? ` · ombordagisi o'rtacha ${money(p.avg_cost)}` : ''}` : 'foyda hisoblanishi uchun yozing'}</small>${canManage && !p.is_archived ? `<button class="link-btn" type="button" id="fix-cost2">${cost > 0 ? "To'g'irlash" : 'Yozish'}</button>` : ''}</div>` : ''}
+      ${margin !== null ? `<div class="pd-fact ${margin >= 0 ? 'good' : 'bad'}"><span>Har biridan foyda</span><b>${money(margin)}</b><small>1 ${unit} sotsangiz${p.pack ? ` · 1 ${esc(p.pack.name)}dan ${money(margin * p.pack.factor)}` : ''}${Number(p.selling_price) > 0 ? ` · ${String(Math.round((margin / Number(p.selling_price)) * 1000) / 10).replace('.', ',')}%` : ''}</small></div>` : ''}
       <div class="pd-fact"><span>Jami sotildi</span><b>${num(p.sold_qty, 3)} ${unit}</b><small>${money(p.sold_revenue)}ga${showCost ? ` · foyda ${money(p.profit)}` : ''}</small></div>
       ${p.conversions.length ? `<div class="pd-fact"><span>Qadoq</span><b>${p.conversions.map((c) => `1 ${esc(c.name)} = ${num(c.factor, 4)} ${unit}`).join('<br>')}</b><small>yuk kelganda shunday hisoblanadi</small></div>` : ''}
     </div>
@@ -608,9 +608,10 @@ async function renderDetail(root, id, ctx) {
     const { el, close } = openModal({
       title: `${p.name}: kelish narxi`,
       body: `<form id="fcf" class="stack">
-        <p class="muted" style="margin:0">1 ${unit} sizga necha so'mga tushadi? Foyda shu narx bilan qayta hisoblanadi.</p>
-        <label class="field"><span>Kelish narxi (1 ${unit}) <span class="req">*</span></span>
-          <div class="money-input"><input class="input input-lg" name="price" data-money inputmode="decimal" value="${cost > 0 ? formatMoneyInput(cost) : ''}" placeholder="0" autocomplete="off"><em>so'm</em></div></label>
+        <p class="muted" style="margin:0">Sizga necha so'mga tushadi? Foyda shu narx bilan qayta hisoblanadi.</p>
+        <div class="field"><span class="price-head">Kelish narxi <span class="req">*</span>
+          ${p.pack ? `<span class="mini-seg" role="radiogroup" aria-label="Qaysi birlik uchun"><button type="button" data-cp="base" class="active">1 ${unit}</button><button type="button" data-cp="pack">1 ${esc(p.pack.name)}</button></span>` : `<span class="unit-fixed">1 ${unit} uchun</span>`}</span>
+          <div class="money-input"><input class="input input-lg" name="price" data-money inputmode="decimal" value="${cost > 0 ? formatMoneyInput(cost) : ''}" placeholder="0" autocomplete="off" aria-label="Kelish narxi"><em>so'm</em></div></div>
         <div class="small" id="fc-prof"></div>
         <div class="fc-modes">
           <label class="check"><input type="radio" name="mode" value="missing" checked> <span><b>Narxi yozilmagan va boshlang'ich qoldiq</b><small>Odatdagi holat: tovarni narxsiz qo'shgan bo'lsangiz</small></span></label>
@@ -620,17 +621,34 @@ async function renderDetail(root, id, ctx) {
         <button class="btn btn-lg btn-block" type="submit">${icon('check')} Saqlash va foydani qayta hisoblash</button></form>`,
     });
     const inp = el.querySelector('[name=price]');
-    const prof = () => {
+    let per = 'base';
+    // 1 asosiy birlik (metr, dona) narxi — rulon/quti uchun yozilgan bo'lsa bo'linadi
+    const perBase = () => {
       const v = parseMoney(inp.value);
-      const m = Number(p.selling_price) - v;
-      el.querySelector('#fc-prof').innerHTML = v > 0 ? `Har 1 ${unit}dan foyda: <b class="${m >= 0 ? 'green' : 'red'}">${money(m)}</b> (sotuv narxi ${money(p.selling_price)})` : '';
+      return per === 'pack' && p.pack && v > 0 ? Math.round((v / p.pack.factor) * 100) / 100 : v;
     };
+    const prof = () => {
+      const v = perBase();
+      if (Number.isNaN(v)) { el.querySelector('#fc-prof').innerHTML = '<span class="red">Narx noto\'g\'ri yozilgan. Masalan: 12000 yoki 12 000</span>'; return; }
+      const m = Math.round((Number(p.selling_price) - v) * 100) / 100;
+      el.querySelector('#fc-prof').innerHTML = v > 0
+        ? `${per === 'pack' ? `1 ${unit} = <b>${money(v)}</b> · ` : ''}Har 1 ${unit}dan foyda: <b class="${m >= 0 ? 'green' : 'red'}">${money(m)}</b>${p.pack ? ` · 1 ${esc(p.pack.name)}dan <b class="${m >= 0 ? 'green' : 'red'}">${money(m * p.pack.factor)}</b>` : ''} <span class="muted">(sotuv narxi 1 ${unit} ${money(p.selling_price)})</span>${m < 0 && p.pack && per === 'base' && v / p.pack.factor < Number(p.selling_price) ? `<div class="amber" style="margin-top:4px"><b>1 ${esc(p.pack.name)} narxini yozdingizmi?</b> Unda yuqorida «1 ${esc(p.pack.name)}» ni bosing.</div>` : ''}`
+        : '';
+    };
+    el.querySelectorAll('[data-cp]').forEach((b) => b.addEventListener('click', () => {
+      if (b.dataset.cp === per) return;
+      const v = parseMoney(inp.value);
+      if (v > 0) inp.value = formatMoneyInput(Math.round((b.dataset.cp === 'pack' ? v * p.pack.factor : v / p.pack.factor) * 100) / 100);
+      per = b.dataset.cp;
+      el.querySelectorAll('[data-cp]').forEach((x) => x.classList.toggle('active', x === b));
+      prof();
+    }));
     inp.addEventListener('input', prof);
     prof();
     inp.focus();
     el.querySelector('#fcf').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const v = parseMoney(inp.value);
+      const v = perBase();
       if (!(v > 0)) { el.querySelector('#fc-err').innerHTML = '<div class="alert alert-bad">Kelish narxini yozing (masalan: 12 000)</div>'; return; }
       const mode = el.querySelector('[name=mode]:checked').value;
       try {
@@ -703,11 +721,12 @@ async function renderForm(root, id, ctx, prefill = {}) {
       <label class="field" style="grid-column:1/-1"><span>Mahsulot nomi *</span>
         <input class="input" name="name" required maxlength="150" value="${esc(p?.name || prefill.name || '')}" placeholder="Masalan: Un oliy nav" autocomplete="off"></label>
 
-      <label class="field"><span>Sotuv narxi (1 birlik uchun, so'm) *</span>
-        <input class="input" name="selling_price" data-type="money" data-money inputmode="decimal" required value="${formatMoneyInput(p?.selling_price ?? '')}" placeholder="0"><small>Xaridorga shu narxda sotiladi</small></label>
+      <div class="field"><span class="price-head">Sotuv narxi <span class="req">*</span> <span class="unit-fixed" data-ulbl></span></span>
+        <div class="money-input"><input class="input" name="selling_price" data-type="money" data-money inputmode="decimal" required value="${formatMoneyInput(p?.selling_price ?? '')}" placeholder="0" aria-label="Sotuv narxi"><em>so'm</em></div><small data-sell-hint>Xaridorga shu narxda sotiladi</small></div>
 
-      <label class="field"><span>Kelish narxi (1 birlik uchun, so'm)</span>
-        <input class="input" name="purchase_price" data-type="money" data-money inputmode="decimal" value="${Number(p?.purchase_price) > 0 ? formatMoneyInput(p.purchase_price) : ''}" placeholder="0"><small>O'zingiz necha so'mga olgansiz (foydani hisoblash uchun)</small></label>
+      <div class="field"><span class="price-head">Kelish narxi <span id="cost-per"></span></span>
+        <div class="money-input"><input class="input" name="purchase_price" data-type="money" data-money inputmode="decimal" value="${Number(p?.purchase_price) > 0 ? formatMoneyInput(p.purchase_price) : ''}" placeholder="0" aria-label="Kelish narxi"><em>so'm</em></div><small data-cost-hint>O'zingiz necha so'mga olgansiz (foydani hisoblash uchun)</small></div>
+      <div class="calc-box" id="ed-calc" style="grid-column:1/-1" aria-live="polite"></div>
       ${id ? `<label class="check recost-check" hidden style="grid-column:1/-1"><input type="checkbox" name="recost" checked> <span>Eski qoldiq va oldingi sotuvlar foydasini ham shu kelish narxi bilan qayta hisoblash <small class="muted">(narxsiz va boshlang'ich qoldiq)</small></span></label>` : ''}
 
       <div class="field"><span>O'lchov birligi *</span>
@@ -781,6 +800,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
     </form>`;
 
   const convBox = root.querySelector('#convs');
+  let onConvChange = () => {};
   const drawConvs = () => {
     convBox.innerHTML = convs.length ? convs.map((c, i) => `
       <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:12px">
@@ -797,8 +817,10 @@ async function renderForm(root, id, ctx, prefill = {}) {
       convs[s.dataset.cf].factor = Number(String(s.value).replace(',', '.')) || null;
       const hint = convBox.querySelector(`[data-hint="${s.dataset.cf}"]`);
       if (hint) hint.textContent = hintText(convs[s.dataset.cf], units, root);
+      onConvChange();
     }));
     convBox.querySelectorAll('[data-cdel]').forEach((b) => b.addEventListener('click', () => { convs.splice(Number(b.dataset.cdel), 1); drawConvs(); }));
+    onConvChange();
   };
   root.querySelector('#add-conv').addEventListener('click', () => {
     const used = new Set(convs.map((c) => c.unit_id));
@@ -847,13 +869,76 @@ async function renderForm(root, id, ctx, prefill = {}) {
   });
   if (!id) root.querySelector('[name=name]').focus();
 
-  // Kelish narxi o'zgarsa — «eski qoldiq va sotuvlarni qayta hisoblash» belgisi ko'rinadi
-  const pp = root.querySelector('#pf [name=purchase_price]');
+  // Narxlar: birlik nomi, qadoq (rulon, quti) narxi va foyda — jonli hisoblanadi.
+  // Kelish narxini 1 qadoq uchun ham yozish mumkin: saqlashda 1 asosiy birlik narxiga aylantiriladi.
+  const sellIn = root.querySelector('#pf [name=selling_price]');
+  const costIn = root.querySelector('#pf [name=purchase_price]');
   const rc = root.querySelector('#pf .recost-check');
-  if (pp && rc) {
-    const start = parseMoney(pp.value);
-    pp.addEventListener('input', () => { rc.hidden = !(parseMoney(pp.value) > 0) || Math.abs(parseMoney(pp.value) - start) < 0.005; });
-  }
+  const startCost = parseMoney(costIn.value) || 0;
+  let costPer = 'base';
+  let lastPack = null;
+  const packOf = () => {
+    const best = convs.filter((c) => c.unit_id && Number(c.factor) > 1).sort((x, y) => y.factor - x.factor)[0];
+    const u = best && units.find((x) => x.id === Number(best.unit_id));
+    return u ? { name: u.name, factor: Number(best.factor) } : null;
+  };
+  const costPerBase = () => {
+    const v = parseMoney(costIn.value);
+    if (!(v > 0)) return Number.isNaN(v) ? NaN : 0;
+    const pk = packOf();
+    return costPer === 'pack' && pk ? Math.round((v / pk.factor) * 100) / 100 : v;
+  };
+  const drawPrices = () => {
+    const base = unitName(units, root);
+    const pk = packOf();
+    if (costPer === 'pack' && !pk) { // qadoq olib tashlandi — narx 1 asosiy birlikka qaytariladi
+      const v = parseMoney(costIn.value);
+      if (v > 0 && lastPack) costIn.value = formatMoneyInput(Math.round((v / lastPack.factor) * 100) / 100);
+      costPer = 'base';
+    }
+    lastPack = pk;
+    root.querySelector('[data-ulbl]').textContent = `1 ${base} uchun`;
+    root.querySelector('#cost-per').innerHTML = pk
+      ? `<span class="mini-seg" role="radiogroup" aria-label="Kelish narxi qaysi birlik uchun"><button type="button" data-cp="base" class="${costPer === 'base' ? 'active' : ''}">1 ${esc(base)}</button><button type="button" data-cp="pack" class="${costPer === 'pack' ? 'active' : ''}">1 ${esc(pk.name)}</button></span>`
+      : `<span class="unit-fixed">1 ${esc(base)} uchun</span>`;
+    const sell = parseMoney(sellIn.value);
+    const raw = parseMoney(costIn.value);
+    const cost = costPerBase();
+    root.querySelector('[data-sell-hint]').innerHTML = pk && sell > 0 ? `1 ${esc(pk.name)} = <b>${money(sell * pk.factor)}</b> (${num(pk.factor, 4)} ${esc(base)})` : 'Xaridorga shu narxda sotiladi';
+    root.querySelector('[data-cost-hint]').innerHTML = !(raw > 0) ? "O'zingiz necha so'mga olgansiz (foydani hisoblash uchun)"
+      : costPer === 'pack' && pk ? `1 ${esc(base)} = <b>${money(cost)}</b> ga tushadi`
+        : pk ? `1 ${esc(pk.name)} = ${money(raw * pk.factor)}` : "O'zingiz necha so'mga olgansiz";
+    const calc = root.querySelector('#ed-calc');
+    if (Number.isNaN(sell) || Number.isNaN(raw)) {
+      calc.innerHTML = `<span class="red">Narx noto'g'ri yozilgan. Masalan: 12000 yoki 12 000</span>`;
+    } else if (sell > 0 && cost > 0) {
+      const m = Math.round((sell - cost) * 100) / 100;
+      const pct = Math.round((m / sell) * 1000) / 10;
+      // Ehtimol qadoq narxi 1 asosiy birlik joyiga yozilgan: kelish narxi sotuvdan ko'p, qadoqqa bo'linsa — mos keladi
+      const packMistake = pk && costPer === 'base' && cost > sell && cost / pk.factor < sell;
+      calc.innerHTML = m >= 0
+        ? `Har 1 ${esc(base)}dan foyda: <b class="green">${money(m)}</b> (${String(pct).replace('.', ',')}%)${pk ? ` · 1 ${esc(pk.name)}dan: <b class="green">${money(m * pk.factor)}</b>` : ''}`
+        : `<span class="red"><b>Zarar:</b> kelish narxi sotuv narxidan ${money(-m)} qimmat (1 ${esc(base)} uchun).</span>${packMistake ? ` <b>Kelish narxini 1 ${esc(pk.name)} uchun yozdingizmi?</b> Unda yuqorida «1 ${esc(pk.name)}» tugmasini bosing.` : ''}`;
+    } else {
+      calc.innerHTML = 'Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko\'rinadi';
+    }
+    if (rc) rc.hidden = !(cost > 0) || Math.abs(cost - startCost) < 0.005;
+  };
+  root.querySelector('#cost-per').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cp]');
+    const pk = packOf();
+    if (!b || !pk || b.dataset.cp === costPer) return;
+    const v = parseMoney(costIn.value);
+    if (v > 0) costIn.value = formatMoneyInput(Math.round((b.dataset.cp === 'pack' ? v * pk.factor : v / pk.factor) * 100) / 100);
+    costPer = b.dataset.cp;
+    drawPrices();
+  });
+  sellIn.addEventListener('input', drawPrices);
+  costIn.addEventListener('input', drawPrices);
+  root.querySelector('#base-unit').addEventListener('change', drawPrices);
+  onConvChange = drawPrices;
+  drawPrices();
+
   root.querySelector('#pf').addEventListener('submit', async (e) => {
     e.preventDefault();
     const again = e.submitter?.dataset.again === '1';
@@ -872,7 +957,8 @@ async function renderForm(root, id, ctx, prefill = {}) {
       // Qoldig'i bor tovarda birlik o'zgartirilmaydi (maydon bloklangan) — eskisi yuboriladi
       base_unit_id: Number(d.base_unit_id || root.querySelector('#base-unit').value),
       supplier_id: d.supplier_id ? Number(d.supplier_id) : null,
-      purchase_price: d.purchase_price ?? 0,
+      // Kelish narxi qadoq (rulon) uchun yozilgan bo'lsa — 1 asosiy birlik narxiga aylantiriladi
+      purchase_price: Number.isNaN(costPerBase()) ? NaN : costPerBase(),
       selling_price: d.selling_price,
       min_stock: d.min_stock ?? 0,
       description: String(d.description || '').trim(),
@@ -880,6 +966,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
       conversions: convs.filter((c) => c.unit_id && c.factor > 0).map((c) => ({ unit_id: c.unit_id, factor: c.factor })),
     };
     if (convs.some((c) => c.unit_id && !(c.factor > 0))) return fail('Birlik koeffitsientini kiriting (0 dan katta)');
+    if (Number.isNaN(body.purchase_price) || body.purchase_price < 0) return fail("Kelish narxi noto'g'ri yozilgan. Masalan: 12000 yoki 12 000");
     if (!id && d.opening_qty) body.opening_qty = d.opening_qty;
     if (id) body.recost = d.recost === false ? 'none' : 'missing';
     const btn = again ? root.querySelector('#save-again') : root.querySelector('#save');
