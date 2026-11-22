@@ -9,12 +9,26 @@ const FIX = " Neon → Connect oynasidan to'liq manzilni qaytadan nusxalab, Clou
 export function cleanDatabaseUrl(value) {
   if (typeof value !== 'string') return value;
   const m = value.match(URL_RE);
-  return m ? m[0] : value.trim();
+  return directNeonUrl(m ? m[0] : value.trim());
+}
+
+// Neon'ning "pooler" manzili (PgBouncer, tranzaksiya rejimi) ulanish holatini saqlamaydi: har bir do'konga
+// o'tish (SET search_path) keyingi so'rovlarga yetib bormasligi va do'konlar ma'lumoti aralashib ketishi mumkin.
+// Shuning uchun Neon manzili doim to'g'ridan-to'g'ri ulanishga (pooler'siz) aylantiriladi.
+export function directNeonUrl(url) {
+  try {
+    const u = new URL(url);
+    if (!/\.neon\.tech$/i.test(u.hostname) || !/-pooler\./i.test(u.hostname)) return url;
+    u.hostname = u.hostname.replace(/-pooler\./i, '.');
+    return u.toString();
+  } catch {
+    return url;
+  }
 }
 
 export function databaseUrlProblem(url) {
   if (!url) {
-    return "Ma'lumotlar bazasi ulanmagan. DATABASE_URL maxfiy qiymatini (Neon PostgreSQL manzili) yoki HYPERDRIVE bog'lanishini qo'shing.";
+    return "Ma'lumotlar bazasi ulanmagan. DATABASE_URL maxfiy qiymatini (Neon PostgreSQL manzili) qo'shing.";
   }
   if (!/^postgres(?:ql)?:\/\//.test(url)) {
     return `DATABASE_URL noto'g'ri kiritilgan: u postgresql:// bilan boshlanishi kerak.${FIX}`;

@@ -15,6 +15,14 @@ test("nusxalashdagi ortiqcha so'zlar va qo'shtirnoqlar olib tashlanadi", () => {
   assert.equal(cleanDatabaseUrl('JWT_SECRET'), 'JWT_SECRET');
 });
 
+test("Neon pooler manzili to'g'ridan-to'g'ri ulanishga almashtiriladi (do'konlar aralashmasligi uchun)", () => {
+  const pooled = GOOD.replace('ep-cool-sun-a1b2.', 'ep-cool-sun-a1b2-pooler.');
+  assert.equal(cleanDatabaseUrl(pooled), GOOD);
+  assert.equal(cleanDatabaseUrl(`psql '${pooled}'`), GOOD);
+  const other = 'postgresql://u:p@my-pooler.example.com/db';
+  assert.equal(cleanDatabaseUrl(other), other);
+});
+
 test("noto'g'ri manzil ulanishdan oldin aniqlanadi", () => {
   assert.equal(databaseUrlProblem(GOOD), null);
   assert.match(databaseUrlProblem(''), /ulanmagan/);

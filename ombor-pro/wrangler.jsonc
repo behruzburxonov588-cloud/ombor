@@ -31,8 +31,12 @@
     { "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true }
   ],
 
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 
-  // Ixtiyoriy (tezroq ishlash uchun): Cloudflare Hyperdrive yaratib, ID sini shu yerga qo'shing:
-  // "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<HYPERDRIVE_ID>" }]
+  // Tezlik: Worker foydalanuvchi yonida emas, ma'lumotlar bazasi (Neon) yonida ishlaydi. Har bir sahifa bazaga
+  // bir necha marta murojaat qiladi; ular endi qisqa masofada bajariladi va sahifa qotmaydi.
+  // Cloudflare joyni o'zi tanlaydi (yoqilgandan keyin taxminan 15 daqiqa ichida).
+  "placement": { "mode": "smart" }
+
+  // DIQQAT: Hyperdrive ulamang. U har bir do'kon sxemasiga o'tishni saqlamaydi va do'konlar ma'lumoti aralashishi mumkin.
 }

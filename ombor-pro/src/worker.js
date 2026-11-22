@@ -49,8 +49,10 @@ function applyEnv(env) {
     if (typeof v === 'string') process.env[k] = v;
   }
   if (process.env.DATABASE_URL) process.env.DATABASE_URL = cleanDatabaseUrl(process.env.DATABASE_URL);
-  // Hyperdrive ulangan bo'lsa, u ustun (tezroq: ulanishlar puli Cloudflare tarmog'ida)
-  if (env?.HYPERDRIVE?.connectionString) process.env.DATABASE_URL = env.HYPERDRIVE.connectionString;
+  // Hyperdrive ATAYLAB ishlatilmaydi: u ulanishlarni tranzaksiya rejimida bo'lishadi va har bir do'kon sxemasiga
+  // o'tish (SET search_path) saqlanmaydi, natijada do'konlar ma'lumoti aralashishi mumkin. Tezlik uchun
+  // wrangler.jsonc dagi Smart Placement ishlatiladi (Worker bazaga yaqin joyda ishlaydi).
+  if (env?.HYPERDRIVE && !applyEnv.warned) { applyEnv.warned = true; console.warn('HYPERDRIVE ulangan, lekin xavfsizlik uchun ishlatilmaydi'); }
   process.env.OMBOR_RUNTIME = 'worker';
 }
 
