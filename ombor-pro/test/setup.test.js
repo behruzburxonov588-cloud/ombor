@@ -51,6 +51,42 @@ test("sozlash: tekshiruv, turkum va birliklar qo'shiladi, takrorlansa ikki marta
   assert.ok(units.includes('pair') && units.includes('g') && units.includes('m3'));
 });
 
+test("ro'yxatdan o'tishda do'kon turi, manzil va login bir yo'la saqlanadi", async () => {
+  const anon = client(srv.base);
+  const t = await anon.get('/api/store-types');
+  assert.equal(t.status, 200, "kirishsiz ham do'kon turlari ochiq");
+  assert.equal(t.body.types.length, 11);
+  const body = {
+    store_types: ['fabric'], employee_count: '1', region: "Farg'ona viloyati", district: "Marg'ilon shahri",
+    store_name: 'Atlas mato', store_phone: '+998 90 111 22 33', store_address: 'Bozor 3', receipt_footer: 'Rahmat!',
+    full_name: 'Sardor Aliyev', username: 'atlas_mato', password: 'parol123',
+  };
+  // Xato tur — do'kon ochilmaydi va login band bo'lib qolmaydi
+  const bad = await anon.post('/api/auth/register', { ...body, store_types: ['kosmos'] });
+  assert.equal(bad.status, 400);
+  assert.equal((await anon.post('/api/auth/register', { ...body, region: '' })).status, 400);
+  const r = await anon.post('/api/auth/register', body);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.ok(r.body.categories >= 3, `turkumlar: ${r.body.categories}`);
+  const s = (await anon.get('/api/settings')).body.settings;
+  assert.equal(s.setup_done, true);
+  assert.deepEqual(s.store_types, ['fabric']);
+  assert.equal(s.employee_count, '1');
+  assert.equal(s.region, "Farg'ona viloyati");
+  assert.equal(s.district, "Marg'ilon shahri");
+  assert.equal(s.store_name, 'Atlas mato');
+  assert.equal(s.receipt_footer, 'Rahmat!');
+  const cats = (await anon.get('/api/categories')).body.categories.map((c) => c.name);
+  assert.ok(cats.includes('Gazlamalar'), cats.join(','));
+  const units = (await anon.get('/api/units')).body.units.map((u) => u.code);
+  assert.ok(units.includes('m') && units.includes('roll'), units.join(','));
+  // Eski usul (turisiz) ham ishlaydi — keyin ilova ichida sozlanadi
+  const old = client(srv.base);
+  const r2 = await old.post('/api/auth/register', { store_name: 'Eski', full_name: 'Ali', username: 'eski_dokon', password: 'parol123' });
+  assert.equal(r2.status, 201);
+  assert.equal((await old.get('/api/settings')).body.settings.setup_done, false);
+});
+
 test("kassir do'kon sozlamalarini o'zgartira olmaydi", async () => {
   await owner.post('/api/users', { full_name: 'Kassir', username: 'kassir9', password: 'secret1', role: 'cashier' });
   const c = client(srv.base);

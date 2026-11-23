@@ -174,53 +174,24 @@ async function showAuth(setupRequired) {
   root.hidden = false;
   // setupRequired: true — birinchi do'kon; 'register' — yangi do'kon ochish; false — kirish
   const mode = setupRequired === true ? 'setup' : setupRequired === 'register' ? 'register' : 'login';
+  root.className = mode === 'login' ? 'auth' : 'auth auth-wizard';
   if (mode === 'setup' || mode === 'register') {
-    root.innerHTML = `
-      <div class="auth-card">
-        <div class="auth-brand">
-          <div class="mark">${icon('layers')}</div>
-          <h1>${mode === 'register' ? "Yangi do'kon ochish" : 'OMBOR PRO'}</h1>
-          <p>${mode === 'register'
-    ? "Bir daqiqada o'z do'koningizni oching. Ma'lumotlaringizni faqat siz va xodimlaringiz ko'rasiz."
-    : "Do'koningizni yarating: do'kon nomi, ismingiz, login va parol"}</p>
-        </div>
-        <form id="setup-form" class="form-grid" novalidate>
-          <label class="field"><span>Do'kon nomi</span><input class="input" name="store_name" required maxlength="100" placeholder="Masalan: Baraka savdo"></label>
-          <label class="field"><span>Egasining ismi</span><input class="input" name="full_name" required maxlength="100" placeholder="Ism va familiya"></label>
-          <label class="field"><span>Telefon (ixtiyoriy)</span><input class="input" name="store_phone" maxlength="30" inputmode="tel" placeholder="+998 90 123 45 67"></label>
-          <label class="field"><span>Login (kirish uchun nom)</span><input class="input" name="username" required maxlength="50" autocomplete="username" autocapitalize="none" placeholder="masalan: baraka_dokon"><small>Lotin harflari, raqam, nuqta yoki defis. Bu login boshqa hech kimda bo'lmasligi kerak</small></label>
-          <label class="field"><span>Parol</span><input class="input" name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="Kamida 6 belgi"></label>
-          <label class="field"><span>Parolni tasdiqlang</span><input class="input" name="password2" type="password" required minlength="6" autocomplete="new-password"></label>
-          <div id="form-error"></div>
-          <button class="btn btn-lg btn-block" type="submit">Do'konni ochish</button>
-        </form>
-        <p class="auth-note">${icon('info', 'ico-xs')} Shu login va parol bilan telefon, planshet yoki kompyuterdan kirasiz — hamma joyda ma'lumotlar bir xil.</p>
-        ${mode === 'register' ? `<div class="auth-foot">Hisobingiz bormi? <button type="button" class="link-btn" data-mode="login">Kirish</button></div>` : ''}
-      </div>`;
-    root.querySelector('#setup-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const d = Object.fromEntries(new FormData(e.currentTarget));
-      const errEl = root.querySelector('#form-error');
-      if (d.password !== d.password2) {
-        errEl.innerHTML = '<div class="alert alert-bad">Parollar bir xil emas</div>';
-        return;
-      }
-      const btn = e.currentTarget.querySelector('button[type=submit]');
-      btn.disabled = true;
-      try {
-        await post(mode === 'register' ? '/auth/register' : '/setup', d);
-        rememberLogin(d.username);
-        try { sessionStorage.setItem('ombor.welcome', '1'); } catch { /* xotira yopiq */ }
-        location.hash = '#/dashboard';
-        location.reload();
-        return;
-      } catch (err) {
-        errEl.innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`;
-      } finally {
-        btn.disabled = false;
-      }
-    });
-    root.querySelector('[data-mode="login"]')?.addEventListener('click', () => showAuth(false));
+    // Yangi do'kon: do'kon turi, xodimlar, manzil, do'kon ma'lumotlari va login-parol — bitta oqimda, menyusiz
+    root.innerHTML = '<div class="su-loading"><span class="spinner"></span></div>';
+    try {
+      const { renderSignup } = await import('./pages/setup.js');
+      await renderSignup(root, {
+        first: mode === 'setup',
+        onLogin: (u) => {
+          rememberLogin(u);
+          try { sessionStorage.setItem('ombor.welcome', '1'); } catch { /* xotira yopiq */ }
+        },
+        onLoginPage: mode === 'register' ? () => showAuth(false) : null,
+      });
+    } catch (err) {
+      root.innerHTML = `<div class="auth-card"><div class="alert alert-bad">${esc(err.message)}</div>
+        <button class="btn btn-block" type="button" style="margin-top:12px" onclick="location.reload()">Qayta urinish</button></div>`;
+    }
   } else {
     const known = lastLogin();
     root.innerHTML = `

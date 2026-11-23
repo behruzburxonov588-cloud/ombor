@@ -10,6 +10,9 @@ import {
 import { HttpError, str } from '../util.js';
 import { saveSettings } from '../services/settings.js';
 import { audit } from '../audit.js';
+import {
+  STORE_TYPES, ATTRIBUTE_FIELDS, EMPLOYEE_COUNTS, applyStoreTypes, parseStoreProfile,
+} from '../services/storetypes.js';
 
 const router = Router();
 
@@ -71,6 +74,11 @@ router.get('/auth/status', async (req, res) => {
   res.json({ setup_required: await noStoresYet(), signup: signupAllowed() });
 });
 
+// Do'kon turlari va ularga mos turkum/birlik/maydonlar — ro'yxatdan o'tish sahifasi uchun kirishsiz ham ochiq
+router.get('/store-types', (req, res) => {
+  res.json({ types: STORE_TYPES, fields: ATTRIBUTE_FIELDS, employee_counts: EMPLOYEE_COUNTS });
+});
+
 // Yangi do'kon: alohida sxema, egasi hisobi va sozlamalar. Login butun tizimda yagona.
 async function openStore(req, res) {
   const body = req.body || {};
@@ -80,12 +88,15 @@ async function openStore(req, res) {
   const storeName = str(body.store_name, "Do'kon nomi", { required: true, max: 100 });
   const storePhone = str(body.store_phone, 'Telefon', { max: 30 }) || '';
   const storeAddress = str(body.store_address, 'Manzil', { max: 200 }) || '';
+  // Ro'yxatdan o'tishda do'kon turi ham tanlangan bo'lsa — profil darhol to'liq saqlanadi (keyin alohida sozlash shart emas)
+  const profile = body.store_types !== undefined ? parseStoreProfile({ ...body, store_name: storeName }) : null;
   await releaseStuckLogin(username);
   if (await loginTaken(username)) throw new HttpError(409, 'Bu login band. Boshqa login tanlang');
   const hash = await hashPassword(password);
 
   const store = await createStore({ name: storeName, username });
   let user;
+  let added = 0;
   try {
     user = await runWithSchema(store.schema, () => withTransaction(async (client) => {
       const { rows: cnt } = await client.query('SELECT COUNT(*)::int AS n FROM users');
@@ -95,8 +106,11 @@ async function openStore(req, res) {
          VALUES ($1, $2, $3, 'owner') RETURNING *`,
         [fullName, username, hash],
       );
-      await saveSettings(client, { store_name: storeName, store_phone: storePhone, store_address: storeAddress });
-      await audit(client, rows[0].id, 'setup', 'store', null, { store_name: storeName });
+      await saveSettings(client, { store_name: storeName, store_phone: storePhone, store_address: storeAddress, ...(profile || {}) });
+      if (profile) added = (await applyStoreTypes(client, profile.store_types)).categories || 0;
+      await audit(client, rows[0].id, 'setup', 'store', null, {
+        store_name: storeName, ...(profile ? { store_types: profile.store_types, employee_count: profile.employee_count, region: profile.region } : {}),
+      });
       return rows[0];
     }));
     await activateStore(store);
@@ -105,7 +119,7 @@ async function openStore(req, res) {
     throw err;
   }
   setSessionCookie(res, user, store);
-  res.status(201).json({ user: publicUser(user) });
+  res.status(201).json({ user: publicUser(user), categories: added });
 }
 
 // Birinchi marta: birinchi do'kon va egasi hisobi (faqat hech qanday do'kon bo'lmaganda)

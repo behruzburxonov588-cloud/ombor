@@ -2,6 +2,8 @@
 // Sozlash (onboarding) paytida tanlangan turlar uchun turkumlar va birliklar avtomatik qo'shiladi,
 // tovar qo'shish formasida esa faqat shu turlarga kerakli maydonlar ko'rsatiladi.
 
+import { HttpError, str } from '../util.js';
+
 // Tovarning qo'shimcha maydonlari (products.attributes JSONB ichida saqlanadi)
 export const ATTRIBUTE_FIELDS = {
   brand: { label: 'Brend', placeholder: 'Masalan: Nike, Samsung, Bosch' },
@@ -110,4 +112,32 @@ export async function applyStoreTypes(client, types) {
     );
   }
   return { categories: added };
+}
+
+// Do'kon profili (turi, xodimlar, joylashuv, nomi...) — tekshirib, sozlamalarga yoziladigan qiymatlarni qaytaradi.
+// Ro'yxatdan o'tishda ham, keyin «Sozlamalar»dan o'zgartirishda ham bir xil tekshiriladi.
+export function parseStoreProfile(body = {}) {
+  const types = Array.isArray(body.store_types) ? [...new Set(body.store_types.map(String))] : [];
+  if (!types.length) throw new HttpError(400, "Do'kon turini tanlang (bir nechtasini ham tanlash mumkin)");
+  if (types.some((t) => !STORE_TYPE_KEYS.includes(t))) throw new HttpError(400, "Do'kon turi noto'g'ri");
+  const employees = String(body.employee_count || '');
+  if (!EMPLOYEE_COUNTS.includes(employees)) throw new HttpError(400, 'Xodimlar sonini tanlang');
+  const patch = {
+    store_types: types,
+    employee_count: employees,
+    region: str(body.region, 'Viloyat', { max: 60 }) || '',
+    district: str(body.district, 'Tuman', { max: 60 }) || '',
+    store_name: str(body.store_name, "Do'kon nomi", { required: true, max: 100 }),
+    store_phone: str(body.store_phone, 'Telefon', { max: 30 }) || '',
+    store_address: str(body.store_address, 'Manzil', { max: 200 }) || '',
+    setup_done: true,
+  };
+  if (!patch.region) throw new HttpError(400, 'Viloyatni tanlang');
+  if (body.receipt_footer !== undefined) patch.receipt_footer = str(body.receipt_footer, 'Chek izohi', { max: 200 }) || '';
+  if (body.notify_low_stock !== undefined) patch.notify_low_stock = Boolean(body.notify_low_stock);
+  if (body.costing_method !== undefined) {
+    if (!['FIFO', 'WAVG'].includes(body.costing_method)) throw new HttpError(400, "Foyda hisoblash usuli noto'g'ri");
+    patch.costing_method = body.costing_method;
+  }
+  return patch;
 }

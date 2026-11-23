@@ -1,11 +1,11 @@
-// Do'konni sozlash — bosqichma-bosqich (birinchi kirishda va keyin «Sozlamalar»dan):
-//   1) Do'kon turi (bir nechtasi ham bo'ladi)  2) Xodimlar soni  3) Joylashuvi
-//   4) Do'kon ma'lumotlari va logotip          5) Asosiy sozlamalar → natija
+// Do'konni sozlash — bosqichma-bosqich. Ikki joyda ishlatiladi:
+//   • Ro'yxatdan o'tishda (yangi do'kon ochish, menyusiz to'liq ekran):
+//       1) Do'kon turi  2) Xodimlar soni  3) Manzil  4) Do'kon ma'lumotlari va logotip  5) Login va parol → do'kon ochiladi
+//   • Keyin ilova ichida «Sozlamalar»dan o'zgartirish: 1–4 bir xil, 5) Asosiy sozlamalar
 // Tanlangan turga mos turkumlar va o'lchov birliklari avtomatik qo'shiladi, tovar formasi shu turga moslashadi.
-import { get, put, esc, icon, toast, errorToast, withBusy, uploadLogo, storeTypes } from '../ui.js';
+import { get, post, put, esc, icon, toast, errorToast, withBusy, uploadLogo, storeTypes } from '../ui.js';
 import { REGIONS, REGION_NAMES } from '../regions.js';
 
-const STEPS = ["Do'kon turi", 'Xodimlar', 'Manzil', "Do'kon", 'Sozlamalar'];
 const EMPLOYEES = [
   { key: '1', title: "Faqat o'zim", hint: "Do'konni o'zim yuritaman" },
   { key: '2-5', title: '2–5 kishi', hint: 'Kichik jamoa' },
@@ -17,9 +17,17 @@ const UNIT_LABEL = {
   set: "to'plam", bag: 'qop', pair: 'juft', m2: 'kv. metr', m3: 'kub metr', box: 'quti', pack: 'pachka',
 };
 
-export async function render(root, params, ctx) {
-  const [{ types, fields }, cur] = await Promise.all([storeTypes(), get('/settings').then((r) => r.settings)]);
-  const first = !cur.setup_done;
+// Login taklifi: do'kon nomidan (masalan «Atlas mato» → atlas_mato)
+const slug = (name) => String(name || '').toLowerCase()
+  .replace(/[ʻʼ'`’‘]/g, '')
+  .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  .slice(0, 30);
+
+// mode: 'edit' — ilova ichida; 'register' — yangi do'kon ochish; 'first' — tizimdagi birinchi do'kon
+function wizard(root, { mode, types, fields, cur, ctx = null, onLogin = null, onLoginPage = null }) {
+  const signup = mode !== 'edit';
+  const first = signup || !cur.setup_done;
+  const STEPS = ["Do'kon turi", 'Xodimlar', 'Manzil', "Do'kon", signup ? 'Login va parol' : 'Sozlamalar'];
   const st = {
     step: 0,
     types: [...(cur.store_types || [])],
@@ -34,6 +42,11 @@ export async function render(root, params, ctx) {
     costing: cur.costing_method || 'FIFO',
     logoFile: null,
     logoUrl: cur.logo_path || '',
+    owner: '',
+    username: '',
+    password: '',
+    password2: '',
+    showPass: false,
     done: null,
   };
   const typeBy = (k) => types.find((t) => t.key === k);
@@ -101,11 +114,42 @@ export async function render(root, params, ctx) {
         <input class="input" id="su-footer" maxlength="200" value="${esc(st.footer)}" placeholder="Xaridingiz uchun rahmat!"></label>`;
   }
 
-  function stepSettings() {
+  function preview() {
     const picked = st.types.map(typeBy).filter(Boolean);
     const cats = [...new Set(picked.flatMap((t) => t.categories))];
     const units = [...new Set(picked.flatMap((t) => t.units))];
     const fieldKeys = [...new Set(picked.flatMap((t) => t.fields))];
+    return `
+      <div class="su-preview">
+        <h3>${icon('sparkles', 'ico-sm')} Sizga tayyorlab qo'yamiz</h3>
+        ${cats.length ? `<div><span>Turkumlar</span><div class="chips">${cats.map((c) => `<span class="chip">${esc(c)}</span>`).join('')}</div></div>` : ''}
+        <div><span>O'lchov birliklari</span><div class="chips">${units.map((u) => `<span class="chip">${esc(UNIT_LABEL[u] || u)}</span>`).join('')}</div></div>
+        ${fieldKeys.length ? `<div><span>Tovar qo'shishda qo'shimcha maydonlar</span><div class="chips">${fieldKeys.map((k) => `<span class="chip">${esc(fields[k]?.label || k)}</span>`).join('')}</div></div>` : ''}
+        ${picked.some((t) => t.variants || t.colors) ? `<div><span>Kiyim va poyabzal</span><p class="small muted" style="margin:0">O'lcham va rang bo'yicha qoldiq alohida hisoblanadi</p></div>` : ''}
+      </div>`;
+  }
+
+  function stepAccount() {
+    return `
+      <h2 class="su-q">Kirish uchun login va parol</h2>
+      <p class="su-sub">Shu login va parol bilan telefon, planshet yoki kompyuterdan kirasiz — ma'lumotlar hamma joyda bir xil.</p>
+      <div class="form-grid two">
+        <label class="field" style="grid-column:1/-1"><span>Ismingiz <span class="req">*</span> <small>(do'kon egasi)</small></span>
+          <input class="input input-lg" id="su-owner" maxlength="100" autocomplete="name" placeholder="Ism va familiya"></label>
+        <label class="field" style="grid-column:1/-1"><span>Login <span class="req">*</span></span>
+          <input class="input input-lg" id="su-user" maxlength="50" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="masalan: baraka_dokon">
+          <small>Lotin harflari, raqam, nuqta yoki pastki chiziq — kamida 3 belgi. Bu login boshqa hech kimda bo'lmasligi kerak</small></label>
+        <label class="field"><span>Parol <span class="req">*</span></span>
+          <input class="input input-lg" id="su-pass" type="${st.showPass ? 'text' : 'password'}" autocomplete="new-password" placeholder="Kamida 6 belgi"></label>
+        <label class="field"><span>Parolni takrorlang <span class="req">*</span></span>
+          <input class="input input-lg" id="su-pass2" type="${st.showPass ? 'text' : 'password'}" autocomplete="new-password" placeholder="Xuddi shu parol"></label>
+        <label class="check su-show"><input type="checkbox" id="su-showpass" ${st.showPass ? 'checked' : ''}> Parolni ko'rsatish</label>
+      </div>
+      <p class="su-note">${icon('info', 'ico-xs')} Valyuta — so'm. Kam qolgan tovar haqida ogohlantirish yoqilgan. Bularni keyin «Sozlamalar»da o'zgartirasiz.</p>
+      ${preview()}`;
+  }
+
+  function stepSettings() {
     return `
       <h2 class="su-q">Asosiy sozlamalar</h2>
       <p class="su-sub">Hammasini keyin «Sozlamalar» bo'limida o'zgartirish mumkin.</p>
@@ -116,13 +160,7 @@ export async function render(root, params, ctx) {
         <div class="setting-row stack-sm"><div><b>Foydani hisoblash usuli</b><p>Odatda «avval kelgan avval sotiladi» to'g'ri keladi</p></div>
           <select class="input" id="su-cost"><option value="FIFO" ${st.costing === 'FIFO' ? 'selected' : ''}>Avval kelgan — avval sotiladi</option><option value="WAVG" ${st.costing === 'WAVG' ? 'selected' : ''}>O'rtacha narx bo'yicha</option></select></div>
       </div>
-      <div class="su-preview">
-        <h3>${icon('sparkles', 'ico-sm')} Sizga tayyorlab qo'yamiz</h3>
-        ${cats.length ? `<div><span>Turkumlar</span><div class="chips">${cats.map((c) => `<span class="chip">${esc(c)}</span>`).join('')}</div></div>` : ''}
-        <div><span>O'lchov birliklari</span><div class="chips">${units.map((u) => `<span class="chip">${esc(UNIT_LABEL[u] || u)}</span>`).join('')}</div></div>
-        ${fieldKeys.length ? `<div><span>Tovar qo'shishda qo'shimcha maydonlar</span><div class="chips">${fieldKeys.map((k) => `<span class="chip">${esc(fields[k]?.label || k)}</span>`).join('')}</div></div>` : ''}
-        ${picked.some((t) => t.variants || t.colors) ? `<div><span>Kiyim va poyabzal</span><p class="small muted" style="margin:0">O'lcham va rang bo'yicha qoldiq alohida hisoblanadi</p></div>` : ''}
-      </div>`;
+      ${preview()}`;
   }
 
   function stepDone() {
@@ -131,27 +169,42 @@ export async function render(root, params, ctx) {
       <div class="su-done">
         <span class="su-done-ico">${icon('check')}</span>
         <h2>Hammasi tayyor!</h2>
-        <p>«${esc(st.name)}» sozlandi${d.categories ? `: ${d.categories} ta turkum qo'shildi` : ''}. Endi birinchi tovaringizni qo'shing — keyin sotishni boshlaysiz.</p>
+        <p>«${esc(st.name)}» ${signup ? 'ochildi' : 'sozlandi'}${d.categories ? `: ${d.categories} ta turkum qo'shildi` : ''}. Endi birinchi tovaringizni qo'shing — keyin sotishni boshlaysiz.</p>
+        ${signup ? `<div class="su-login-card">${icon('user', 'ico-sm')}<div><span>Kirish uchun login</span><b>${esc(st.username)}</b></div></div>` : ''}
         <div class="su-done-acts">
-          ${ctx.can('products.manage') ? `<a class="btn btn-lg" href="#/products/new">${icon('box')} Birinchi tovarni qo'shish</a>` : ''}
-          <a class="btn btn-lg btn-light" href="#/products" data-import>${icon('xlsx')} Excel'dan yuklash</a>
-          <a class="btn btn-lg btn-ghost" href="#/dashboard">Bosh sahifaga o'tish</a>
+          ${!ctx || ctx.can('products.manage') ? `<a class="btn btn-lg" href="#/products/new" data-go>${icon('box')} Birinchi tovarni qo'shish</a>` : ''}
+          <a class="btn btn-lg btn-light" href="#/products" data-go data-import>${icon('xlsx')} Excel'dan yuklash</a>
+          <a class="btn btn-lg btn-ghost" href="#/dashboard" data-go>Bosh sahifaga o'tish</a>
         </div>
       </div>`;
   }
 
   function draw() {
+    const top = signup ? `
+        <div class="su-top">
+          <div class="su-brand"><span class="mark">${icon('layers')}</span><b>OMBOR PRO</b></div>
+          ${onLoginPage && !st.done ? `<div class="su-have"><span>Hisobingiz bormi?</span> <button type="button" class="link-btn" id="su-login">Kirish</button></div>` : ''}
+        </div>` : '';
     if (st.done) {
-      root.innerHTML = `<div class="su-wrap">${stepDone()}</div>`;
+      root.innerHTML = `<div class="su-wrap${signup ? ' su-signup' : ''}">${top}${stepDone()}</div>`;
       root.querySelector('[data-import]')?.addEventListener('click', () => { try { sessionStorage.setItem('ombor.import', '1'); } catch { /* */ } });
+      // Ro'yxatdan o'tgandan keyin ilova hali yuklanmagan — tanlangan sahifa bilan to'liq ochiladi
+      if (signup) {
+        root.querySelectorAll('[data-go]').forEach((a) => a.addEventListener('click', (e) => {
+          e.preventDefault();
+          location.hash = a.getAttribute('href');
+          location.reload();
+        }));
+      }
       return;
     }
-    const body = [stepTypes, stepEmployees, stepPlace, stepStore, stepSettings][st.step]();
+    const body = [stepTypes, stepEmployees, stepPlace, stepStore, signup ? stepAccount : stepSettings][st.step]();
     root.innerHTML = `
-      <div class="su-wrap">
+      <div class="su-wrap${signup ? ' su-signup' : ''}">
+        ${top}
         <div class="su-head">
-          <div><div class="su-kicker">${first ? "Xush kelibsiz! Do'koningizni 2 daqiqada sozlaymiz" : "Do'kon sozlamalari"}</div>
-            <h1>${first ? "Do'koningizni sozlaymiz" : "Do'kon turi va ma'lumotlari"}</h1></div>
+          <div><div class="su-kicker">${signup ? "Yangi do'kon ochish — 2 daqiqa" : first ? "Xush kelibsiz! Do'koningizni 2 daqiqada sozlaymiz" : "Do'kon sozlamalari"}</div>
+            <h1>${signup ? "Do'koningizni ochamiz" : first ? "Do'koningizni sozlaymiz" : "Do'kon turi va ma'lumotlari"}</h1></div>
           ${first ? '' : `<a class="btn btn-ghost btn-sm" href="#/settings">${icon('x', 'ico-sm')} Yopish</a>`}
         </div>
         ${progress()}
@@ -160,9 +213,17 @@ export async function render(root, params, ctx) {
           ${st.step > 0 ? `<button class="btn btn-lg btn-light" type="button" id="su-back">${icon('back', 'ico-sm')} Orqaga</button>` : '<span></span>'}
           ${st.step < STEPS.length - 1
     ? `<button class="btn btn-lg" type="button" id="su-next">Davom etish ${icon('right', 'ico-sm')}</button>`
-    : `<button class="btn btn-lg btn-success" type="button" id="su-finish">${icon('check', 'ico-sm')} Saqlash va boshlash</button>`}
+    : `<button class="btn btn-lg btn-success" type="button" id="su-finish">${icon('check', 'ico-sm')} ${signup ? "Do'konni ochish" : 'Saqlash va boshlash'}</button>`}
         </div>
       </div>`;
+    if (signup && st.step === 4) {
+      // Parol HTML ichiga yozilmaydi — faqat maydonga qo'yiladi
+      const set = (id, v) => { const el = root.querySelector(id); if (el) el.value = v; };
+      set('#su-owner', st.owner);
+      set('#su-user', st.username || (slug(st.name).length >= 3 ? slug(st.name) : ''));
+      set('#su-pass', st.password);
+      set('#su-pass2', st.password2);
+    }
     bind();
   }
 
@@ -184,9 +245,15 @@ export async function render(root, params, ctx) {
       st.phone = (v('#su-phone') ?? st.phone).trim();
       st.footer = (v('#su-footer') ?? st.footer).trim();
     }
-    if (st.step === 4) {
+    if (st.step === 4 && !signup) {
       st.lowStock = root.querySelector('#su-low')?.checked ?? st.lowStock;
       st.costing = v('#su-cost') || st.costing;
+    }
+    if (st.step === 4 && signup) {
+      st.owner = (v('#su-owner') ?? st.owner).trim();
+      st.username = (v('#su-user') ?? st.username).trim().toLowerCase();
+      st.password = v('#su-pass') ?? st.password;
+      st.password2 = v('#su-pass2') ?? st.password2;
     }
   }
 
@@ -195,10 +262,27 @@ export async function render(root, params, ctx) {
     if (st.step === 1 && !st.employees) return 'Nechta kishi ishlashini tanlang';
     if (st.step === 2 && !st.region) return 'Viloyatni tanlang';
     if (st.step === 3 && !st.name) return "Do'kon nomini yozing";
+    if (st.step === 4 && signup) {
+      if (!st.owner) return 'Ismingizni yozing';
+      if (!/^[a-z0-9_.-]{3,50}$/.test(st.username)) return "Login faqat lotin harflari, raqam, nuqta yoki pastki chiziqdan iborat bo'lsin (kamida 3 belgi)";
+      if (st.password.length < 6) return "Parol kamida 6 belgidan iborat bo'lsin";
+      if (st.password !== st.password2) return 'Parollar bir xil emas — qaytadan yozing';
+    }
     return '';
   }
 
   function bind() {
+    root.querySelector('#su-login')?.addEventListener('click', () => onLoginPage());
+    root.querySelector('#su-showpass')?.addEventListener('change', (e) => {
+      collect();
+      st.showPass = e.target.checked;
+      root.querySelectorAll('#su-pass, #su-pass2').forEach((x) => { x.type = st.showPass ? 'text' : 'password'; });
+    });
+    root.querySelectorAll('.su-card input:not([type=file]):not([type=checkbox]):not([list])').forEach((x) => x.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      root.querySelector('#su-next, #su-finish')?.click();
+    }));
     root.querySelectorAll('[data-type]').forEach((b) => b.addEventListener('click', () => {
       const k = b.dataset.type;
       st.types = st.types.includes(k) ? st.types.filter((x) => x !== k) : [...st.types, k];
@@ -239,6 +323,29 @@ export async function render(root, params, ctx) {
     });
     root.querySelector('#su-finish')?.addEventListener('click', (e) => withBusy(e.currentTarget, async () => {
       collect();
+      if (signup) {
+        const m = validate();
+        if (m) return err(m);
+        try {
+          const r = await post(mode === 'first' ? '/setup' : '/auth/register', {
+            store_types: st.types, employee_count: st.employees, region: st.region, district: st.district,
+            store_name: st.name, store_phone: st.phone, store_address: st.address, receipt_footer: st.footer,
+            full_name: st.owner, username: st.username, password: st.password,
+          });
+          st.password = '';
+          st.password2 = '';
+          onLogin?.(st.username);
+          if (st.logoFile) {
+            try { await uploadLogo(st.logoFile); } catch (e2) { toast(`Logotip yuklanmadi: ${e2.message}. Keyin «Sozlamalar»dan qo'shing`, 'warn'); }
+          }
+          st.done = { categories: r.categories || 0 };
+          draw();
+          window.scrollTo({ top: 0 });
+        } catch (e2) {
+          err(e2.message);
+        }
+        return undefined;
+      }
       try {
         const r = await put('/setup', {
           store_types: st.types, employee_count: st.employees, region: st.region, district: st.district,
@@ -255,8 +362,23 @@ export async function render(root, params, ctx) {
       } catch (e2) {
         err(e2.message);
       }
+      return undefined;
     }).catch(errorToast));
   }
 
   draw();
+}
+
+// Ilova ichida: «Sozlamalar» → do'kon turi va ma'lumotlarini o'zgartirish
+export async function render(root, params, ctx) {
+  const [{ types, fields }, cur] = await Promise.all([storeTypes(), get('/settings').then((r) => r.settings)]);
+  wizard(root, { mode: 'edit', types, fields, cur, ctx });
+}
+
+// Ro'yxatdan o'tish: do'kon turi, xodimlar, manzil, do'kon ma'lumotlari va login-parol — bitta oqimda
+export async function renderSignup(root, { first = false, onLogin, onLoginPage } = {}) {
+  const { types, fields } = await storeTypes();
+  wizard(root, {
+    mode: first ? 'first' : 'register', types, fields, cur: { receipt_footer: 'Xaridingiz uchun rahmat!' }, onLogin, onLoginPage,
+  });
 }
