@@ -820,7 +820,7 @@ async function renderHistory(root, ctx, query = {}) {
 
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Savdolar tarixi</h1><p class="muted">${esc(word)} · barcha cheklar, qaytarish va chekni qayta chiqarish</p></div>
+      <div><h1>Cheklar</h1><p class="muted">${esc(word)} · barcha sotuvlar, qaytarish va chekni qayta chiqarish</p></div>
       <div class="filterbar">
         ${periodPicker(range)}
         ${ctx.can('sales.create') ? `<a class="btn btn-sm" href="#/sales">${icon('plus', 'ico-sm')} Yangi sotuv</a>` : ''}

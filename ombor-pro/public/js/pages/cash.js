@@ -37,12 +37,8 @@ export async function render(root, params, ctx) {
   const tab = allowed.find((t) => t.key === params.query.tab) || allowed[0];
 
   root.innerHTML = `
-    <div class="page-head"><div><h1>${tab.key === 'cash' ? 'Kassa' : 'Xarajatlar'}</h1><p class="muted">${tab.key === 'cash' ? "Qo'lingizdagi pul, smena va har bir kirgan-chiqqan pul" : 'Ijara, maosh, kommunal va boshqa chiqimlar'}</p></div></div>
-    ${allowed.length > 1 ? `<div class="seg" style="margin-bottom:14px">
-      ${allowed.map((t) => `<button type="button" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}">${t.label}</button>`).join('')}
-    </div>` : ''}
+    <div class="page-head"><div><h1>${tab.key === 'cash' ? 'Kassadagi pul' : 'Xarajatlar'}</h1><p class="muted">${tab.key === 'cash' ? "Qo'lingizdagi pul, smena va har bir kirgan-chiqqan pul" : 'Ijara, maosh, kommunal va boshqa chiqimlar'}</p></div></div>
     <div id="tabbody"></div>`;
-  root.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => ctx.go(`#/cash?tab=${b.dataset.tab}`)));
 
   const refresh = () => render(root, params, ctx);
   const body = root.querySelector('#tabbody');

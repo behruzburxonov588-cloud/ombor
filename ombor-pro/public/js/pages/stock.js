@@ -49,13 +49,17 @@ export async function render(root, params, ctx) {
     return;
   }
   const tab = allowed.find((t) => t.key === params.query.tab) || allowed[0];
+  // Bo'lim yorliqlari tepada: «Qoldiq va tarix» va «Sanash» — har biri o'z ichki yorliqlari bilan
+  const COUNT_TABS = ['counts', 'discrepancies'];
+  const counting = COUNT_TABS.includes(tab.key);
+  const inner = allowed.filter((t) => COUNT_TABS.includes(t.key) === counting);
 
   root.innerHTML = `
-    <div class="page-head"><div><h1>Ombor</h1><p class="muted">Har bir tovardan qancha qolgani, nima kirib-chiqqani va tovar sanash</p></div>
-      ${ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a>` : ''}</div>
-    <div class="seg" role="tablist" style="margin-bottom:14px;flex-wrap:wrap">
-      ${allowed.map((t) => `<button type="button" role="tab" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}" aria-selected="${t.key === tab.key}">${t.label}</button>`).join('')}
-    </div>
+    <div class="page-head"><div><h1>${counting ? 'Tovar sanash' : 'Qoldiq va tarix'}</h1><p class="muted">${counting ? "Tovarni qo'lda sanab, dasturdagi qoldiq bilan solishtiring" : "Har bir tovardan qancha qolgani va nima kirib-chiqqani"}</p></div>
+      ${!counting && ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a>` : ''}</div>
+    ${inner.length > 1 ? `<div class="seg" role="tablist" style="margin-bottom:14px;flex-wrap:wrap">
+      ${inner.map((t) => `<button type="button" role="tab" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}" aria-selected="${t.key === tab.key}">${t.label}</button>`).join('')}
+    </div>` : ''}
     <div id="tabbody"></div>`;
   root.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => ctx.go(`#/stock?tab=${b.dataset.tab}`)));
 

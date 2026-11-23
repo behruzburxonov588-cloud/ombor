@@ -42,7 +42,7 @@ async function renderList(root, params, ctx) {
 
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Kirimlar</h1><p class="muted">${esc(word)}: omborga kelgan yuklar va ular uchun to'lovlar</p></div>
+      <div><h1>Kelgan yuklar</h1><p class="muted">${esc(word)}: omborga kelgan yuklar va ular uchun to'lovlar</p></div>
       <div class="filterbar">
         ${periodPicker(range)}
         ${ctx.can('purchases.create') ? `<a class="btn btn-sm" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}

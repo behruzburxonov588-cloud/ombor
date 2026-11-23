@@ -211,7 +211,7 @@ async function renderList(root, params, ctx) {
 
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Mahsulotlar</h1><p class="muted" id="count">Yuklanmoqda...</p></div>
+      <div><h1>Tovarlar</h1><p class="muted" id="count">Yuklanmoqda...</p></div>
       <div class="row">
         ${canExport ? `<button class="btn btn-light hide-sm" type="button" data-export="xlsx" title="Ombor holati — Excel">${icon('xlsx', 'ico-sm')}<span class="mobile-hide">Excel</span></button>
         <button class="btn btn-light hide-sm" type="button" data-export="pdf" title="Ombor holati — PDF">${icon('pdf', 'ico-sm')}<span class="mobile-hide">PDF</span></button>` : ''}

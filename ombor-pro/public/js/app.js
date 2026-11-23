@@ -26,57 +26,57 @@ const ROUTES = {
   setup: { perms: ['settings.manage'], load: () => import('./pages/setup.js') },
 };
 
-// Yon panel: eng ko'p ishlatiladiganlari tepada, oddiy so'zlar bilan.
-// short — telefondagi pastki menyu uchun qisqa nom; tip — sichqoncha ustiga kelganda tushuntirish.
-const NAV = [
+// Menyu: 6 ta bo'lim. Kam ishlatiladiganlari bo'lim ichida yorliq bo'lib turadi (ichma-ich).
+//   short — telefondagi pastki menyu uchun qisqa nom; tip — sichqoncha ustiga kelganda tushuntirish;
+//   tabs — bo'lim ichidagi yorliqlar (sahifa tepasida ko'rinadi), solo — 1 kishilik do'konda yashiriladi,
+//   onlyActive — menyuda ko'rinmaydi, faqat o'sha sahifa ochilganda yorliq bo'lib chiqadi.
+const SECTIONS = [
   {
-    group: 'Asosiy',
-    items: [
-      { id: 'dashboard', label: 'Bosh sahifa', short: 'Bosh', icon: 'dashboard', href: '#/dashboard', tip: "Bugungi savdo, foyda va muhim ogohlantirishlar" },
-      { id: 'sales', label: 'Sotuv (kassa)', short: 'Sotuv', icon: 'cart', href: '#/sales', perms: ['sales.create'], match: (p) => p.key === 'sales' && p.id !== 'history', tip: 'Xaridorga tovar sotish' },
+    id: 'dashboard', label: 'Bosh sahifa', short: 'Bosh', icon: 'dashboard', tip: "Bugun qancha sotildi, qancha foyda va muhim ogohlantirishlar",
+    tabs: [{ label: 'Bosh sahifa', href: '#/dashboard', route: 'dashboard', match: (p) => p.key === 'dashboard' }],
+  },
+  {
+    id: 'sales', label: 'Sotish', short: 'Sotish', icon: 'cart', tip: 'Xaridorga sotish va bugungi cheklar (qaytarish shu yerda)',
+    tabs: [
+      { label: 'Sotish', href: '#/sales', route: 'sales', perms: ['sales.create'], match: (p) => p.key === 'sales' && p.id !== 'history' },
+      { label: 'Cheklar', href: '#/sales/history', route: 'sales', perms: ['sales.view', 'sales.create'], match: (p) => p.key === 'sales' && p.id === 'history' },
     ],
   },
   {
-    group: 'Savdo',
-    items: [
-      { id: 'sales-history', label: 'Savdolar tarixi', icon: 'receipt', href: '#/sales/history', route: 'sales', perms: ['sales.view', 'sales.create'], match: (p) => p.key === 'sales' && p.id === 'history', tip: 'Barcha cheklar, qaytarish' },
-      { id: 'customers', label: 'Mijozlar', icon: 'users', href: '#/customers', tip: "Doimiy xaridorlar ro'yxati" },
-      { id: 'debts', label: 'Qarzlar', icon: 'debt', href: '#/debts', tip: "Mijozlar sizga qarzi va siz yetkazib beruvchilarga qarzingiz" },
+    id: 'goods', label: 'Tovarlar', short: 'Tovarlar', icon: 'box', tip: 'Tovarlar, yuk keldi, qoldiq va tovar sanash — hammasi bir joyda',
+    tabs: [
+      { label: 'Tovarlar', href: '#/products', route: 'products', match: (p) => p.key === 'products' },
+      { label: 'Yuk keldi', href: '#/purchases', route: 'purchases', match: (p) => p.key === 'purchases' },
+      { label: "Qoldiq va tarix", href: '#/stock', route: 'stock', perms: ['stock.view'], match: (p) => p.key === 'stock' && !['counts', 'discrepancies'].includes(p.query.tab) && p.id !== 'count' },
+      { label: 'Sanash', href: '#/stock?tab=counts', route: 'stock', perms: ['stock.count', 'stock.approve'], match: (p) => p.key === 'stock' && (['counts', 'discrepancies'].includes(p.query.tab) || p.id === 'count') },
     ],
   },
   {
-    group: 'Tovar va ombor',
-    items: [
-      { id: 'products', label: 'Mahsulotlar', icon: 'box', href: '#/products', tip: "Tovarlar ro'yxati, narxlari, yangi tovar qo'shish" },
-      { id: 'purchases', label: 'Tovar kirimi', short: 'Kirim', icon: 'truck', href: '#/purchases', tip: 'Omborga kelgan tovarni kiritish' },
-      { id: 'stock', label: "Ombor qoldig'i", short: 'Ombor', icon: 'warehouse', href: '#/stock', perms: ['stock.view'], match: (p) => p.key === 'stock' && p.query.tab !== 'counts' && p.id !== 'count', tip: "Har bir tovardan qancha qolgan" },
-      { id: 'counts', label: 'Tovar sanash', icon: 'audit', href: '#/stock?tab=counts', route: 'stock', perms: ['stock.count', 'stock.approve'], match: (p) => p.key === 'stock' && (p.query.tab === 'counts' || p.id === 'count'), tip: "Inventarizatsiya: tovarni qo'lda sanab, dastur bilan solishtirish" },
-      { id: 'suppliers', label: 'Yetkazib beruvchilar', icon: 'store', href: '#/suppliers', tip: "Tovar oladigan joylaringiz va ularga qarzingiz" },
+    id: 'money', label: 'Pul', short: 'Pul', icon: 'wallet', tip: "Kassadagi pul, xarajatlar, qarzlar va mijozlar",
+    tabs: [
+      { label: 'Kassadagi pul', href: '#/cash?tab=cash', route: 'cash', perms: ['cash.view', 'cash.shift'], match: (p) => p.key === 'cash' && p.query.tab !== 'expenses' },
+      { label: 'Xarajatlar', href: '#/cash?tab=expenses', route: 'cash', perms: ['expenses.view', 'reports.view'], match: (p) => p.key === 'cash' && p.query.tab === 'expenses' },
+      { label: 'Qarzlar', href: '#/debts', route: 'debts', match: (p) => p.key === 'debts' },
+      { label: 'Mijozlar', href: '#/customers', route: 'customers', match: (p) => p.key === 'customers' },
+      { label: 'Yetkazib beruvchilar', href: '#/suppliers', route: 'suppliers', onlyActive: true, match: (p) => p.key === 'suppliers' },
     ],
   },
   {
-    group: 'Pul',
-    items: [
-      { id: 'cash', label: 'Kassa', icon: 'wallet', href: '#/cash?tab=cash', perms: ['cash.view', 'cash.shift'], match: (p) => p.key === 'cash' && p.query.tab !== 'expenses', tip: 'Kassadagi pul, smena ochish va yopish' },
-      { id: 'expenses', label: 'Xarajatlar', icon: 'expense', href: '#/cash?tab=expenses', route: 'cash', perms: ['expenses.view', 'reports.view'], match: (p) => p.key === 'cash' && p.query.tab === 'expenses', tip: 'Ijara, maosh, kommunal va boshqa chiqimlar' },
+    id: 'reports', label: 'Hisobot', short: 'Hisobot', icon: 'table', tip: "Foyda, savdo, grafiklar va maslahatlar. Excel va PDF",
+    tabs: [
+      { label: 'Hisobotlar', href: '#/reports', route: 'reports', match: (p) => p.key === 'reports' },
+      { label: 'Grafiklar', href: '#/analytics', route: 'analytics', match: (p) => p.key === 'analytics' },
+      { label: 'Maslahatlar', href: '#/assistant', route: 'assistant', match: (p) => p.key === 'assistant' },
+      { label: 'Xodimlar natijasi', href: '#/staff', route: 'staff', solo: true, match: (p) => p.key === 'staff' },
     ],
   },
   {
-    group: 'Hisobot va tahlil',
-    items: [
-      { id: 'reports', label: 'Hisobotlar', icon: 'table', href: '#/reports', tip: "Kunlik, haftalik, oylik hisobotlar: foyda, savdo, ombor. Excel va PDF" },
-      { id: 'analytics', label: 'Tahlil', icon: 'chart', href: '#/analytics', tip: 'Grafiklar, eng foydali tovarlar, prognoz' },
-      { id: 'assistant', label: 'Maslahatlar', icon: 'sparkles', href: '#/assistant', tip: "Do'koningiz bo'yicha tayyor xulosa va maslahatlar" },
-    ],
-  },
-  {
-    group: 'Boshqaruv',
-    items: [
-      { id: 'employees', label: 'Xodimlar', icon: 'userCog', href: '#/employees', tip: "Sotuvchilar uchun login va ruxsatlar" },
-      { id: 'staff', label: 'Xodimlar natijasi', icon: 'staff', href: '#/staff', tip: 'Kim qancha sotdi' },
-      { id: 'history', label: 'Amallar tarixi', icon: 'history', href: '#/history', tip: 'Kim, qachon, nima qildi' },
-      { id: 'notifications', label: 'Bildirishnomalar', icon: 'bell', href: '#/notifications', tip: 'Kunlik xulosa, kam qolgan tovar, qarz eslatmalari va ularning sozlamalari' },
-      { id: 'settings', label: 'Sozlamalar', icon: 'gear', href: '#/settings', tip: "Do'kon ma'lumotlari, parol, zaxira nusxa" },
+    id: 'settings', label: 'Sozlamalar', short: 'Sozlamalar', icon: 'gear', tip: "Do'kon, xodimlar, kim nima qilgani, bildirishnomalar, parol",
+    tabs: [
+      { label: "Do'kon", href: '#/settings', route: 'settings', match: (p) => p.key === 'settings' || p.key === 'setup' },
+      { label: 'Xodimlar', href: '#/employees', route: 'employees', match: (p) => p.key === 'employees' },
+      { label: 'Amallar tarixi', href: '#/history', route: 'history', match: (p) => p.key === 'history' },
+      { label: 'Bildirishnomalar', href: '#/notifications', route: 'notifications', match: (p) => p.key === 'notifications' },
     ],
   },
 ];
@@ -84,8 +84,8 @@ const NAV = [
 // Faqat yuqori paneldagi qo'ng'iroqcha orqali ochiladigan sahifalar (sarlavha uchun)
 const EXTRA_TITLES = { notifications: 'Bildirishnomalar', setup: "Do'konni sozlash" };
 
-// Telefondagi pastki menyu: Bosh, Sotuv, [+ Qo'shish], Mahsulotlar, Menyu
-const MOBILE = ['dashboard', 'sales', 'products'];
+// Telefondagi pastki menyu: Bosh, Sotish, Tovarlar, Pul, Menyu («+ Qo'shish» — yuqori panelda)
+const MOBILE = ['dashboard', 'sales', 'goods', 'money'];
 
 // "+ Qo'shish" menyusi: har sahifadan bir bosishda yangi yozuv (faqat ruxsat berilganlari ko'rinadi)
 const QUICK = [
@@ -95,7 +95,6 @@ const QUICK = [
   { label: 'Qarz yozish', hint: 'Daftardagi eski qarz', icon: 'debt', href: '#/debts?new=1', perms: ['customers.manage'], route: 'debts' },
   { label: 'Xarajat', hint: 'Ijara, maosh, kommunal', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'], route: 'cash' },
   { label: 'Mijoz', hint: 'Xaridor (nasiya uchun)', icon: 'users', href: '#/customers?new=1', perms: ['customers.manage'] },
-  { label: 'Yetkazib beruvchi', hint: 'Tovar oladigan joy', icon: 'store', href: '#/suppliers?new=1', perms: ['suppliers.manage'] },
   { label: 'Xodim', hint: 'Sotuvchi uchun login', icon: 'userCog', href: '#/employees?new=1', perms: ['employees.manage'] },
 ];
 const quickActions = () => QUICK.filter((a) => ctx.canAny(a.perms) && routeAllowed(a.route || a.href.slice(2).split(/[/?]/)[0]));
@@ -124,19 +123,24 @@ const ctx = {
   refreshNotifications: () => pollNotifications(false),
 };
 
-const navAllowed = (item) => {
-  if (item.id === 'staff' && state.settings.employee_count === '1') return false;
-  const route = ROUTES[item.route || item.id];
+// Bo'lim ichidagi yorliq ochiq bo'ladimi (ruxsat va do'kon turi bo'yicha)
+const tabAllowed = (t) => {
+  if (t.solo && state.settings.employee_count === '1') return false;
+  const route = ROUTES[t.route];
   if (!route) return false;
-  const perms = item.perms || route.perms;
+  const perms = t.perms || route.perms;
   return perms.length === 0 || ctx.canAny(perms);
 };
+const sectionTabs = (sec, p = null) => sec.tabs.filter((t) => tabAllowed(t) && (!t.onlyActive || (p && t.match(p))));
+// Bo'lim menyuda ko'rinadimi — ichida kamida bitta ochiq yorliq bo'lsa
+const navAllowed = (sec) => sectionTabs(sec).length > 0;
+const sectionHref = (sec) => sectionTabs(sec)[0]?.href || '#/dashboard';
 const routeAllowed = (key) => {
   const r = ROUTES[key];
   return Boolean(r) && (r.perms.length === 0 || ctx.canAny(r.perms));
 };
 function firstAllowed() {
-  for (const g of NAV) for (const it of g.items) if (navAllowed(it)) return it.href;
+  for (const sec of SECTIONS) if (navAllowed(sec)) return sectionHref(sec);
   return '#/settings';
 }
 
@@ -148,11 +152,11 @@ function parseHash() {
   return { key, id, sub, query, raw };
 }
 
+// Joriy manzil qaysi bo'lim va qaysi yorliqqa tegishli
 function activeNav(p) {
-  for (const g of NAV) {
-    for (const it of g.items) {
-      if (it.match ? it.match(p) : (it.route || it.id) === p.key) return it;
-    }
+  for (const sec of SECTIONS) {
+    const tab = sec.tabs.find((t) => t.match(p));
+    if (tab) return { ...sec, tab };
   }
   return null;
 }
@@ -263,13 +267,13 @@ function buildShell() {
         <button class="icon-btn" id="btn-user" type="button" aria-label="Profil"><span class="avatar" style="width:28px;height:28px;font-size:11px"></span></button>
       </div>
     </header>
-    <main class="content" id="page"></main>
+    <main class="content"><nav class="subnav no-print" id="subnav" aria-label="Bo'lim ichida" hidden></nav><div id="page"></div></main>
     <nav class="bottomnav" id="bottomnav" aria-label="Pastki menyu"></nav>`;
   $('#btn-menu').addEventListener('click', () => toggleDrawer(true));
   $('#btn-add').addEventListener('click', (e) => openQuickAdd(e.currentTarget));
   $('#btn-help').addEventListener('click', async () => {
     const { openHelp, helpKeyFor } = await import('./help.js');
-    openHelp(helpKeyFor(parseHash()), NAV.flatMap((g) => g.items).filter(navAllowed));
+    openHelp(helpKeyFor(parseHash()), SECTIONS.filter(navAllowed).map((sec) => ({ ...sec, href: sectionHref(sec) })));
   });
   $('#btn-search').addEventListener('click', openGlobalSearch);
   $('#searchbox').addEventListener('click', openGlobalSearch);
@@ -319,15 +323,9 @@ function renderNav(p) {
       <div class="names"><div class="product">OMBOR PRO</div><div class="store">${esc(state.settings.store_name || '')}</div></div>
     </div>
     ${ctx.can('sales.create') ? `<a class="sb-cta" href="#/sales">${icon('cart', 'ico-sm')}<span>Sotuvni boshlash</span></a>` : ''}
-    <nav class="sb-nav">
-      ${NAV.map((g) => {
-        const items = g.items.filter(navAllowed);
-        if (!items.length) return '';
-        return `<div class="sb-group"><div class="sb-label">${esc(g.group)}</div>
-          ${items.map((it) => `<a class="nav-item${active?.id === it.id ? ' active' : ''}" href="${it.href}" title="${esc(it.tip || '')}" ${active?.id === it.id ? 'aria-current="page"' : ''}>
-            ${icon(it.icon, 'ico-sm')}<span>${esc(it.label)}</span>${it.badge && state.unread ? `<span class="count">${state.unread > 99 ? '99+' : state.unread}</span>` : ''}</a>`).join('')}
-        </div>`;
-      }).join('')}
+    <nav class="sb-nav sb-flat">
+      ${SECTIONS.filter(navAllowed).map((sec) => `<a class="nav-item${active?.id === sec.id ? ' active' : ''}" href="${sectionHref(sec)}" title="${esc(sec.tip || '')}" ${active?.id === sec.id ? 'aria-current="page"' : ''}>
+        ${icon(sec.icon, 'ico-sm')}<span>${esc(sec.label)}</span></a>`).join('')}
     </nav>
     <div class="sb-foot">
       <button class="user-chip" type="button" id="sb-user">
@@ -341,15 +339,10 @@ function renderNav(p) {
   $('#btn-user .avatar').textContent = initials(u.full_name);
   $('#btn-add').hidden = quickActions().length === 0;
 
-  const mobile = MOBILE.map((id) => NAV.flatMap((g) => g.items).find((it) => it.id === id)).filter((it) => it && navAllowed(it));
+  const mobile = MOBILE.map((id) => SECTIONS.find((sec) => sec.id === id)).filter((sec) => sec && navAllowed(sec));
   $('#bottomnav').innerHTML = `
-    ${(() => {
-    const btns = mobile.map((it) => `<button type="button" data-href="${it.href}" class="${active?.id === it.id ? 'active' : ''}">${icon(it.icon)}<span>${esc(it.short || it.label.split(' ')[0])}</span></button>`);
-    if (quickActions().length) btns.splice(Math.min(2, btns.length), 0, `<button type="button" class="nav-add" data-add aria-label="Yangi qo'shish">${icon('plus')}<span>Qo'shish</span></button>`);
-    return btns.join('');
-  })()}
+    ${mobile.map((sec) => `<button type="button" data-href="${sectionHref(sec)}" class="${active?.id === sec.id ? 'active' : ''}" ${active?.id === sec.id ? 'aria-current="page"' : ''}>${icon(sec.icon)}<span>${esc(sec.short || sec.label)}</span></button>`).join('')}
     <button type="button" data-menu>${icon('menu')}<span>Menyu</span></button>`;
-  $('#bottomnav [data-add]')?.addEventListener('click', (e) => openQuickAdd(e.currentTarget));
   $('#bottomnav').querySelectorAll('[data-href]').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.href; }));
   $('#bottomnav [data-menu]').addEventListener('click', () => toggleDrawer(true));
   return active;
@@ -577,7 +570,8 @@ async function route() {
   closePopover();
   toggleDrawer(false);
   const active = renderNav(params);
-  $('#page-title').textContent = active?.label || EXTRA_TITLES[key] || '';
+  $('#page-title').textContent = active?.tab?.label || active?.label || EXTRA_TITLES[key] || '';
+  renderSubnav(active, params);
   setBadge(state.unread);
   const page = $('#page');
   // page-in: sahifaning har bir yangi bo'limi yumshoq paydo bo'ladi (CSS animatsiya qo'shilganda bir marta ishlaydi)
@@ -591,6 +585,22 @@ async function route() {
     console.error(err);
     page.innerHTML = `<div class="alert alert-bad">${icon('alert', 'ico-sm')}<div>${esc(err.message || 'Xatolik')}</div></div>`;
   }
+}
+
+// Bo'lim ichidagi yorliqlar (masalan, Tovarlar: Tovarlar · Yuk keldi · Qoldiq va tarix · Sanash)
+function renderSubnav(active, p) {
+  const el = $('#subnav');
+  const tabs = active ? sectionTabs(active, p) : [];
+  if (tabs.length < 2) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = tabs.map((t) => {
+    const on = t === active.tab;
+    return `<a href="${t.href}" class="${on ? 'active' : ''}" ${on ? 'aria-current="page"' : ''}>${esc(t.label)}</a>`;
+  }).join('');
 }
 
 // ---------- Boshlash ----------

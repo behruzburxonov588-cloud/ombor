@@ -34,7 +34,7 @@ export async function render(root, params, ctx) {
 
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Aqlli yordamchi</h1><p class="muted">${longDate(b.date)} · biznesingiz haqida xulosa va tavsiyalar</p></div>
+      <div><h1>Maslahatlar</h1><p class="muted">${longDate(b.date)} · biznesingiz haqida xulosa va tavsiyalar</p></div>
       <div class="row">
         ${ctx.can('settings.manage') ? `<a class="btn btn-light btn-sm" href="#/notifications?tab=settings">${icon('bell', 'ico-sm')} Xabarlar jadvali</a>` : ''}
         <button class="btn btn-light btn-sm" type="button" id="refresh">${icon('refresh', 'ico-sm')} Yangilash</button>
