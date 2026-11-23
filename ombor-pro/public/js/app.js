@@ -24,6 +24,7 @@ const ROUTES = {
   employees: { perms: ['employees.manage'], load: () => import('./pages/admin.js') },
   settings: { perms: [], load: () => import('./pages/admin.js') },
   setup: { perms: ['settings.manage'], load: () => import('./pages/setup.js') },
+  platform: { perms: [], load: () => import('./pages/platform.js') },
 };
 
 // Menyu: 6 ta bo'lim. Kam ishlatiladiganlari bo'lim ichida yorliq bo'lib turadi (ichma-ich).
@@ -77,6 +78,7 @@ const SECTIONS = [
       { label: 'Xodimlar', href: '#/employees', route: 'employees', match: (p) => p.key === 'employees' },
       { label: 'Amallar tarixi', href: '#/history', route: 'history', match: (p) => p.key === 'history' },
       { label: 'Bildirishnomalar', href: '#/notifications', route: 'notifications', match: (p) => p.key === 'notifications' },
+      { label: 'AI tariflari', href: '#/platform', route: 'platform', admin: true, match: (p) => p.key === 'platform' },
     ],
   },
 ];
@@ -101,7 +103,7 @@ const quickActions = () => QUICK.filter((a) => ctx.canAny(a.perms) && routeAllow
 
 const ROLE_LABELS = { owner: 'Egasi', administrator: 'Administrator', cashier: 'Kassir', warehouse: 'Ombor xodimi', accountant: 'Buxgalter' };
 
-const state = { user: null, settings: {}, unread: 0, notif: null, pollTimer: null };
+const state = { user: null, settings: {}, unread: 0, notif: null, pollTimer: null, platformAdmin: false };
 
 const ctx = {
   get user() { return state.user; },
@@ -126,6 +128,7 @@ const ctx = {
 // Bo'lim ichidagi yorliq ochiq bo'ladimi (ruxsat va do'kon turi bo'yicha)
 const tabAllowed = (t) => {
   if (t.solo && state.settings.employee_count === '1') return false;
+  if (t.admin && !state.platformAdmin) return false;
   const route = ROUTES[t.route];
   if (!route) return false;
   const perms = t.perms || route.perms;
@@ -262,6 +265,7 @@ function buildShell() {
         <button class="btn btn-sm quick-add" id="btn-add" type="button" aria-haspopup="menu" aria-label="Yangi qo'shish" hidden>${icon('plus', 'ico-sm')}<span>Qo'shish</span></button>
         <button class="searchbox" id="searchbox" type="button" aria-label="Qidiruv">${icon('search', 'ico-sm')}<span>Qidirish…</span><span class="kbd">Ctrl K</span></button>
         <button class="icon-btn" id="btn-search" type="button" aria-label="Qidiruv">${icon('search')}</button>
+        <button class="ai-btn" id="btn-ai" type="button" aria-label="AI yordamchi: savol bering">${icon('sparkles', 'ico-sm')}<span>Savol bering</span></button>
         <button class="help-btn" id="btn-help" type="button" aria-label="Yordam: bu sahifa nima uchun">${icon('help', 'ico-sm')}<span>Yordam</span></button>
         <button class="icon-btn" id="btn-bell" type="button" aria-label="Bildirishnomalar">${icon('bell')}<span class="dot" hidden></span></button>
         <button class="icon-btn" id="btn-user" type="button" aria-label="Profil"><span class="avatar" style="width:28px;height:28px;font-size:11px"></span></button>
@@ -271,9 +275,14 @@ function buildShell() {
     <nav class="bottomnav" id="bottomnav" aria-label="Pastki menyu"></nav>`;
   $('#btn-menu').addEventListener('click', () => toggleDrawer(true));
   $('#btn-add').addEventListener('click', (e) => openQuickAdd(e.currentTarget));
-  $('#btn-help').addEventListener('click', async () => {
+  const showHelp = async () => {
     const { openHelp, helpKeyFor } = await import('./help.js');
     openHelp(helpKeyFor(parseHash()), SECTIONS.filter(navAllowed).map((sec) => ({ ...sec, href: sectionHref(sec) })));
+  };
+  $('#btn-help').addEventListener('click', showHelp);
+  $('#btn-ai').addEventListener('click', async () => {
+    const { openAi } = await import('./ai.js');
+    openAi({ help: showHelp }).catch(errorToast);
   });
   $('#btn-search').addEventListener('click', openGlobalSearch);
   $('#searchbox').addEventListener('click', openGlobalSearch);
@@ -569,6 +578,7 @@ async function route() {
   closeModal();
   closePopover();
   toggleDrawer(false);
+  import('./ai.js').then((m) => m.closeAi()).catch(() => {});
   const active = renderNav(params);
   $('#page-title').textContent = active?.tab?.label || active?.label || EXTRA_TITLES[key] || '';
   renderSubnav(active, params);
@@ -609,6 +619,8 @@ async function bootShell() {
   hideAuth();
   $('#boot').hidden = true;
   state.settings = await get('/settings').then((r) => r.settings).catch(() => ({}));
+  // Platforma egasi bo'lsa — Sozlamalarda «AI tariflari» yorlig'i ko'rinadi
+  state.platformAdmin = Boolean((await get('/ai/status').catch(() => null))?.is_platform_admin);
   buildShell();
   $('#app').hidden = false;
   document.title = `${state.settings.store_name || 'OMBOR PRO'} · OMBOR PRO`;

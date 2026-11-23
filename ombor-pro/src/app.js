@@ -14,6 +14,7 @@ import stockRoutes from './routes/stock.js';
 import financeRoutes from './routes/finance.js';
 import analyticsRoutes from './routes/analytics.js';
 import notificationRoutes from './routes/notifications.js';
+import aiRoutes from './routes/ai.js';
 
 const PG_MESSAGES = {
   '23503': "Bog'liq ma'lumot topilmadi yoki o'chirib bo'lmaydi",
@@ -96,7 +97,7 @@ export function createApp() {
 
   app.use('/api', authRoutes);
   app.use('/api', authenticate);
-  app.use('/api', peopleRoutes, catalogRoutes, tradeRoutes, stockRoutes, financeRoutes, analyticsRoutes, notificationRoutes);
+  app.use('/api', peopleRoutes, catalogRoutes, tradeRoutes, stockRoutes, financeRoutes, analyticsRoutes, notificationRoutes, aiRoutes);
   app.use('/api', (req, res) => res.status(404).json({ error: "So'rov topilmadi" }));
 
   if (imagesInDb()) {

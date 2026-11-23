@@ -24,6 +24,24 @@ CREATE TABLE IF NOT EXISTS core.logins (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS logins_store_idx ON core.logins (store_id);
+-- AI yordamchi: do'kon tarifi (sinov / Oddiy / Pro) va oylik ishlatilishi (savollar, tokenlar, xarajat)
+CREATE TABLE IF NOT EXISTS core.ai_plans (
+  store_id INT PRIMARY KEY REFERENCES core.stores(id) ON DELETE CASCADE,
+  plan TEXT NOT NULL CHECK (plan IN ('trial', 'basic', 'pro')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  trial_used BOOLEAN NOT NULL DEFAULT false,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by TEXT
+);
+CREATE TABLE IF NOT EXISTS core.ai_usage (
+  store_id INT NOT NULL REFERENCES core.stores(id) ON DELETE CASCADE,
+  month DATE NOT NULL,
+  questions INT NOT NULL DEFAULT 0,
+  input_tokens BIGINT NOT NULL DEFAULT 0,
+  output_tokens BIGINT NOT NULL DEFAULT 0,
+  cost_usd NUMERIC(12, 4) NOT NULL DEFAULT 0,
+  PRIMARY KEY (store_id, month)
+);
 DO $$
 BEGIN
   CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;
