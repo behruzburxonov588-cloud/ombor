@@ -298,7 +298,7 @@ async function renderNew(root, ctx, preselect = null) {
         ${productPhoto(g.items[0], 'rt-img')}
         ${got.length ? `<span class="qty-badge">+${num(sum, 3)}</span>` : ''}
         <span class="rt-text"><span class="pname">${esc(g.name)}</span>
-        <span class="szs">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}"><i>${esc(v.variant_label)}</i><b>${num(v.stock_qty, 3)}</b></span>`).join('')}</span></span>
+        <span class="szs">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}${v.image_path ? ' has-img' : ''}" title="${esc(v.variant_label)}">${v.image_path ? `<img src="${esc(v.image_path)}" alt="" loading="lazy">` : `<i>${esc(v.variant_label)}</i>`}<b>${num(v.stock_qty, 3)}</b></span>`).join('')}</span></span>
       </button>`;
   }
   function openSizeArrival(g) {
@@ -309,7 +309,7 @@ async function renderNew(root, ctx, preselect = null) {
       body: `<form id="szr" class="stack">
         <p class="muted" style="margin:0">Har bir o'lchamdan nechta kelganini yozing. Kelmaganini bo'sh qoldiring.</p>
         <div class="szr-list">${g.items.map((v) => `
-          <label class="szr-row"><span class="size-tag">${esc(v.variant_label)}</span>
+          <label class="szr-row">${v.image_path ? `<span class="szr-img"><img src="${esc(v.image_path)}" alt=""></span>` : ''}<span class="size-tag">${esc(v.variant_label)}</span>
             <span class="szr-stock">Omborda: <b>${num(v.stock_qty, 3)}</b></span>
             <span class="qty-ctrl"><button type="button" data-szd="${v.id}" aria-label="Kamaytirish">−</button><input type="text" inputmode="decimal" data-szq="${v.id}" placeholder="0" value="${inCart(v.id) ? esc(String(inCart(v.id).quantity)) : ''}" aria-label="${esc(v.variant_label)}: nechta keldi"><button type="button" data-szi="${v.id}" aria-label="Ko'paytirish">+</button></span>
           </label>`).join('')}</div>

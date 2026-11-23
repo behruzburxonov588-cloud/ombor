@@ -47,6 +47,7 @@ function upsell() {
         <div class="ai-pcard pro"><span>${esc(p.pro.label)}</span><b>${moneyFull(p.pro.price)} <small>so'm/oy</small></b><small>Oyiga ${p.pro.limit} ta savol · eng aqlli</small></div>
       </div>
       ${status.can_start_trial ? `<button type="button" class="btn btn-block" data-trial>${icon('sparkles', 'ico-sm')} ${p.trial.days} kun bepul sinab ko'rish</button>` : ''}
+      ${status.is_platform_admin && !status.configured ? `<a class="btn btn-light btn-block" href="#/platform" data-goplat>${icon('gear', 'ico-sm')} AI'ni ulash — faqat sizga ko'rinadi</a>` : ''}
       <p class="ai-contact">${status.contact ? `Ulash uchun: <b>${esc(status.contact)}</b>` : "Ulash uchun dastur egasiga murojaat qiling"}</p>
     </div>`;
 }
@@ -82,6 +83,7 @@ function draw() {
   } else if (status) {
     foot.innerHTML = upsell();
     foot.querySelector('[data-trial]')?.addEventListener('click', startTrial);
+    foot.querySelector('[data-goplat]')?.addEventListener('click', () => closeAi());
   }
   body.scrollTop = body.scrollHeight;
 }
@@ -119,7 +121,9 @@ async function ask(text) {
     chat.push({ role: 'assistant', content: r.answer });
     if (status) status.used = r.used;
   } catch (err) {
-    chat.push({ role: 'assistant', content: err.message, error: true });
+    // Platforma egasiga: AI ulanmagan yoki ishlamasa — tekshirish sahifasiga havola
+    const link = err.status === 503 && status?.is_platform_admin ? { href: '#/platform', label: 'AI ulanishini tekshirish' } : null;
+    chat.push({ role: 'assistant', content: err.message, error: true, link });
     if (err.status === 402 || err.status === 429) refreshStatus().catch(() => {});
   } finally {
     busy = false;

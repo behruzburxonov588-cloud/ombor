@@ -6,7 +6,7 @@ import { storeIdForSchema } from '../tenants.js';
 import { HttpError } from '../util.js';
 import {
   planConfig, planStatus, startTrial, quickAnswer, askAI, QUICK, isPlatformAdmin, aiConfigured,
-  platformOverview, setStorePlan,
+  platformOverview, setStorePlan, testConnection,
 } from '../services/ai.js';
 
 const router = Router();
@@ -18,9 +18,13 @@ async function storeIdOf(req) {
   return id;
 }
 
-function platformOnly(req, res, next) {
-  if (!isPlatformAdmin(req.user)) return next(new HttpError(403, 'Bu sahifa faqat platforma egasi uchun'));
-  return next();
+async function platformOnly(req, res, next) {
+  try {
+    if (!(await isPlatformAdmin(req.user, await storeIdOf(req)))) return next(new HttpError(403, 'Bu sahifa faqat platforma egasi uchun'));
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 // Holat: tarif, muddat, bu oy nechta savol, narxlar
@@ -39,7 +43,7 @@ router.get('/ai/status', async (req, res) => {
       trial: { label: cfg.trial.label, days: cfg.trial.days, limit: cfg.trial.limit },
     },
     contact: process.env.OMBOR_SUPPORT_CONTACT || '',
-    is_platform_admin: isPlatformAdmin(req.user),
+    is_platform_admin: await isPlatformAdmin(req.user, storeId),
   });
 });
 
@@ -64,6 +68,11 @@ router.post('/ai/ask', async (req, res) => {
 
 router.get('/platform/ai', platformOnly, async (req, res) => {
   res.json(await platformOverview());
+});
+
+// AI ulanishini tekshirish (kalit bormi, ishlayaptimi, hisobda pul bormi)
+router.post('/platform/ai/test', platformOnly, async (req, res) => {
+  res.json(await testConnection());
 });
 
 router.put('/platform/ai/:storeId', platformOnly, async (req, res) => {

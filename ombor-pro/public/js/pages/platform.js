@@ -1,5 +1,33 @@
 // Platforma egasi: har bir do'konga AI tarifini yoqish/uzaytirish/o'chirish va oylik daromad-xarajat
-import { get, put, esc, icon, moneyFull, dateOnly, errorToast, withBusy, confirmBox } from '../ui.js';
+import { get, put, post, esc, icon, moneyFull, dateOnly, errorToast, withBusy, confirmBox } from '../ui.js';
+
+// AI ulanishi: kalit bormi va ishlayaptimi. Tekshirish natijasi sahifa yangilanguncha eslab qolinadi
+let lastTest = null;
+function connCard(data) {
+  const t = lastTest;
+  const ok = t?.ok;
+  const state = t ? (ok ? 'ok' : 'bad') : (data.configured ? 'idle' : 'bad');
+  const title = t ? (ok ? 'AI ishlayapti' : t.title) : (data.configured ? "Kalit qo'shilgan" : "AI hali ulanmagan");
+  const line = t
+    ? (ok ? `${esc(t.model)} ${(t.ms / 1000).toFixed(1).replace('.', ',')} soniyada javob berdi. Do'konlarga tarif yoqishingiz mumkin` : esc(t.fix))
+    : (data.configured ? "Ishlashini bir bosishda tekshiring" : "Kalit qo'shilmaguncha bozorchilarga faqat bepul «Tez savollar» ishlaydi");
+  const steps = !data.configured || (t && ['no_key', 'bad_key', 'no_credit', 'forbidden'].includes(t.code));
+  return `
+    <section class="card ai-conn ${state}" aria-live="polite">
+      <div class="aic-top">
+        <span class="aic-mark">${icon(state === 'ok' ? 'check' : state === 'bad' ? 'alert' : 'sparkles', 'ico-sm')}</span>
+        <div class="grow"><h2>${esc(title)}</h2><p>${line}</p>${t && !ok && t.detail ? `<details class="aic-detail"><summary>Batafsil xabar</summary><p>${esc(t.detail)}</p></details>` : ''}</div>
+        <button type="button" class="btn ${data.configured ? '' : 'btn-light'}" data-test>${icon('refresh', 'ico-sm')} Tekshirish</button>
+      </div>
+      ${steps ? `<ol class="aic-steps">
+        <li><b>Kalit oling.</b> console.anthropic.com saytiga kiring → «API Keys» → «Create Key». Kalitni nusxalang (uni hech kimga yubormang).</li>
+        <li><b>Hisobni to'ldiring.</b> O'sha saytda «Billing» bo'limida kamida 5 $ qo'ying. AI xarajati shundan yechiladi.</li>
+        <li><b>Cloudflare'ga qo'ying.</b> Workers → <i>ombor</i> → Settings → Variables and Secrets → Add. Type: <b>Secret</b>, nomi: <code>ANTHROPIC_API_KEY</code>, qiymati: kalit. «Deploy»ni bosing.</li>
+        <li><b>Tekshiring.</b> Bir daqiqadan keyin shu yerda «Tekshirish»ni bosing.</li>
+      </ol>` : ''}
+      ${ok ? `<p class="aic-hint">${icon('info', 'ico-xs')} O'zingiz sinab ko'rish uchun pastdagi ro'yxatda o'z do'koningizga «+30 kun Pro» bosing, keyin yuqoridagi «Savol bering»dan so'rang.</p>` : ''}
+    </section>`;
+}
 
 export async function render(root, params, ctx) {
   let data;
@@ -18,6 +46,7 @@ export async function render(root, params, ctx) {
       : '<span class="badge badge-muted">Yoqilmagan</span>');
     root.innerHTML = `
       <div class="page-head"><div><h1>AI tariflari</h1><p class="muted">Do'konlarga AI yordamchini yoqing va oylik daromadingizni kuzating. Narxlar: AI Oddiy ${moneyFull(data.prices.basic)} so'm, AI Pro ${moneyFull(data.prices.pro)} so'm (oyiga).</p></div></div>
+      ${connCard(data)}
       <section class="kgrid" style="margin-bottom:18px">
         <div class="kcard"><span class="kc-l">To'lovli do'konlar</span><b class="kc-v">${t.basic + t.pro}<small>ta</small></b><span class="kc-f"><span class="kc-n">Oddiy: ${t.basic} · Pro: ${t.pro} · sinovda: ${t.trial}</span></span></div>
         <div class="kcard"><span class="kc-l">Oylik tushum (tariflardan)</span><b class="kc-v">${moneyFull(t.income)}<small>so'm</small></b><span class="kc-f"><span class="kc-n">faol tariflar bo'yicha</span></span></div>
@@ -43,6 +72,10 @@ export async function render(root, params, ctx) {
         </table>
       </div></div>
       <p class="small muted" style="margin-top:12px">Bozorchi to'lov qilgach, shu yerda tarifni yoqasiz. Shu tarif amalda bo'lsa, «+30 kun» muddatni uzaytiradi.</p>`;
+    root.querySelector('[data-test]').addEventListener('click', (e) => withBusy(e.currentTarget, async () => {
+      lastTest = await post('/platform/ai/test', {});
+      draw();
+    }).catch(errorToast));
     root.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => withBusy(b, async () => {
       const store = data.stores.find((s) => String(s.id) === b.dataset.id);
       if (b.dataset.set === 'none' && !(await confirmBox(`«${store.name}» do'konida AI o'chirilsinmi?`, { okText: "Ha, o'chirish", danger: true }))) return;

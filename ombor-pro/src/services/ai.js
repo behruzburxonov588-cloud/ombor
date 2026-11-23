@@ -44,10 +44,15 @@ const PRICES_USD = {
 export const usdToUzs = () => posNum(process.env.OMBOR_USD_UZS, 12800);
 const monthStart = () => `${todayLocal().slice(0, 8)}01`;
 
-// Platforma egasi (barcha do'konlarga AI yoqadigan odam): OMBOR_PLATFORM_ADMINS="login1,login2"
-export function isPlatformAdmin(user) {
+// Platforma egasi (barcha do'konlarga AI yoqadigan odam): OMBOR_PLATFORM_ADMINS="login1,login2".
+// Bu sozlama berilmagan bo'lsa — eng birinchi ochilgan do'konning egasi (saytni o'rnatgan odam).
+export async function isPlatformAdmin(user, storeId) {
+  if (!user || user.role !== 'owner') return false;
   const list = String(process.env.OMBOR_PLATFORM_ADMINS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
-  return Boolean(user && user.role === 'owner' && list.includes(String(user.username || '').toLowerCase()));
+  if (list.length) return list.includes(String(user.username || '').toLowerCase());
+  if (!storeId) return false;
+  const { rows } = await pool.query('SELECT MIN(id) AS id FROM core.stores');
+  return Number(rows[0]?.id) === Number(storeId);
 }
 
 export function aiConfigured() {
@@ -144,6 +149,8 @@ export async function platformOverview() {
     prices: { basic: cfg.basic.price, pro: cfg.pro.price },
     limits: { basic: cfg.basic.limit, pro: cfg.pro.limit, trial: cfg.trial.limit },
     usd_uzs: rate,
+    configured: aiConfigured(),
+    admins_from_env: Boolean(String(process.env.OMBOR_PLATFORM_ADMINS || '').trim()),
     totals: {
       basic: paid.filter((s) => s.plan === 'basic').length,
       pro: paid.filter((s) => s.plan === 'pro').length,
@@ -482,8 +489,15 @@ async function recordUsage(storeId, acc, questions) {
   );
 }
 
+// Anthropic hisobida pul tugagan (400 «credit balance is too low»)
+const noCredit = (err) => err instanceof Anthropic.BadRequestError && /credit balance/i.test(String(err.message));
+
 function aiError(err) {
   if (err instanceof HttpError) return err;
+  if (noCredit(err)) {
+    console.error('AI: Anthropic hisobida mablag\' yo\'q');
+    return new HttpError(503, "AI vaqtincha ishlamayapti. Dastur egasiga ayting (AI hisobini to'ldirish kerak)");
+  }
   if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
     return new HttpError(503, "AI kaliti ishlamayapti. Dastur egasiga ayting");
   }
@@ -507,6 +521,50 @@ function throttle(key) {
   if (list.length >= 8) throw new HttpError(429, "Juda tez-tez so'rayapsiz. Bir daqiqa kuting");
   list.push(now);
   recent.set(key, list);
+}
+
+// Platforma egasi uchun: AI ulanishini tekshirish — kichik so'rov yuborib, xatoning aniq sababini aytadi
+export async function testConnection() {
+  const client = clientFactory();
+  if (!client) {
+    return { ok: false, code: 'no_key', title: "Kalit qo'shilmagan", fix: "Cloudflare'da ANTHROPIC_API_KEY maxfiy qiymatini qo'shing (pastdagi 4 qadam)" };
+  }
+  const t0 = Date.now();
+  try {
+    const resp = await client.messages.create({
+      model: 'claude-haiku-5-5',
+      max_tokens: 300,
+      output_config: { effort: 'low' },
+      messages: [{ role: 'user', content: "Faqat bitta so'z bilan javob ber: Tayyor" }],
+    });
+    const text = resp.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
+    return { ok: true, model: 'Claude Haiku 5.5', ms: Date.now() - t0, answer: text.slice(0, 60) };
+  } catch (err) {
+    const fail = (code, title, fix) => ({ ok: false, code, title, fix, detail: String(err?.message || '').slice(0, 300) });
+    if (err instanceof Anthropic.AuthenticationError) {
+      return fail('bad_key', "Kalit noto'g'ri yoki o'chirilgan", "console.anthropic.com → API Keys'da yangi kalit yarating va Cloudflare'dagi ANTHROPIC_API_KEY qiymatini almashtiring");
+    }
+    if (noCredit(err)) {
+      return fail('no_credit', "Anthropic hisobida mablag' yo'q", "console.anthropic.com → Billing bo'limida hisobni to'ldiring (kamida 5 $). Bir necha daqiqadan keyin qayta tekshiring");
+    }
+    if (err instanceof Anthropic.PermissionDeniedError) {
+      return fail('forbidden', 'Kalitga ruxsat berilmagan', "Anthropic hisobingiz cheklangan bo'lishi mumkin. console.anthropic.com'da hisob holatini tekshiring");
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return fail('rate_limit', 'Juda ko\'p so\'rov', 'Bir daqiqadan keyin qayta tekshiring');
+    }
+    if (err instanceof Anthropic.OverloadedError || err instanceof Anthropic.InternalServerError) {
+      return fail('busy', 'Anthropic serveri hozir band', "Birozdan keyin qayta tekshiring. Bu sizdagi xato emas");
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      return fail('network', "Server Anthropic'ga ulana olmadi", "Tarmoq muammosi. Birozdan keyin qayta tekshiring");
+    }
+    if (err instanceof Anthropic.APIError) {
+      return fail('api', `Anthropic xato qaytardi (${err.status || '?'})`, 'Pastdagi xabarni dastur egasiga (dasturchiga) yuboring');
+    }
+    console.error('AI ulanishini tekshirishda xato:', err);
+    return fail('unknown', "Noma'lum xato", 'Pastdagi xabarni dasturchiga yuboring');
+  }
 }
 
 export async function askAI({ user, storeId, question, history }) {

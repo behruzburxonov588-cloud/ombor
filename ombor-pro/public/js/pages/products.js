@@ -142,7 +142,7 @@ function modelCard(g, perm) {
       <div class="pcx-body">
         <div class="pcx-cat">${g.category_name ? esc(g.category_name) : '<span class="faint">Turkumsiz</span>'}</div>
         <a class="pcx-name" href="#/products/${first.id}">${esc(g.name)}</a>
-        <div class="szs" aria-label="O'lchamlar va qoldig'i">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}"><i>${esc(v.variant_label)}</i><b>${num(v.stock_qty, 3)}</b></span>`).join('')}</div>
+        <div class="szs" aria-label="O'lchamlar va qoldig'i">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}${v.image_path ? ' has-img' : ''}" title="${esc(v.variant_label)}">${v.image_path ? `<img src="${esc(v.image_path)}" alt="" loading="lazy">` : `<i>${esc(v.variant_label)}</i>`}<b>${num(v.stock_qty, 3)}</b></span>`).join('')}</div>
         <div class="pcx-prices">
           <div class="pcx-price"><span>Sotuv narxi</span><b>${priceRange(g)}</b></div>
           ${cost === null ? '' : `<div class="pcx-price cost"><span>Kelish narxi</span><b>${cost > 0 ? money(cost) : '—'}</b></div>`}
@@ -530,7 +530,7 @@ async function mountSizes(root, p, ctx) {
       <div class="card-head"><h2>${esc(p.model_name)}: o'lchamlari</h2><span class="small muted">jami ${num(total, 3)} ${esc(p.base_unit_name)}</span></div>
       <div class="sz-table">${items.map((v) => `
         <a class="sz-cell${v.id === p.id ? ' cur' : ''}${Number(v.stock_qty) <= 0 ? ' out' : ''}" href="#/products/${v.id}">
-          <span class="sz-l">${esc(v.variant_label)}</span>
+          ${v.image_path ? `<span class="szr-img"><img src="${esc(v.image_path)}" alt=""></span>` : ''}<span class="sz-l">${esc(v.variant_label)}</span>
           <span class="sz-q">${num(v.stock_qty, 3)} <small>${esc(v.base_unit_name)}</small></span>
           <span class="sz-p">${money(v.selling_price)}</span>
         </a>`).join('')}</div>

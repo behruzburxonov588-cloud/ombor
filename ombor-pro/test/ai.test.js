@@ -2,6 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { resetDatabase, startServer, client, pool, unitIdByCode } from './helper.js';
+import Anthropic from '@anthropic-ai/sdk';
 import { setAiClientFactory } from '../src/services/ai.js';
 
 let srv;
@@ -176,4 +177,54 @@ test('platforma egasi: tarif yoqadi (Pro — Opus va zaxira model), limit tugasa
   await owner.put(`/api/platform/ai/${storeId}`, { plan: 'none' });
   assert.equal((await owner.get('/api/ai/status')).body.active, false);
   assert.equal((await owner.post('/api/ai/ask', { question: 'salom' })).status, 402);
+});
+
+test("AI ulanishini tekshirish: kalit yo'q, ishlayapti, kalit noto'g'ri, hisobda pul yo'q", async () => {
+  const test = () => owner.post('/api/platform/ai/test', {});
+  assert.equal((await cashier.post('/api/platform/ai/test', {})).status, 403);
+  setAiClientFactory(() => null);
+  let r = (await test()).body;
+  assert.equal(r.ok, false);
+  assert.equal(r.code, 'no_key');
+
+  const f = fake([textAnswer(() => 'Tayyor')]);
+  setAiClientFactory(() => f);
+  r = (await test()).body;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.answer, 'Tayyor');
+  assert.equal(f.calls[0].params.model, 'claude-haiku-5-5');
+
+  const thrower = (err) => ({ messages: { create: async () => { throw err; } }, beta: { messages: { create: async () => { throw err; } } } });
+  setAiClientFactory(() => thrower(new Anthropic.AuthenticationError(401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }, 'invalid x-api-key', new Headers())));
+  r = (await test()).body;
+  assert.equal(r.code, 'bad_key');
+  const credit = new Anthropic.BadRequestError(400, { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } }, 'Your credit balance is too low to access the Anthropic API.', new Headers());
+  setAiClientFactory(() => thrower(credit));
+  r = (await test()).body;
+  assert.equal(r.code, 'no_credit');
+  // Bozorchiga esa tushunarli xabar: AI vaqtincha ishlamayapti
+  const storeId = (await owner.get('/api/platform/ai')).body.stores[0].id;
+  await owner.put(`/api/platform/ai/${storeId}`, { plan: 'basic', days: 30 });
+  const ask = await owner.post('/api/ai/ask', { question: 'salom' });
+  assert.equal(ask.status, 503);
+  assert.match(ask.body.error, /hisobini to'ldirish/);
+});
+
+test("OMBOR_PLATFORM_ADMINS bo'lmasa — birinchi do'kon egasi platforma egasi, boshqa do'kon egasi emas", async () => {
+  const saved = process.env.OMBOR_PLATFORM_ADMINS;
+  delete process.env.OMBOR_PLATFORM_ADMINS;
+  try {
+    assert.equal((await owner.get('/api/platform/ai')).status, 200);
+    assert.equal((await owner.get('/api/ai/status')).body.is_platform_admin, true);
+    const other = client(srv.base);
+    const reg = await other.post('/api/auth/register', {
+      store_name: "Ikkinchi do'kon", full_name: 'Boshqa Egasi', username: 'ikkinchi', password: 'secret1', store_types: ['grocery'], employee_count: '1', region: 'Toshkent shahri',
+    });
+    assert.ok([200, 201].includes(reg.status), JSON.stringify(reg.body));
+    assert.equal((await other.get('/api/platform/ai')).status, 403);
+    assert.equal((await other.get('/api/ai/status')).body.is_platform_admin, false);
+    assert.equal((await cashier.get('/api/platform/ai')).status, 403);
+  } finally {
+    process.env.OMBOR_PLATFORM_ADMINS = saved;
+  }
 });

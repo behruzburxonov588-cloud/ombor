@@ -606,7 +606,7 @@ function modelTile(g) {
         ${productPhoto(g.items[0], 'pcard-img')}
         <div class="pname">${esc(g.name)}</div>
         <div class="pprice">${priceRange(g)}</div>
-        <div class="szs">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}"><i>${esc(v.variant_label)}</i><b>${num(v.stock_qty, 3)}</b></span>`).join('')}</div>
+        <div class="szs">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}${v.image_path ? ' has-img' : ''}">${v.image_path ? `<img src="${esc(v.image_path)}" alt="" loading="lazy">` : `<i>${esc(v.variant_label)}</i>`}<b>${num(v.stock_qty, 3)}</b></span>`).join('')}</div>
       </button>
       <button class="pcard-minus" type="button" data-minus-model="${esc(g.model_name)}" aria-label="${esc(g.name)}: oxirgi qo'shilganini olib tashlash" ${inCart > 0 ? '' : 'hidden'}>${icon('minus')}</button>
     </div>`;
@@ -617,11 +617,12 @@ function openSizePick(g) {
   const count = (id) => S.cart.filter((l) => l.pid === id).reduce((s, l) => s + Number(l.qty), 0);
   const { el, close } = openModal({
     title: g.name,
-    body: `<p class="muted" style="margin:0 0 12px">Xaridor qaysi o'lchamni oladi? Bosing. Bir nechta o'lcham olsa, har birini bosing.</p>
-      <div class="size-pick">${g.items.map((v) => {
+    body: `<p class="muted" style="margin:0 0 12px">${g.items.some((v) => v.image_path) ? "Xaridor qaysi birini oladi? Rasmini bosing. Bir nechtasini olsa, har birini bosing." : "Xaridor qaysi o'lchamni oladi? Bosing. Bir nechta o'lcham olsa, har birini bosing."}</p>
+      <div class="size-pick${g.items.some((v) => v.image_path) ? ' with-imgs' : ''}">${g.items.map((v) => {
         const out = Number(v.stock_qty) <= 0;
-        return `<button type="button" class="szp${out ? ' out' : ''}" data-vid="${v.id}" ${out ? 'disabled' : ''} aria-label="${esc(v.variant_label)} o'lchami">
-          <b>${esc(v.variant_label)}</b><span>${out ? 'Tugagan' : `${num(v.stock_qty, 3)} ta bor`}</span>
+        // Rangli tovar: rasmi bilan (rasmga qarab tanlanadi)
+        return `<button type="button" class="szp${out ? ' out' : ''}${v.image_path ? ' with-img' : ''}" data-vid="${v.id}" ${out ? 'disabled' : ''} aria-label="${esc(v.variant_label)}">
+          ${v.image_path ? `<span class="szp-img"><img src="${esc(v.image_path)}" alt=""></span>` : ''}<b>${esc(v.variant_label)}</b><span>${out ? 'Tugagan' : `${num(v.stock_qty, 3)} ${esc(v.base_unit_name || 'ta')} bor`}</span>
           <em data-c="${v.id}"${count(v.id) ? '' : ' hidden'}>${num(count(v.id), 2)}</em></button>`;
       }).join('')}</div>
       <button class="btn btn-lg btn-block" type="button" data-done style="margin-top:14px">${icon('check')} Tayyor</button>`,

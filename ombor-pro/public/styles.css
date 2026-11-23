@@ -2617,3 +2617,93 @@ h1 { font-family: var(--font-display); font-size: 28px; font-weight: 800; letter
   .sh-big, .sh-sell, .sh-how .ico-xs { transition: none; }
 }
 .sh-row.one .sh-act { flex-direction: row; justify-content: flex-start; min-height: 64px; padding: 10px 16px; gap: 14px; }
+
+/* ===== AI ulanishi (AI tariflari sahifasi) ===== */
+.ai-conn { margin-bottom: 18px; padding: 18px 20px; border-left: 4px solid var(--border-strong); }
+.ai-conn.ok { border-left-color: var(--pos); }
+.ai-conn.bad { border-left-color: var(--warn); }
+.ai-conn.idle { border-left-color: var(--accent); }
+.aic-top { display: flex; align-items: flex-start; gap: 14px; }
+.aic-top h2 { font: 800 18px/1.25 var(--font-display); margin: 0 0 3px; }
+.aic-top p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.45; max-width: 68ch; }
+.aic-top .btn { flex: none; }
+.aic-mark { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--accent-soft); color: var(--accent); }
+.ai-conn.ok .aic-mark { background: var(--pos-bg); color: var(--pos); }
+.ai-conn.bad .aic-mark { background: var(--warn-bg); color: var(--warn); }
+.aic-detail { margin-top: 8px; font-size: 13px; }
+.aic-detail summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.aic-detail p { margin-top: 6px; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.aic-steps { margin: 16px 0 0 54px; padding: 0; display: grid; gap: 10px; counter-reset: s; list-style: none; }
+.aic-steps li { position: relative; padding-left: 34px; font-size: 14px; line-height: 1.5; color: var(--text-2); counter-increment: s; }
+.aic-steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--hover); color: var(--text); font: 700 12.5px/24px Inter, sans-serif; text-align: center; }
+.aic-steps b { color: var(--text); }
+.aic-steps code { font-size: 12.5px; padding: 1px 6px; border-radius: 6px; background: var(--hover); color: var(--text); }
+.aic-hint { margin: 12px 0 0 54px; font-size: 13.5px; color: var(--muted); display: flex; gap: 6px; align-items: flex-start; }
+@media (max-width: 640px) {
+  .aic-top { flex-wrap: wrap; }
+  .aic-top .btn { width: 100%; }
+  .aic-steps, .aic-hint { margin-left: 0; }
+}
+
+/* ===== Tovar formasi: rulon ⇄ metr narxi, ranglar rasm bilan, mayda detallar ===== */
+/* Narx ostidagi ikkinchi birlikdagi narx */
+.conv { margin-top: 7px; padding-left: 2px; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; min-height: 18px; }
+.conv b { color: var(--text); font-weight: 700; }
+.conv .conv-empty { color: var(--muted); }
+.money-input em .mini-seg { margin-left: 2px; }
+.money-input .mini-seg button { padding: 4px 10px; min-height: 26px; }
+
+/* Ranglar — har biri rasm bilan */
+.cphotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; margin: 4px 0 6px; padding: 2px; border-radius: 14px; }
+.cphotos.invalid { box-shadow: 0 0 0 2px var(--neg); }
+.cphoto { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 8px; box-shadow: var(--shadow-sm); }
+.cp-img { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.cp-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cp-n { position: absolute; left: 7px; top: 7px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; background: rgba(14, 23, 38, .72); color: #fff; font: 700 12px/24px Inter, sans-serif; text-align: center; }
+.cp-del { position: absolute; right: 6px; top: 6px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .92); color: var(--text); display: grid; place-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(14, 23, 38, .25); }
+.cp-del:hover { background: #fff; color: var(--neg); }
+.cp-del:focus-visible, .cp-name:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.cp-name { width: 100%; border: 0; border-bottom: 1px dashed var(--border-strong); background: transparent; padding: 3px 2px; font: 500 13.5px Inter, sans-serif; color: var(--text); }
+.cp-name::placeholder { color: var(--muted); }
+.cp-name:focus { outline: none; border-bottom-color: var(--accent); }
+.cp-qty { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border-strong); border-radius: 10px; padding: 0 10px 0 0; background: var(--surface); }
+.cp-qty:focus-within { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus); }
+.cp-qty input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 9px 10px; font: 700 16px Manrope, Inter, sans-serif; color: var(--text); font-variant-numeric: tabular-nums; }
+.cp-qty input:focus { outline: none; }
+.cp-qty em { font-style: normal; font-size: 12.5px; color: var(--muted); }
+.cphoto-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 172px; border: 1.5px dashed var(--border-strong); border-radius: 14px; background: var(--surface-2); color: var(--text-2); cursor: pointer; text-align: center; padding: 12px; transition: border-color .15s, background .15s; }
+.cphoto-add:hover, .cphoto-add:focus-within { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-hover); }
+.cphoto-add b { font-size: 14px; color: var(--text); }
+.cphoto-add small { font-size: 12px; color: var(--muted); }
+.cpa-ico { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--accent); box-shadow: var(--shadow-sm); margin-bottom: 4px; }
+.cm-thumb { width: 30px; height: 30px; border-radius: 8px; overflow: hidden; flex: none; background: var(--surface-2); }
+.cm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (max-width: 520px) {
+  .cphotos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .cphoto-add { min-height: 150px; }
+}
+
+/* Sotuvda: rangli tovar — rasmli tanlov */
+.szp .szp-img { width: 100%; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--surface-2); margin-bottom: 6px; }
+.szp .szp-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sz.has-img { padding-left: 3px; }
+.sz.has-img img { width: 20px; height: 20px; border-radius: 5px; object-fit: cover; display: block; }
+
+/* Mayda detallar: «Qanday sotasiz?» tugmalari va belgilar */
+.pform-v2 .uchip { transition: border-color .15s, background .15s, box-shadow .15s; }
+.pform-v2 .uchip:focus-visible, .pform-v2 .opt:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.pform-v2 .opt { transition: border-color .15s, background .15s; }
+.pform-v2 .opt:hover { border-color: #c2cad6; }
+.pform-v2 .opt.on { border-color: var(--accent); background: var(--accent-soft); }
+.pform-v2 .opt-text small { line-height: 1.4; }
+.pform-v2 .opt-body { margin: -4px 0 4px; padding: 12px 14px; border: 1px solid var(--accent); border-top: 0; border-radius: 0 0 12px 12px; background: var(--surface); }
+.pform-v2 .opt.on:has(+ .opt-body) { border-radius: 12px 12px 0 0; }
+@media (prefers-reduced-motion: reduce) {
+  .pform-v2 .uchip, .pform-v2 .opt, .cphoto-add { transition: none; }
+}
+.size-pick.with-imgs { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+.szp.with-img { padding: 8px 8px 10px; }
+.uchip-new { border-style: dashed; }
+.uchip-new b { display: inline-flex; align-items: center; gap: 4px; }
+.szr-img { width: 34px; height: 34px; border-radius: 8px; overflow: hidden; flex: none; background: var(--surface-2); display: inline-block; vertical-align: middle; }
+.szr-img img { width: 100%; height: 100%; object-fit: cover; display: block; }

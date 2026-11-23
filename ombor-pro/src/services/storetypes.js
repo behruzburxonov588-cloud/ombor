@@ -24,7 +24,8 @@ export const ATTRIBUTE_FIELDS = {
 // form — tovar qo'shish formasini shu turga moslash:
 //   name — nomiga misol; more_units — «Boshqa» ro'yxatidagi qo'shimcha birliklar (asosiylari units'da);
 //   packs — qadoq turlari (rulon, quti, qop...); pack / variant — belgilar matni [sarlavha, misol];
-//   presets — o'lcham tugmalari (bo'sh bo'lsa — faqat rang tanlanadi). «Boshqa do'kon»da hammasi chiqadi.
+//   presets — o'lcham tugmalari (bo'sh bo'lsa — faqat rang tanlanadi); base_units — «Qanday sotasiz?» tugmalari
+//   (berilmasa — units). «Boshqa do'kon»da hammasi chiqadi.
 export const STORE_TYPES = [
   {
     key: 'clothing', label: "Kiyim do'koni", icon: 'shirt', hint: "O'lcham, rang, model",
@@ -32,8 +33,8 @@ export const STORE_TYPES = [
     categories: ["Erkaklar kiyimi", "Ayollar kiyimi", "Bolalar kiyimi", "Ko'ylaklar", 'Shimlar', 'Ustki kiyimlar', 'Futbolkalar'],
     form: {
       name: "Masalan: Futbolka oq, Ko'ylak klassik, Shim jinsi", more_units: ['pair'], packs: ['pack', 'box', 'set'],
-      pack: ['Pachka yoki qutida keladi', 'Masalan: 1 pachka ichida 10 dona — kelish narxini pachka uchun yozasiz'],
-      variant: ["O'lchami yoki rangi bor", "Masalan: S, M, L yoki 48, 50, 52 va qora, oq. Har birining qoldig'i alohida ko'rinadi"],
+      pack: ['Pachka yoki qutida keladi', "Masalan: 1 pachka ichida 10 dona. Narxni pachka yoki dona uchun yozasiz — ikkinchisi o'zi chiqadi"],
+      variant: ["O'lchami yoki rangi bor", "Masalan: S, M, L yoki 48, 50, 52. Ranglarini rasmga olib qo'shasiz — har birining qoldig'i alohida"],
       presets: ['sml', 'xs3xl', 'shirt', 'wear', 'kids', 'std'],
     },
   },
@@ -43,8 +44,8 @@ export const STORE_TYPES = [
     categories: ['Erkaklar poyabzali', 'Ayollar poyabzali', 'Bolalar poyabzali', 'Krossovkalar', 'Tuflilar', 'Etiklar', 'Shippaklar'],
     form: {
       name: 'Masalan: Krossovka Nike, Tufli qora, Etik qishki', more_units: [], packs: ['box', 'crate'],
-      pack: ['Qutida yoki yashikda keladi', 'Masalan: 1 yashik ichida 12 juft — kelish narxini yashik uchun yozasiz'],
-      variant: ["O'lchami yoki rangi bor", "Masalan: 38, 39, 40 va qora, oq. Har birining qoldig'i alohida ko'rinadi"],
+      pack: ['Qutida yoki yashikda keladi', "Masalan: 1 yashik ichida 12 juft. Narxni yashik yoki juft uchun yozasiz — ikkinchisi o'zi chiqadi"],
+      variant: ["O'lchami yoki rangi bor", "Masalan: 38, 39, 40. Ranglarini rasmga olib qo'shasiz — har birining qoldig'i alohida"],
       presets: ['shoes', 'kidshoes', 'std'],
     },
   },
@@ -76,8 +77,10 @@ export const STORE_TYPES = [
     categories: ['Gazlamalar', 'Atlas va adras', 'Parda matolari', 'Ip va tikuv buyumlari'],
     form: {
       name: 'Masalan: Oq atlas, Parda «Velyur», Shoyi gulli', more_units: [], packs: ['roll'],
-      pack: ['Rulonda keladi', 'Masalan: 1 rulon ichida 50 metr — kelish narxini rulon uchun yozasiz'],
-      variant: ['Rangi bor', "Masalan: qora, oq, ko'k. Har bir rangning qoldig'i alohida ko'rinadi"],
+      // Mato metrlab sotiladi; rulon — qadoq («Rulonda keladi»), shunda metr ham, rulon ham yo'qolmaydi
+      base_units: ['m', 'piece'],
+      pack: ['Rulonda keladi', "Masalan: 1 rulon ichida 50 metr. Narxni rulon yoki metr uchun yozasiz — ikkinchisi o'zi chiqadi"],
+      variant: ['Rangi bor', "Har bir rangini rasmga olasiz — har birining qoldig'i alohida ko'rinadi"],
       presets: [],
     },
   },
@@ -87,7 +90,7 @@ export const STORE_TYPES = [
     categories: ['Yuz parvarishi', 'Soch parvarishi', 'Pardoz vositalari', 'Atirlar', 'Gigiyena'],
     form: {
       name: 'Masalan: Nivea krem 100 ml, Shampun Head&Shoulders', more_units: ['g', 'set'], packs: ['box', 'pack', 'set'],
-      pack: ['Qutida yoki pachkada keladi', 'Masalan: 1 quti ichida 12 dona — kelish narxini quti uchun yozasiz'],
+      pack: ['Qutida yoki pachkada keladi', "Masalan: 1 quti ichida 12 dona. Narxni quti yoki dona uchun yozasiz — ikkinchisi o'zi chiqadi"],
       variant: ['Har xil hajmi bor', "Masalan: 50 ml, 100 ml, 200 ml. Har birining qoldig'i alohida ko'rinadi"],
       presets: ['ml', 'std'],
     },
@@ -98,8 +101,8 @@ export const STORE_TYPES = [
     categories: ['Sumkalar', 'Soatlar', 'Taqinchoqlar', "Ko'zoynaklar", 'Kamarlar'],
     form: {
       name: 'Masalan: Ayollar sumkasi, Soat Casio, Kamar charm', more_units: [], packs: ['box', 'pack', 'set'],
-      pack: ['Qutida keladi', 'Masalan: 1 quti ichida 10 dona — kelish narxini quti uchun yozasiz'],
-      variant: ['Rangi bor', "Masalan: qora, jigarrang, oq. Har bir rangning qoldig'i alohida ko'rinadi"],
+      pack: ['Qutida keladi', "Masalan: 1 quti ichida 10 dona. Narxni quti yoki dona uchun yozasiz — ikkinchisi o'zi chiqadi"],
+      variant: ['Rangi bor', "Har bir rangini rasmga olasiz — har birining qoldig'i alohida ko'rinadi"],
       presets: [],
     },
   },
@@ -109,7 +112,7 @@ export const STORE_TYPES = [
     categories: ['Telefonlar', 'Telefon aksessuarlari', 'Maishiy texnika', 'Kompyuter texnikasi', 'Zaryadlovchi va kabellar'],
     form: {
       name: 'Masalan: Samsung Galaxy A15, USB-C kabel, Zaryadlovchi 20W', more_units: ['m'], packs: ['box', 'set'],
-      pack: ['Qutida keladi', 'Masalan: 1 quti ichida 20 dona — kelish narxini quti uchun yozasiz'],
+      pack: ['Qutida keladi', "Masalan: 1 quti ichida 20 dona. Narxni quti yoki dona uchun yozasiz — ikkinchisi o'zi chiqadi"],
       variant: ['Har xil turi bor (xotira, rang)', "Masalan: 64 GB, 128 GB, 256 GB. Har birining qoldig'i alohida ko'rinadi"],
       presets: ['gb', 'std'],
     },
@@ -120,8 +123,8 @@ export const STORE_TYPES = [
     categories: ['Idish-tovoq', 'Oshxona anjomlari', 'Tozalash vositalari', 'Uy jihozlari'],
     form: {
       name: "Masalan: Choynak 2 L, Tarelka to'plami, Supurgi", more_units: ['m', 'pair'], packs: ['box', 'pack', 'set', 'crate'],
-      pack: ['Qutida yoki yashikda keladi', 'Masalan: 1 quti ichida 6 dona — kelish narxini quti uchun yozasiz'],
-      variant: ["Har xil o'lchami yoki rangi bor", "Masalan: 24 sm, 28 sm yoki oq, qora. Har birining qoldig'i alohida ko'rinadi"],
+      pack: ['Qutida yoki yashikda keladi', "Masalan: 1 quti ichida 6 dona. Narxni quti yoki dona uchun yozasiz — ikkinchisi o'zi chiqadi"],
+      variant: ["Har xil o'lchami yoki rangi bor", "Masalan: 24 sm, 28 sm. Ranglarini rasmga olib qo'shasiz — har birining qoldig'i alohida"],
       presets: ['std'],
     },
   },
