@@ -5,6 +5,15 @@ Do'konlar uchun ombor, sotuv, kirim, hisob-kitob va biznes tahlili tizimi. Inter
 ## Imkoniyatlar
 
 - **Dizayn**: oq va juda och kulrang fon, nafis ko'k asosiy rang, bir xil kartochkalar, yumshoq soyalar va burchaklar, yuklanayotganda kulrang bloklar (bo'sh ekran o'rniga), kompyuter, planshet va telefonga moslashgan
+- **Yangi do'kon ochish (sozlash bilan birga)**: menyusiz to'liq ekranda 5 qadam — do'kon turi (kiyim, poyabzal, oziq-ovqat, qurilish, mato, kosmetika, aksessuar, elektronika, xo'jalik, avto ehtiyot qismlar, boshqa; bir nechtasini tanlash mumkin), xodimlar soni, viloyat va tuman (14 hudud), do'kon nomi, telefon va logotip, so'ng ism, login va parol. Login do'kon nomidan taklif qilinadi. Hammasi bitta tranzaksiyada saqlanadi; keyin «Sozlamalar»dan o'zgartiriladi
+- **Do'kon turiga mos**: tanlangan turga qarab turkumlar va o'lchov birliklari o'zi qo'shiladi, tovar formasida faqat kerakli maydonlar chiqadi (rangi, eni, materiali, brend, model, IMEI/seriya, kafolat, OEM raqami, mos mashinalar va h.k.); bu maydonlar bo'yicha qidirish mumkin. Bitta xodimli do'konda «Xodimlar» bo'limi yashiriladi
+- **Rulonlar (har xil uzunlikda)**: har bir rulon alohida hisoblanadi (masalan 50, 45 va 60 metr = 155 metr). Sotuvda butun rulon yoki undan kerakli metr tanlanadi, qoldiq aniq kamayadi; tovar sahifasida har bir rulonda qancha qolgani ko'rinadi
+- **Tez sotuv**: metr, kg, litr kabi tovar bosilganda «Necha metr?» oynasi — katta maydon, 0,5 · 1 · 1,5 · 2 · 3 · 5 · 10 tugmalari, kasrli miqdor (3,5 metr) va jami summa; qidiruvda Enter — birinchi topilgan tovar
+- **Tez kirim**: «Yaqinda kelganlar» ro'yxati, «Oxirgi kirimni takrorlash» (oxirgi narx bilan), har xil uzunlikdagi rulonlarni bitta oynada kiritish, plitkada kelish va sotuv narxi
+- **Rang × o'lcham**: kiyim va poyabzalda ranglar (Qora, Oq, ...) va o'lchamlar jadvali, har biri o'z qoldig'i bilan
+- **Excel'dan tovar yuklash**: namunaviy fayl, avval tekshirish (qaysi qator qo'shiladi, qaysi biri nega o'tkazib yuboriladi), keyin qo'shish; .xlsx va CSV
+- **Tovardan nusxa olish**: o'xshash tovarni bir bosishda qo'shish (narx, birlik, qadoq, turkum ko'chadi)
+- **Ombor tarixi**: har bir harakatda oldin, o'zgarish, keyin, narx (sotuv yoki kelish) va kim qilgani
 - **Bosh sahifa**: tanlangan davr bo'yicha savdo, sof foyda, xarajat va cheklar; hozirgi holat — naqd pul, karta, mijozlar qarzi, sizning qarzingiz, jami mahsulot, kam qolgan, tugagan, ombor qiymati; savdo grafigi, so'nggi 7 kun va 6 oy dinamikasi, bildirishnomalar, so'nggi amallar (savdo, kirim, xarajat, qarz to'lovi)
 - **Mahsulotlar ro'yxati**: kartochka yoki jadval ko'rinishi (tanlov eslab qolinadi); har birida rasm, turkum, shtrix-kod, sotuv va kelish narxi, qoldiq chizig'i, holat (tugagan, kam qolgan, muddati yaqin), «Sotuvga» (bir bosishda savatchaga), tahrirlash va o'chirish (arxivga); saralash, turkum va holat filtrlari, Excel/PDF
 - **Yangi tovar paneli**: o'ng tomondan chiqadi, 4 bo'lim — asosiy ma'lumot (rasm, nom, turkum, shtrix-kod, SKU), narx, ombor (birlik, qadoq, o'lchamlar, boshlang'ich qoldiq, ogohlantirish chegarasi), qo'shimcha (yetkazib beruvchi, yaroqlilik muddati, izoh); xato bo'lgan maydon qizil bo'lib, xabar shu maydon ostida chiqadi
@@ -208,7 +217,7 @@ export OMBOR_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/ombor
 npm test
 ```
 
-**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 114 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar), «Yuk keldi» (yetkazib beruvchisiz kirim, qarzda kimdan kelgani majburiy, qadoqli qoldiq), to'lov muddati va eslatmalar, artikul (SKU), oylik natija, xarajatlar hisoboti, uzoq va o'zi yangilanadigan sessiya (parol o'zgarsa eski sessiyalar yopilishi), tovar o'lchamlari (takror o'lcham, model bo'yicha ro'yxat, o'lcham bo'yicha sotuv va kirim), tovar izohi va yaroqlilik muddati, bosh sahifaning 7 kunlik savdosi, kelish narxi keyin yozilganda yoki to'g'rilanganda foydaning qayta hisoblanishi (qaytarishlar bilan), xarajatning savdo pulidan ayirilishi, har bir sotuv foydasi (chegirma va qaytarish bilan) va kassirdan tannarxning yashirilishi.
+**Ogohlantirish:** har bir test fayli boshlanishidan oldin `OMBOR_TEST_DATABASE_URL` bazasining `public`, `core` va `t_*` sxemalari o'chiriladi. Dev yoki production bazaga ulanmang. Joriy versiyada 125 ta test o'tadi: autentifikatsiya va katalog, savdo va pul hisob-kitobi, tannarx va rollar, tahlil formulalari, ruxsatlar, bildirishnomalar (takrorlanmasligi, Telegram), Excel va PDF eksport, zaxira nusxa va aynan tiklash, baza manzilini tekshirish, yangi do'kon yo'riqnomasi, ko'p do'kon (ma'lumotlar ajratilganligi, yagona loginlar, istalgan qurilmadan kirish), qo'lda yozilgan qarzlar, oddiy bosh sahifa (keldi-ketdi, foyda/zarar, ruxsatlar), «Yuk keldi» (yetkazib beruvchisiz kirim, qarzda kimdan kelgani majburiy, qadoqli qoldiq), to'lov muddati va eslatmalar, artikul (SKU), oylik natija, xarajatlar hisoboti, uzoq va o'zi yangilanadigan sessiya (parol o'zgarsa eski sessiyalar yopilishi), tovar o'lchamlari (takror o'lcham, model bo'yicha ro'yxat, o'lcham bo'yicha sotuv va kirim), tovar izohi va yaroqlilik muddati, bosh sahifaning 7 kunlik savdosi, kelish narxi keyin yozilganda yoki to'g'rilanganda foydaning qayta hisoblanishi (qaytarishlar bilan), xarajatning savdo pulidan ayirilishi, har bir sotuv foydasi (chegirma va qaytarish bilan) va kassirdan tannarxning yashirilishi, do'kon sozlash (ro'yxatdan o'tishda ham, xato turda do'kon ochilmasligi), tovar xususiyatlari va ular bo'yicha qidiruv, Excel/CSV dan yuklash, har xil uzunlikdagi rulonlar (butun va qisman sotish, kirim, tarix).
 
 ## Loyiha tuzilishi
 
@@ -235,9 +244,10 @@ npm test
 Quyidagilar joriy versiyaga kiritilmagan va keyingi bosqichda qo'shiladi:
 
 - Shtrix-kod etiketkalarini chop etish
-- Excel fayldan mahsulotlarni import qilish
 - Ko'p ombor va ko'p filial
 - Band qilingan (rezerv) qoldiq
 - Zaxirani ilova ichidan tiklash (hozir tiklash buyruq orqali: `npm run restore`) va avtomatik muntazam zaxira
 - Brauzer yopiq bo'lganda ham keladigan push-bildirishnomalar (Web Push). Hozir brauzer xabarlari ilova ochiq turganda ishlaydi; telefonga doimiy xabar uchun Telegram tavsiya etiladi
-- Mahsulot yaroqlilik muddatini kiritish (hozircha uzoq turib qolgan partiyalar kuzatiladi)
+- Bir nechta valyuta (hozir hamma hisob so'mda)
+- Har bir dona uchun alohida IMEI yoki seriya raqami hisobi (hozir tovar xususiyati sifatida yoziladi va qidiruvda topiladi)
+- Omborlar orasida tovar ko'chirish
