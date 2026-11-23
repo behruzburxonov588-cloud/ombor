@@ -1028,6 +1028,100 @@ export async function overview(db, user, query) {
   };
 }
 
+// ---------- Oddiy bosh sahifa: bozorchiga kerakli hamma raqam bitta so'rovda ----------
+// Savdo, foyda (faqat egasi/hisobot huquqi borlarga), kassadagi pul va «Diqqat»:
+// tugagan va kam qolgan tovar, muddati o'tgan mijoz qarzi, to'lov kuni kelgan yetkazib beruvchi qarzi,
+// kelish narxi yozilmagan tovar (foyda noto'g'ri chiqmasligi uchun).
+export async function homeSummary(db, user, query) {
+  const can = (k) => Boolean(user.permissions?.[k]);
+  const financial = can('reports.view');
+  const cashAccess = can('cash.view');
+  const debtAccess = financial || can('customers.view');
+  const supAccess = financial || can('suppliers.view') || can('purchases.view');
+  const range = resolveRange(query);
+  const today = todayLocal();
+  const settings = await getSettings(db);
+  const warnDays = Number(settings.debt_warning_days) || 3;
+
+  const [pnl, stock, bal, cust, sup, nc] = await Promise.all([
+    pnlTotals(db, range.fromTs, range.toTs, range.from, range.to),
+    db.query(
+      `SELECT p.id, p.name, un.name AS unit, p.stock_qty, p.min_stock,
+              COUNT(*) FILTER (WHERE p.stock_qty <= 0) OVER () AS out_count,
+              COUNT(*) FILTER (WHERE p.stock_qty > 0) OVER () AS low_count
+         FROM products p JOIN units un ON un.id = p.base_unit_id
+        WHERE NOT p.is_archived AND (p.stock_qty <= 0 OR (p.min_stock > 0 AND p.stock_qty <= p.min_stock))
+        ORDER BY (p.stock_qty <= 0) DESC, p.name LIMIT 40`,
+    ),
+    cashAccess
+      ? db.query(`SELECT method, COALESCE(SUM(CASE WHEN direction = 'in' THEN amount ELSE -amount END), 0) AS balance
+                    FROM cash_transactions GROUP BY method`)
+      : null,
+    debtAccess
+      ? db.query(
+        `SELECT c.id, c.name, SUM(s.balance_due) AS debt, MIN(s.due_date) AS since,
+                COUNT(*) OVER () AS cnt, SUM(SUM(s.balance_due)) OVER () AS total
+           FROM sales s JOIN customers c ON c.id = s.customer_id
+          WHERE s.balance_due > 0 AND s.due_date < $1::date
+          GROUP BY c.id, c.name ORDER BY SUM(s.balance_due) DESC, c.name LIMIT 3`,
+        [today],
+      )
+      : null,
+    supAccess
+      ? db.query(
+        `SELECT s.id, s.name, SUM(p.remaining_debt) AS debt, MIN(p.due_date) AS due, COUNT(*) OVER () AS cnt
+           FROM purchases p JOIN suppliers s ON s.id = p.supplier_id
+          WHERE p.remaining_debt > 0 AND p.due_date IS NOT NULL AND p.due_date <= $1::date
+          GROUP BY s.id, s.name ORDER BY MIN(p.due_date), SUM(p.remaining_debt) DESC LIMIT 3`,
+        [addDays(today, warnDays)],
+      )
+      : null,
+    financial
+      ? db.query(
+        `SELECT COUNT(DISTINCT si.product_id)::int AS products, COALESCE(SUM(si.line_total), 0) AS revenue
+           FROM sale_items si JOIN sales s ON s.id = si.sale_id
+          WHERE s.kind = 'sale' AND s.created_at >= $1 AND s.created_at < $2 AND si.cost_total = 0 AND si.line_total > 0`,
+        [range.fromTs, range.toTs],
+      )
+      : null,
+  ]);
+
+  const item = (r) => ({ id: r.id, name: r.name, unit: r.unit, qty: round4(r.stock_qty), min: round4(r.min_stock) });
+  const st = stock.rows;
+  const balances = { cash: 0, card: 0, transfer: 0 };
+  for (const r of bal?.rows || []) balances[r.method] = round2(r.balance);
+  const c0 = cust?.rows[0];
+  const s0 = sup?.rows[0];
+  return {
+    range: { from: range.from, to: range.to, days: range.days },
+    today,
+    store_name: settings.store_name,
+    access: { financial, cash: cashAccess, debts: debtAccess, suppliers: supAccess },
+    sales: { revenue: pnl.net_revenue, count: pnl.sales_count },
+    profit: financial ? {
+      revenue: pnl.net_revenue,
+      cogs: pnl.cogs,
+      goods: pnl.gross_profit,
+      expenses: pnl.expenses,
+      losses: pnl.losses,
+      net: pnl.net_profit,
+    } : null,
+    cash: cashAccess ? balances : null,
+    attention: {
+      out: st.filter((r) => n(r.stock_qty) <= 0).slice(0, 5).map(item),
+      out_count: st.length ? Number(st[0].out_count) : 0,
+      low: st.filter((r) => n(r.stock_qty) > 0).slice(0, 5).map(item),
+      low_count: st.length ? Number(st[0].low_count) : 0,
+      overdue: (cust?.rows || []).map((r) => ({ id: r.id, name: r.name, debt: round2(r.debt), since: r.since })),
+      overdue_count: c0 ? Number(c0.cnt) : 0,
+      overdue_total: c0 ? round2(c0.total) : 0,
+      supplier_due: (sup?.rows || []).map((r) => ({ id: r.id, name: r.name, debt: round2(r.debt), due: r.due, late: r.due < today })),
+      supplier_due_count: s0 ? Number(s0.cnt) : 0,
+      cost_missing: nc && nc.rows[0].products > 0 ? { products: nc.rows[0].products, revenue: round2(nc.rows[0].revenue) } : null,
+    },
+  };
+}
+
 export async function cashFlow(db, range) {
   const [{ rows }, bal] = await Promise.all([
     db.query(

@@ -125,13 +125,34 @@ function bindOnboardingHide(host) {
 export async function render(root, params, ctx) {
   if (!prefsCache) prefsCache = (await get('/me/preferences')).prefs;
   if (params.key !== 'analytics') {
+    // Oddiy (bozorchi uchun, standart) yoki to'liq (grafiklar bilan) bosh sahifa — foydalanuvchi tanlaydi
+    const switchMode = (mode) => {
+      prefsCache.dashboard.mode = mode;
+      put('/me/preferences', { dashboard: { mode } }).catch(() => {});
+      window.scrollTo(0, 0);
+      render(root, { ...params, query: {} }, ctx).catch(errorToast);
+    };
+    if (prefsCache.dashboard.mode !== 'detailed') {
+      const { renderSimpleHome } = await import('./home-simple.js');
+      return renderSimpleHome(root, ctx, {
+        prefs: prefsCache,
+        query: params.query,
+        onboarding: () => onboardingHtml(ctx),
+        afterMount: bindOnboardingHide,
+        switchMode,
+        onError: errorToast,
+      });
+    }
     const { renderHome } = await import('./home.js');
     return renderHome(root, ctx, {
       prefs: prefsCache,
       query: params.query,
       actionTiles,
       onboarding: () => onboardingHtml(ctx),
-      afterMount: bindOnboardingHide,
+      afterMount: (host) => {
+        bindOnboardingHide(host);
+        host.querySelector('[data-mode]')?.addEventListener('click', () => switchMode('simple'));
+      },
     });
   }
   const range = resolve(params.query, prefsCache);

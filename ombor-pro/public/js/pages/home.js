@@ -50,6 +50,7 @@ export async function renderHome(root, ctx, opts) {
         <div class="muted small" style="margin-top:2px">${longDate()} · <span title="${esc(dateTime(d.generated_at))}">yangilandi ${esc(timeAgo(d.generated_at))}</span></div>
       </div>
       <div class="filterbar no-print">
+        <button type="button" class="btn btn-light btn-sm" data-mode="simple" title="Faqat eng kerakli raqamlar va katta tugmalar">${icon('home', 'ico-sm')}<span class="mobile-hide">Oddiy ko'rinish</span></button>
         ${periodPicker(range)}
         ${d.access.financial ? `<a class="btn btn-light btn-sm hide-sm" href="#/analytics?${periodQuery(range)}" title="Grafiklar, prognoz, reyting">${icon('chart', 'ico-sm')}<span class="mobile-hide">Batafsil tahlil</span></a>` : ''}
       </div>
