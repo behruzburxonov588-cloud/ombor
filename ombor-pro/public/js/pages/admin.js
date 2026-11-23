@@ -39,6 +39,11 @@ const VALUE_LABELS = {
   food: 'ovqat (obed)', household: 'suv, choy, mayda', delivery: 'yetkazib berish', transport: 'transport', repairs: "ta'mirlash", other: 'boshqa', true: 'ha', false: "yo'q",
 };
 
+const STORE_TYPE_LABEL = {
+  clothing: "Kiyim do'koni", shoes: "Poyabzal do'koni", grocery: "Oziq-ovqat do'koni", construction: 'Qurilish mollari', fabric: 'Mato va gazlama',
+  cosmetics: "Kosmetika do'koni", accessories: 'Aksessuarlar', electronics: "Elektronika do'koni", household: "Xo'jalik mollari", auto: 'Avto ehtiyot qismlar', other: "Boshqa do'kon",
+};
+
 const ENTITY_LABELS = {
   product: 'Mahsulot', sale: 'Savdo', purchase: 'Kirim', customer: 'Mijoz', supplier: 'Yetkazib beruvchi',
   cash: 'Kassa', cash_shift: 'Smena', expense: 'Xarajat', inventory_count: 'Inventarizatsiya',
@@ -285,6 +290,15 @@ async function renderSettings(root, ctx) {
     <div class="page-head"><div><h1>Sozlamalar</h1><p class="muted">Do'kon ma'lumotlari va tizim sozlamalari</p></div></div>
 
     ${canManage ? `
+    <section class="card su-profile">
+      <div class="su-pf-main">
+        <span class="su-pf-logo">${s.logo_path ? `<img src="${esc(s.logo_path)}" alt="">` : icon('store')}</span>
+        <div><h2>${esc(s.store_name)}</h2>
+          <div class="small muted">${s.region ? `${icon('mapPin', 'ico-xs')} ${esc([s.region, s.district].filter(Boolean).join(', '))}` : "Joylashuvi ko'rsatilmagan"}${s.employee_count ? ` · ${esc({ 1: "faqat o'zingiz", '2-5': '2–5 xodim', '6-15': '6–15 xodim', '16+': "16+ xodim" }[s.employee_count] || '')}` : ''}</div>
+          <div class="chips" style="margin-top:8px">${(s.store_types || []).length ? s.store_types.map((t) => `<span class="chip">${esc(STORE_TYPE_LABEL[t] || t)}</span>`).join('') : '<span class="small amber">Do\'kon turi tanlanmagan — tovar formasi va turkumlar moslashishi uchun tanlang</span>'}</div></div>
+      </div>
+      <a class="btn" href="#/setup">${icon('sliders', 'ico-sm')} Do'kon turi, manzil, logotip</a>
+    </section>
     <form id="sf" class="card stack" novalidate>
       <div class="card-head"><h2>Do'kon</h2></div>
       <div class="form-grid two" style="gap:10px">

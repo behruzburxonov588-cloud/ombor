@@ -55,11 +55,11 @@ const ONB_STEPS = [
 // Bosh sahifadagi katta tugmalar: eng ko'p qilinadigan ishlar bir bosishda (faqat ruxsat berilganlari)
 const ACTIONS = [
   { label: 'Sotish', hint: 'Xaridorga tovar sotish', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
-  { label: 'Yuk keldi', hint: 'Kelgan tovarni kiritish', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
   { label: 'Yangi tovar', hint: "Tovar va narxini qo'shish", icon: 'box', href: '#/products/new', perms: ['products.manage'] },
-  { label: 'Qarz yozish', hint: 'Daftardagi eski qarz', icon: 'debt', href: '#/debts?new=1', perms: ['customers.manage'] },
+  { label: 'Yuk keldi', hint: 'Kelgan tovarni kiritish', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
+  { label: 'Xarajat', hint: 'Obed, suv, ijara, maosh…', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'] },
+  { label: 'Yangi mijoz', hint: 'Doimiy xaridor, nasiya', icon: 'users', href: '#/customers?new=1', perms: ['customers.manage'] },
   { label: "Qarz to'lovi", hint: "Mijoz qarzini to'ladi", icon: 'money', href: '#/debts', perms: ['payments.create', 'customers.manage'] },
-  { label: 'Xarajat', hint: 'Ijara, maosh, svet…', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'] },
 ];
 
 function actionTiles(ctx) {

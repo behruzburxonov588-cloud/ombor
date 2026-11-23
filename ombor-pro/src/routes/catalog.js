@@ -11,6 +11,10 @@ import { HttpError, num, str, round2, round4, paging, dateStr, todayLocal, addDa
 import { audit } from '../audit.js';
 import { productUnits } from '../services/catalog.js';
 import { receiveStock, recostProduct, missingCost } from '../services/inventory.js';
+import { ATTRIBUTE_FIELDS } from '../services/storetypes.js';
+import { saveSettings } from '../services/settings.js';
+import { readTable } from '../services/xlsxread.js';
+import { buildXlsx } from '../services/xlsx.js';
 
 const router = Router();
 
@@ -87,6 +91,7 @@ const PRODUCT_SELECT = `
          COALESCE((SELECT SUM(si.line_total - si.returned_amount) FROM sale_items si WHERE si.product_id = p.id), 0) AS sold_revenue,
          COALESCE((SELECT SUM(si.cost_total - si.returned_cost) FROM sale_items si WHERE si.product_id = p.id), 0) AS sold_cost,
          COALESCE((SELECT SUM(b.qty_remaining * b.unit_cost) FROM stock_batches b WHERE b.product_id = p.id), 0) AS batch_value,
+         (SELECT COUNT(*) FROM stock_batches b WHERE b.product_id = p.id AND b.qty_remaining > 0)::int AS batch_count,
          COALESCE((SELECT json_agg(json_build_object('unit_id', pu.unit_id, 'name', un.name, 'factor', pu.factor) ORDER BY pu.factor)
                      FROM product_units pu JOIN units un ON un.id = pu.unit_id WHERE pu.product_id = p.id), '[]'::json) AS conv_json
     FROM products p
@@ -131,6 +136,7 @@ function shapeProduct(row, conversions = row.conv_json || []) {
     model_name: row.model_name || null,
     variant_label: row.variant_label || null,
     description: row.description || null,
+    attributes: row.attributes && typeof row.attributes === 'object' ? row.attributes : {},
     expiry_date: expiry,
     expiry_status: expiryStatus,
     category_id: row.category_id,
@@ -155,6 +161,9 @@ function shapeProduct(row, conversions = row.conv_json || []) {
     status,
     conversions: conv,
     pack,
+    // Rulonli tovar (mato, kabel, gilam...): har bir rulon — alohida partiya, uzunligi har xil bo'lishi mumkin
+    is_roll: conv.some((c) => String(c.name).toLowerCase() === 'rulon'),
+    roll_count: conv.some((c) => String(c.name).toLowerCase() === 'rulon') ? Number(row.batch_count || 0) : null,
   };
 }
 
@@ -167,7 +176,8 @@ router.get('/products', requirePerm('products.view', 'sales.create', 'purchases.
   where.push(`p.is_archived = $${params.length}`);
   if (q) {
     params.push(q);
-    where.push(`(p.name ILIKE '%' || $${params.length} || '%' OR p.barcode = $${params.length} OR lower(p.sku) = lower($${params.length}))`);
+    where.push(`(p.name ILIKE '%' || $${params.length} || '%' OR p.barcode = $${params.length} OR lower(p.sku) = lower($${params.length})
+      OR EXISTS (SELECT 1 FROM jsonb_each_text(p.attributes) a WHERE a.value ILIKE '%' || $${params.length} || '%'))`);
   }
   if (req.query.model) { // bitta modelning hamma o'lchamlari
     params.push(String(req.query.model).trim());
@@ -236,6 +246,17 @@ async function validateProductBody(client, body, existingId = null) {
   // Izoh va yaroqlilik muddati: yuborilmasa — o'zgarmaydi; bo'sh satr — o'chiriladi
   const descGiven = body.description !== undefined;
   const description = descGiven ? (str(body.description, 'Izoh', { max: 1000 }) || null) : null;
+  // Qo'shimcha xususiyatlar (brend, rang, IMEI, OEM...): faqat ma'lum kalitlar, har biri 200 belgigacha; yuborilmasa — o'zgarmaydi
+  const attrsGiven = body.attributes !== undefined;
+  let attributes = {};
+  if (attrsGiven && body.attributes !== null) {
+    if (typeof body.attributes !== 'object' || Array.isArray(body.attributes)) throw new HttpError(400, "Xususiyatlar noto'g'ri yuborildi");
+    for (const [k, val] of Object.entries(body.attributes)) {
+      if (!ATTRIBUTE_FIELDS[k]) continue;
+      const text = str(val, ATTRIBUTE_FIELDS[k].label, { max: 200 });
+      if (text) attributes[k] = text;
+    }
+  }
   const expiryGiven = body.expiry_date !== undefined;
   const expiryDate = expiryGiven ? dateStr(body.expiry_date, 'Yaroqlilik muddati', { optional: true }) : null;
   if (modelName) {
@@ -277,6 +298,8 @@ async function validateProductBody(client, body, existingId = null) {
     descGiven,
     expiryDate,
     expiryGiven,
+    attributes,
+    attrsGiven,
     categoryId: body.category_id ? num(body.category_id, 'Kategoriya', { positive: true }) : null,
     supplierId: body.supplier_id ? num(body.supplier_id, 'Yetkazib beruvchi', { positive: true }) : null,
     baseUnitId,
@@ -297,34 +320,228 @@ async function saveConversions(client, productId, conversions) {
   }
 }
 
-router.post('/products', requirePerm('products.manage'), async (req, res) => {
-  const body = req.body || {};
-  const result = await withTransaction(async (client) => {
-    const v = await validateProductBody(client, body);
-    const opening = round4(num(body.opening_qty, 'Boshlang\'ich qoldiq', { min: 0, optional: true }));
-    const { rows } = await client.query(
-      `INSERT INTO products
-         (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock, sku, model_name, variant_label,
-          description, expiry_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-      [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.modelName, v.variantLabel,
-        v.description, v.expiryDate],
+// Yangi tovar (tranzaksiya ichida): tekshiruv, yozish, qadoqlar, boshlang'ich qoldiq, tarix
+async function createProduct(client, body, user) {
+  const v = await validateProductBody(client, body);
+  // Rulonlar uzunligi har xil bo'lsa: har bir rulon alohida (masalan: 50, 45, 60 metr)
+  const rolls = Array.isArray(body.opening_rolls) ? body.opening_rolls.map((x) => round4(num(x, 'Rulon uzunligi', { positive: true }))) : [];
+  if (rolls.length > 200) throw new HttpError(400, "Bir martada 200 tadan ko'p rulon kiritib bo'lmaydi");
+  const opening = rolls.length ? round4(rolls.reduce((s2, x) => s2 + x, 0)) : round4(num(body.opening_qty, 'Boshlang\'ich qoldiq', { min: 0, optional: true }));
+  const { rows } = await client.query(
+    `INSERT INTO products
+       (name, barcode, category_id, supplier_id, base_unit_id, purchase_price, selling_price, min_stock, sku, model_name, variant_label,
+        description, expiry_date, attributes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+    [v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.modelName, v.variantLabel,
+      v.description, v.expiryDate, JSON.stringify(v.attributes)],
+  );
+  const id = rows[0].id;
+  await saveConversions(client, id, v.conversions);
+  if (opening > 0) {
+    const { rows: p } = await client.query(
+      'SELECT p.*, u.name AS base_unit_name FROM products p JOIN units u ON u.id = p.base_unit_id WHERE p.id = $1 FOR UPDATE',
+      [id],
     );
-    const id = rows[0].id;
-    await saveConversions(client, id, v.conversions);
-    if (opening > 0) {
-      const { rows: p } = await client.query(
-        'SELECT p.*, u.name AS base_unit_name FROM products p JOIN units u ON u.id = p.base_unit_id WHERE p.id = $1 FOR UPDATE',
-        [id],
-      );
-      await receiveStock(client, p[0], opening, v.purchasePrice, {
-        type: 'opening', refType: 'product', refId: id, userId: req.user.id, note: 'Boshlang\'ich qoldiq',
+    for (const qty of (rolls.length ? rolls : [opening])) {
+      await receiveStock(client, p[0], qty, v.purchasePrice, {
+        type: 'opening', refType: 'product', refId: id, userId: user.id, note: rolls.length ? `Boshlang'ich qoldiq (rulon ${qty})` : 'Boshlang\'ich qoldiq',
       });
     }
-    await audit(client, req.user.id, 'product.create', 'product', id, { name: v.name, barcode: v.barcode, opening });
-    return id;
-  });
+  }
+  await audit(client, user.id, 'product.create', 'product', id, { name: v.name, barcode: v.barcode, opening, ...(rolls.length ? { rolls: rolls.length } : {}) });
+  return id;
+}
+
+router.post('/products', requirePerm('products.manage'), async (req, res) => {
+  const body = req.body || {};
+  const result = await withTransaction((client) => createProduct(client, body, req.user));
   res.status(201).json({ id: result });
+});
+
+// ---------- Excel / CSV dan tovarlarni yuklash ----------
+// Ustunlar nomi bo'yicha topiladi (tartibi muhim emas): Nomi, Shtrix-kod, Artikul, Kategoriya, Birlik,
+// Kelish narxi, Sotuv narxi, Qoldiq, Minimal qoldiq, Brend, Rangi, Yaroqlilik muddati.
+const IMPORT_COLUMNS = [
+  ['min_stock', /(minimal|min\.?|ogohlantir)/],
+  ['expiry_date', /(yaroqlilik|muddat|expir)/],
+  ['purchase_price', /(kelish|tannarx|kirim narx|olish narx|purchase|cost)/],
+  ['selling_price', /(sotuv|sotish|narx|price)/],
+  ['opening_qty', /(qoldiq|soni|miqdor|nechta|qty|quantity|ombor)/],
+  ['barcode', /(shtrix|barcode|bar ?kod|barkod)/],
+  ['sku', /(artikul|sku)/],
+  ['category', /(kategoriya|turkum|category)/],
+  ['unit', /(birlik|olchov|unit)/],
+  ['brand', /(brend|brand)/],
+  ['color', /(rang|color)/],
+  ['name', /(nomi|nom|tovar|mahsulot|name)/],
+];
+const norm = (s) => String(s || '').toLowerCase().replace(/[ʻ'’`‘"]/g, '').replace(/\s+/g, ' ').trim();
+const UNIT_SYNONYMS = {
+  dona: 'piece', ta: 'piece', sht: 'piece', pcs: 'piece', kg: 'kg', kilogramm: 'kg', kilo: 'kg', gramm: 'g', gr: 'g', g: 'g',
+  tonna: 't', t: 't', litr: 'l', l: 'l', ml: 'ml', millilitr: 'ml', metr: 'm', m: 'm', quti: 'box', pachka: 'pack',
+  rulon: 'roll', juft: 'pair', qop: 'bag', toplam: 'set', 'kv metr': 'm2', m2: 'm2', 'kub metr': 'm3', m3: 'm3', kub: 'm3',
+};
+const moneyIn = (v) => {
+  let s = String(v ?? '').toLowerCase().replace(/so['ʻ’`‘]?m|сўм|сум|uzs/g, '').replace(/[\s  '’ʻ‘`_]/g, '');
+  if (!s) return 0;
+  if (/^-?[1-9]\d{0,2}([.,]\d{3})+$/.test(s)) s = s.replace(/[.,]/g, '');
+  else if (s.includes('.') && s.includes(',')) {
+    const i = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+    s = `${s.slice(0, i).replace(/[.,]/g, '')}.${s.slice(i + 1)}`;
+  } else s = s.replace(',', '.');
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : NaN;
+};
+const qtyIn = (v) => {
+  const s = String(v ?? '').replace(/\s/g, '').replace(',', '.');
+  return s === '' ? 0 : (/^-?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : NaN);
+};
+// Excel sana raqami (masalan 46000) yoki 31.12.2026 / 2026-12-31 → YYYY-MM-DD
+const dateIn = (v) => {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  if (/^\d{4,5}(\.\d+)?$/.test(s)) return new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(s)) * 86400000).toISOString().slice(0, 10);
+  const m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return s;
+};
+
+function mapTable(table) {
+  // Sarlavha qatori: birinchi 8 qatordan «nomi» ustuni topilgani
+  let headerAt = -1;
+  let cols = null;
+  for (let i = 0; i < Math.min(8, table.length) && headerAt < 0; i += 1) {
+    const found = {};
+    table[i].forEach((cell, ci) => {
+      const h = norm(cell);
+      if (!h) return;
+      const hit = IMPORT_COLUMNS.find(([key, re]) => re.test(h) && found[key] === undefined);
+      if (hit) found[hit[0]] = ci;
+    });
+    if (found.name !== undefined && (found.selling_price !== undefined || Object.keys(found).length >= 2)) { headerAt = i; cols = found; }
+  }
+  if (headerAt < 0) throw new HttpError(400, "Jadvalda «Nomi» va «Sotuv narxi» ustunlari topilmadi. Namunaviy faylni yuklab, shu shaklda to'ldiring");
+  const rows = [];
+  for (let i = headerAt + 1; i < table.length; i += 1) {
+    const r = table[i];
+    const get = (k) => (cols[k] === undefined ? '' : String(r[cols[k]] ?? '').trim());
+    if (!get('name') && !get('selling_price')) continue;
+    rows.push({
+      line: i + 1, name: get('name'), barcode: get('barcode'), sku: get('sku'), category: get('category'), unit: get('unit'),
+      purchase_price: get('purchase_price'), selling_price: get('selling_price'), opening_qty: get('opening_qty'),
+      min_stock: get('min_stock'), brand: get('brand'), color: get('color'), expiry_date: get('expiry_date'),
+    });
+  }
+  return { rows, columns: Object.keys(cols) };
+}
+
+function fileUpload() {
+  return multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+}
+
+router.get('/products/import/template', requirePerm('products.manage'), async (req, res) => {
+  const columns = [
+    { key: 'name', header: 'Nomi', type: 'text', width: 30 },
+    { key: 'category', header: 'Kategoriya', type: 'text', width: 18 },
+    { key: 'unit', header: 'Birlik', type: 'text', width: 10 },
+    { key: 'purchase_price', header: 'Kelish narxi', type: 'number', width: 14 },
+    { key: 'selling_price', header: 'Sotuv narxi', type: 'number', width: 14 },
+    { key: 'opening_qty', header: 'Qoldiq', type: 'number', width: 10 },
+    { key: 'min_stock', header: 'Minimal qoldiq', type: 'number', width: 14 },
+    { key: 'barcode', header: 'Shtrix-kod', type: 'text', width: 18 },
+    { key: 'sku', header: 'Artikul', type: 'text', width: 12 },
+    { key: 'brand', header: 'Brend', type: 'text', width: 14 },
+    { key: 'color', header: 'Rangi', type: 'text', width: 10 },
+    { key: 'expiry_date', header: 'Yaroqlilik muddati', type: 'text', width: 16 },
+  ];
+  const rows = [
+    { name: 'Pepsi 1 L', category: 'Ichimliklar', unit: 'dona', purchase_price: 8000, selling_price: 10000, opening_qty: 24, min_stock: 6, barcode: '', sku: '', brand: 'Pepsi', color: '', expiry_date: '' },
+    { name: 'Guruch lazer', category: 'Oziq-ovqat', unit: 'kg', purchase_price: 16000, selling_price: 19500, opening_qty: 50, min_stock: 10, barcode: '', sku: '', brand: '', color: '', expiry_date: '' },
+  ];
+  const file = buildXlsx([{ name: 'Tovarlar', title: "Tovarlarni yuklash uchun namuna", subtitle: "Har bir qatorga bitta tovar yozing. Majburiy: Nomi va Sotuv narxi", columns, rows }]);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="tovarlar-namuna.xlsx"');
+  res.send(file);
+});
+
+// ?dry=1 — faqat tekshirish (hech narsa saqlanmaydi): har bir qator uchun «qo'shiladi» yoki xato sababi
+router.post('/products/import', requirePerm('products.manage'), (req, res, next) => {
+  fileUpload().single('file')(req, res, async (err) => {
+    try {
+      if (err) throw err.code === 'LIMIT_FILE_SIZE' ? new HttpError(413, 'Fayl hajmi 5 MB dan oshmasligi kerak') : err;
+      if (!req.file) throw new HttpError(400, 'Fayl tanlanmagan');
+      const dry = req.query.dry === '1';
+      const { rows } = mapTable(readTable(req.file.buffer, req.file.originalname));
+      if (!rows.length) throw new HttpError(400, "Jadvalda tovar topilmadi");
+      if (rows.length > 500) throw new HttpError(400, `Bir martada 500 tagacha tovar yuklash mumkin (faylda ${rows.length} ta). Faylni bo'lib yuklang`);
+      const results = [];
+      const DRY = new Error('dry-run');
+      try {
+        await withTransaction(async (client) => {
+          const { rows: units } = await client.query('SELECT id, code, name FROM units');
+          const unitId = (text) => {
+            const t = norm(text);
+            if (!t) return units.find((u) => u.code === 'piece')?.id;
+            const code = UNIT_SYNONYMS[t];
+            return (code && units.find((u) => u.code === code)?.id) || units.find((u) => norm(u.name) === t)?.id || null;
+          };
+          const cats = new Map();
+          for (const r of rows) {
+            const fail = (reason) => results.push({ line: r.line, name: r.name, ok: false, reason });
+            if (!r.name) { fail('Nomi yozilmagan'); continue; }
+            const sell = moneyIn(r.selling_price);
+            const cost = moneyIn(r.purchase_price);
+            const qty = qtyIn(r.opening_qty);
+            const min = qtyIn(r.min_stock);
+            if (r.selling_price === '' || !(sell >= 0)) { fail("Sotuv narxi yozilmagan yoki noto'g'ri"); continue; }
+            if (!(cost >= 0)) { fail("Kelish narxi noto'g'ri"); continue; }
+            if (!(qty >= 0)) { fail("Qoldiq noto'g'ri"); continue; }
+            if (!(min >= 0)) { fail("Minimal qoldiq noto'g'ri"); continue; }
+            const uid = unitId(r.unit);
+            if (!uid) { fail(`Birlik tanilmadi: «${r.unit}» (dona, kg, litr, metr, quti, rulon...)`); continue; }
+            const { rows: same } = await client.query(
+              'SELECT 1 FROM products WHERE NOT is_archived AND lower(name) = lower($1) LIMIT 1', [r.name],
+            );
+            if (same[0]) { fail('Bu nomli tovar allaqachon bor'); continue; }
+            await client.query('SAVEPOINT imp');
+            try {
+              let categoryId = null;
+              if (r.category) {
+                const key = r.category.toLowerCase();
+                if (!cats.has(key)) {
+                  const { rows: c } = await client.query(
+                    `INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id`, [r.category],
+                  );
+                  cats.set(key, c[0].id);
+                }
+                categoryId = cats.get(key);
+              }
+              const attributes = {};
+              if (r.brand) attributes.brand = r.brand;
+              if (r.color) attributes.color = r.color;
+              const id = await createProduct(client, {
+                name: r.name, barcode: r.barcode || null, sku: r.sku || null, category_id: categoryId, base_unit_id: uid,
+                purchase_price: cost, selling_price: sell, min_stock: min, opening_qty: qty, conversions: [],
+                attributes, ...(r.expiry_date ? { expiry_date: dateIn(r.expiry_date) } : {}),
+              }, req.user);
+              await client.query('RELEASE SAVEPOINT imp');
+              results.push({ line: r.line, name: r.name, ok: true, id, qty, sell, cost });
+            } catch (e) {
+              await client.query('ROLLBACK TO SAVEPOINT imp');
+              fail(e instanceof HttpError ? e.message : "Saqlab bo'lmadi");
+            }
+          }
+          if (dry) throw DRY;
+          await audit(client, req.user.id, 'product.import', 'product', null, { created: results.filter((x) => x.ok).length, file: req.file.originalname });
+        });
+      } catch (e) {
+        if (e !== DRY) throw e;
+      }
+      const okCount = results.filter((x) => x.ok).length;
+      res.json({ dry, total: rows.length, created: okCount, skipped: results.filter((x) => !x.ok), rows: results.slice(0, 500) });
+    } catch (e) {
+      next(e);
+    }
+  });
 });
 
 router.put('/products/:id', requirePerm('products.manage'), async (req, res) => {
@@ -344,10 +561,11 @@ router.put('/products/:id', requirePerm('products.manage'), async (req, res) => 
               model_name = CASE WHEN $14 THEN $12 ELSE model_name END,
               variant_label = CASE WHEN $14 THEN $13 ELSE variant_label END,
               description = CASE WHEN $16 THEN $15 ELSE description END,
-              expiry_date = CASE WHEN $18 THEN $17::date ELSE expiry_date END, updated_at = now()
+              expiry_date = CASE WHEN $18 THEN $17::date ELSE expiry_date END,
+              attributes = CASE WHEN $20 THEN $19::jsonb ELSE attributes END, updated_at = now()
         WHERE id = $1`,
       [id, v.name, v.barcode, v.categoryId, v.supplierId, v.baseUnitId, v.purchasePrice, v.sellingPrice, v.minStock, v.sku, v.skuGiven, v.modelName, v.variantLabel, v.sizeGiven,
-        v.description, v.descGiven, v.expiryDate, v.expiryGiven],
+        v.description, v.descGiven, v.expiryDate, v.expiryGiven, JSON.stringify(v.attributes), v.attrsGiven],
     );
     await saveConversions(client, id, v.conversions);
     // Kelish narxi yozilgan/o'zgargan bo'lsa: boshlang'ich va narxsiz qoldiq hamda ulardan qilingan sotuvlar qayta hisoblanadi
@@ -443,11 +661,41 @@ router.post('/products/:id/image', requirePerm('products.manage'), (req, res, ne
   });
 });
 
+// Do'kon logotipi: chek va yon menyuda ko'rinadi
+router.post('/settings/logo', requirePerm('settings.manage'), (req, res, next) => {
+  imageUpload().single('image')(req, res, async (err) => {
+    try {
+      if (err) throw err.code === 'LIMIT_FILE_SIZE' ? new HttpError(413, 'Rasm hajmi 3 MB dan oshmasligi kerak') : err;
+      if (!req.file) throw new HttpError(400, 'Rasm tanlanmagan');
+      let name = req.file.filename;
+      if (imagesInDb()) {
+        const ext = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' }[req.file.mimetype];
+        name = `${crypto.randomUUID()}${ext}`;
+        await pool.query('INSERT INTO product_images (name, content_type, data) VALUES ($1, $2, $3)', [name, req.file.mimetype, req.file.buffer]);
+      }
+      const logoPath = `/uploads/${name}`;
+      const settings = await withTransaction(async (client) => {
+        const saved = await saveSettings(client, { logo_path: logoPath });
+        await audit(client, req.user.id, 'settings.update', 'settings', null, { logo_path: logoPath });
+        return saved;
+      });
+      res.json({ logo_path: logoPath, settings });
+    } catch (e) {
+      next(e);
+    }
+  });
+});
+
 router.get('/products/:id/history', requirePerm('products.view', 'history.view'), async (req, res) => {
   const id = Number(req.params.id);
+  // Har bir harakat: oldingi qoldiq = keyingi − o'zgarish; narx — sotuvda sotuv narxi, kirimda kelish narxi (1 asosiy birlik)
   const { rows: movements } = await pool.query(
-    `SELECT m.id, m.movement_type, m.quantity, m.balance_after, m.value, m.reference_type, m.reference_id,
-            m.note, m.created_at, u.full_name AS user_name
+    `SELECT m.id, m.movement_type, m.quantity, m.balance_after, m.balance_after - m.quantity AS balance_before,
+            m.value, m.reference_type, m.reference_id, m.note, m.created_at, u.full_name AS user_name,
+            CASE WHEN m.movement_type = 'sale' THEN
+                   (SELECT ROUND(SUM(si.line_total) / NULLIF(SUM(si.base_quantity), 0), 2) FROM sale_items si
+                     WHERE si.sale_id = m.reference_id AND si.product_id = m.product_id)
+                 ELSE ROUND(ABS(m.value) / NULLIF(ABS(m.quantity), 0), 2) END AS unit_price
        FROM stock_movements m LEFT JOIN users u ON u.id = m.created_by
       WHERE m.product_id = $1 ORDER BY m.created_at DESC, m.id DESC LIMIT 300`,
     [id],
@@ -465,6 +713,8 @@ router.get('/products/:id/history', requirePerm('products.view', 'history.view')
     [id],
   );
   if (!seesCost(req.user)) {
+    // Kassirga kelish narxi ko'rsatilmaydi — faqat sotuv narxi
+    for (const m of movements) if (m.movement_type !== 'sale') m.unit_price = null;
     return res.json({
       movements: movements.map(({ value: _v, ...m }) => m),
       sales: sales.map(({ cost_total: _c, ...x }) => x),

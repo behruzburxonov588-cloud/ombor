@@ -150,6 +150,7 @@ async function renderNew(root, ctx, preselect = null) {
           </div>
           <div class="chips" id="gchips" style="margin-top:10px"></div>
         </div>
+        <div id="recent"></div>
         <div class="product-grid rcv-grid" id="grid"></div>
         <div id="grid-more"></div>
       </div>
@@ -222,8 +223,11 @@ async function renderNew(root, ctx, preselect = null) {
   // ----- hisob-kitob yordamchilari -----
   const unitsOf = (p) => [{ unit_id: p.base_unit_id, name: p.base_unit_name, factor: 1 }, ...(p.conversions || [])];
   const unitOf = (l) => unitsOf(l.p).find((u) => u.unit_id === l.unit_id) || unitsOf(l.p)[0];
-  const baseQty = (l) => round4(toNum(l.quantity) * unitOf(l).factor);
-  const lineTotal = (l) => round2(toNum(l.quantity) * toMoney(l.unit_price));
+  // Rulonli qator: l.rolls — har bir rulon uzunligi (asosiy birlikda), narx — 1 asosiy birlik (metr) uchun
+  const rollSum = (l) => round4((l.rolls || []).reduce((s2, x) => s2 + (toNum(x) || 0), 0));
+  const baseQty = (l) => (l.rolls ? rollSum(l) : round4(toNum(l.quantity) * unitOf(l).factor));
+  const lineTotal = (l) => (l.rolls ? round2(rollSum(l) * toMoney(l.unit_price)) : round2(toNum(l.quantity) * toMoney(l.unit_price)));
+  const isRollUnit = (p, unitId) => Boolean(p.is_roll) && unitsOf(p).find((u) => u.unit_id === unitId)?.name?.toLowerCase() === 'rulon';
   const inCart = (pid) => lines.find((l) => l.p.id === pid);
   const priceFor = (p, factor) => (Number(p.purchase_price) > 0 ? String(round2(Number(p.purchase_price) * factor)) : '');
 
@@ -236,6 +240,16 @@ async function renderNew(root, ctx, preselect = null) {
   function hintText(l) {
     const un = unitOf(l);
     const parts = [];
+    if (l.rolls) {
+      const price = toMoney(l.unit_price);
+      const sell = Number(l.p.selling_price);
+      parts.push(`${l.rolls.length} ta rulon, jami <b>${num(rollSum(l), 3)} ${esc(l.p.base_unit_name)}</b>`);
+      if (price > 0 && sell > 0) {
+        const m = round2(sell - price);
+        parts.push(m >= 0 ? `har 1 ${esc(l.p.base_unit_name)}dan ${money(m)} foyda` : `<span class="red">sotuv narxidan qimmat (${money(m)})</span>`);
+      }
+      return parts.join(' · ');
+    }
     if (un.factor !== 1) parts.push(`1 ${esc(un.name)} ichida ${num(un.factor, 4)} ${esc(l.p.base_unit_name)}`);
     const price = toMoney(l.unit_price);
     if (un.factor !== 1 && price > 0) parts.push(`1 ${esc(l.p.base_unit_name)} ${money(round2(price / un.factor))}ga tushdi`);
@@ -270,7 +284,8 @@ async function renderNew(root, ctx, preselect = null) {
         ${productPhoto(p, 'rt-img')}
         ${l ? `<span class="qty-badge">+${num(toNum(l.quantity), 3)} ${esc(unitOf(l).name)}</span>` : ''}
         <span class="rt-text"><span class="pname">${esc(p.name)}</span>
-        <span class="rt-stock">Omborda: <b>${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}</b>${pk ? `<br><small>${esc(pk)}</small>` : ''}</span></span>
+        <span class="rt-stock">Omborda: <b>${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}</b>${p.is_roll && p.roll_count ? `<br><small>${p.roll_count} ta rulon</small>` : pk ? `<br><small>${esc(pk)}</small>` : ''}</span>
+        <span class="rt-price">${Number(p.purchase_price) > 0 ? `kelish ${money(p.purchase_price)} · ` : ''}sotuv ${money(p.selling_price)}</span></span>
       </button>`;
   }
   // O'lchamli tovar: bitta plitka, bosilganda har bir o'lchamdan nechta kelganini yozasiz
@@ -376,7 +391,8 @@ async function renderNew(root, ctx, preselect = null) {
           ${productPhoto(l.p, 'rl-img')}
           <span class="rl-name">
             <b>${esc(l.p.name)}</b>
-            <span>${num(toNum(l.quantity), 3)} ${esc(un.name)}${baseNote} × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : money(toMoney(l.unit_price))}</span>
+            <span>${l.rolls ? `${l.rolls.length} rulon (${l.rolls.map((x) => num(toNum(x), 3)).join(' + ')} = ${num(rollSum(l), 3)} ${esc(l.p.base_unit_name)}) × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : `${money(toMoney(l.unit_price))}/${esc(l.p.base_unit_name)}`}`
+    : `${num(toNum(l.quantity), 3)} ${esc(un.name)}${baseNote} × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : money(toMoney(l.unit_price))}`}</span>
             <span class="rl-after-s">${afterText(l)}</span>
             <span class="rl-bottom"><b class="num">${money(lineTotal(l))}</b><small>${icon('edit', 'ico-xs')} o'zgartirish</small></span>
           </span>
@@ -430,11 +446,11 @@ async function renderNew(root, ctx, preselect = null) {
   }
 
   // Ro'yxatga qo'shish yoki o'zgartirish (oynadan «Qo'shish» bosilgandagina chaqiriladi)
-  function putLine(p, { quantity, unitId, price }) {
+  function putLine(p, { quantity, unitId, price, rolls = null }) {
     let l = inCart(p.id);
-    if (l) Object.assign(l, { unit_id: unitId, quantity, unit_price: price });
+    if (l) Object.assign(l, { unit_id: unitId, quantity, unit_price: price, rolls });
     else {
-      l = { p, unit_id: unitId, quantity, unit_price: price };
+      l = { p, unit_id: unitId, quantity, unit_price: price, rolls };
       lines.push(l);
     }
     drawLines();
@@ -459,16 +475,21 @@ async function renderNew(root, ctx, preselect = null) {
   }
 
   // Tovar oynasi: nechta keldi, qaysi qadoqda, necha pulga — keyin «Qo'shish»
-  function openPicker(p) {
+  // preset — «Yaqinda kelganlar»dan: oxirgi kirimdagi birlik, miqdor va narx
+  function openPicker(p, preset = null) {
     const existing = inCart(p.id);
     const units = unitsOf(p);
     const pack = p.pack && Number(p.pack.factor) > 1 ? p.pack : null;
     const d = existing
-      ? { p, unit_id: existing.unit_id, quantity: existing.quantity, unit_price: existing.unit_price }
-      : (() => {
-        const use = pack ? { unit_id: pack.unit_id, factor: Number(pack.factor) } : { unit_id: p.base_unit_id, factor: 1 };
-        return { p, unit_id: use.unit_id, quantity: '1', unit_price: priceFor(p, use.factor) };
-      })();
+      ? { p, unit_id: existing.unit_id, quantity: existing.quantity, unit_price: existing.unit_price, rolls: existing.rolls ? [...existing.rolls] : null }
+      : preset
+        ? { p, unit_id: preset.unit_id, quantity: String(preset.quantity), unit_price: preset.unit_price ? String(preset.unit_price) : priceFor(p, 1), rolls: null }
+        : (() => {
+          const use = pack ? { unit_id: pack.unit_id, factor: Number(pack.factor) } : { unit_id: p.base_unit_id, factor: 1 };
+          // Rulonli tovar: narx 1 metr uchun yoziladi (rulonlar uzunligi har xil bo'lishi mumkin)
+          const roll = isRollUnit(p, use.unit_id);
+          return { p, unit_id: use.unit_id, quantity: '1', unit_price: priceFor(p, roll ? 1 : use.factor), rolls: roll ? [String(use.factor)] : null };
+        })();
     const pk = packText(p.stock_qty, p.base_unit_name, p.pack);
 
     const { close, el } = openModal({
@@ -490,6 +511,7 @@ async function renderNew(root, ctx, preselect = null) {
                 : `<span class="rl-unit">${esc(units[0].name)}</span>`}
             </div>
           </div>
+          <div id="pk-rolls"></div>
           <label class="field"><span id="pk-pl"></span>
             <div class="money-input"><input class="input input-lg" id="pk-p" data-money inputmode="decimal" placeholder="0" value="${esc(d.unit_price)}" autocomplete="off"><em>so'm</em></div></label>
           <div class="pick-result">
@@ -506,10 +528,23 @@ async function renderNew(root, ctx, preselect = null) {
     });
     const qIn = el.querySelector('#pk-q');
     const pIn = el.querySelector('#pk-p');
-    const refresh = () => {
+    const rollMode = () => isRollUnit(p, d.unit_id);
+    // Rulonlar: nechta rulon bo'lsa, shuncha uzunlik maydoni (odatiy uzunlik — qadoqdagi son)
+    const drawRolls = () => {
+      const box = el.querySelector('#pk-rolls');
+      if (!rollMode()) { d.rolls = null; box.innerHTML = ''; return; }
+      const n = Math.min(100, Math.max(0, Math.floor(toNum(qIn.value) || 0)));
+      const def = String(unitOf(d).factor);
+      d.rolls = Array.from({ length: n }, (_, i) => (d.rolls && d.rolls[i] !== undefined ? d.rolls[i] : def));
+      box.innerHTML = n ? `<div class="field"><span>Har bir rulon uzunligi (${esc(p.base_unit_name)}) <small>— har xil bo'lsa o'zgartiring</small></span>
+        <div class="roll-lens">${d.rolls.map((v, i) => `<label class="roll-len"><i>${i + 1}</i><input class="input" data-roll="${i}" inputmode="decimal" value="${esc(v)}" aria-label="${i + 1}-rulon uzunligi"></label>`).join('')}</div></div>` : '';
+      box.querySelectorAll('[data-roll]').forEach((inp) => inp.addEventListener('input', () => { d.rolls[Number(inp.dataset.roll)] = inp.value; refresh(false); }));
+    };
+    const refresh = (rolls = true) => {
       d.quantity = qIn.value;
       d.unit_price = pIn.value;
-      el.querySelector('#pk-pl').textContent = `1 ${unitOf(d).name} necha pulga oldingiz?`;
+      if (rolls) drawRolls();
+      el.querySelector('#pk-pl').textContent = rollMode() ? `1 ${p.base_unit_name} necha pulga oldingiz?` : `1 ${unitOf(d).name} necha pulga oldingiz?`;
       el.querySelector('#pk-after').innerHTML = afterText(d);
       el.querySelector('#pk-sum').textContent = money(lineTotal(d));
       el.querySelector('#pk-hint').innerHTML = hintText(d);
@@ -525,10 +560,13 @@ async function renderNew(root, ctx, preselect = null) {
       }
       const ub = e.target.closest('[data-u]');
       if (ub) {
-        const oldF = unitOf(d).factor;
+        // Rulon rejimida narx 1 metr uchun — birlik almashganda shunga qarab qayta hisoblanadi
+        const oldF = rollMode() ? 1 : unitOf(d).factor;
         d.unit_id = Number(ub.dataset.u);
+        const newF = rollMode() ? 1 : unitOf(d).factor;
         const price = toMoney(pIn.value);
-        if (price > 0) pIn.value = String(round2((price / oldF) * unitOf(d).factor));
+        if (price > 0) pIn.value = String(round2((price / oldF) * newF));
+        d.rolls = null;
         el.querySelectorAll('[data-u]').forEach((b) => b.classList.toggle('active', b === ub));
         refresh();
         return;
@@ -549,7 +587,12 @@ async function renderNew(root, ctx, preselect = null) {
       };
       if (!(toNum(qIn.value) > 0)) return err('Nechta kelganini yozing', qIn);
       if (toMoney(pIn.value) < 0) return err("Narx manfiy bo'lishi mumkin emas", pIn);
-      putLine(p, { quantity: String(round4(toNum(qIn.value))), unitId: d.unit_id, price: pIn.value.trim() });
+      if (rollMode()) {
+        if (!Number.isInteger(toNum(qIn.value))) return err("Rulonlar sonini butun son bilan yozing (masalan: 5)", qIn);
+        const bad = d.rolls.findIndex((x) => !(toNum(x) > 0));
+        if (bad >= 0) return err(`${bad + 1}-rulon uzunligini yozing`, el.querySelector(`[data-roll="${bad}"]`));
+      }
+      putLine(p, { quantity: String(round4(toNum(qIn.value))), unitId: d.unit_id, price: pIn.value.trim(), rolls: rollMode() ? d.rolls.map((x) => String(toNum(x))) : null });
       close();
     });
     // Kompyuterda: darhol son yozish mumkin. Telefonda klaviatura o'zi ochilib, oynani yopib qo'ymasligi uchun fokus berilmaydi
@@ -719,12 +762,9 @@ async function renderNew(root, ctx, preselect = null) {
       supplier_id: $('#sup').value ? Number($('#sup').value) : null,
       purchase_date: $('#pdate').value,
       note: $('#note').value.trim() || null,
-      items: lines.map((l) => ({
-        product_id: l.p.id,
-        unit_id: l.unit_id,
-        quantity: toNum(l.quantity),
-        unit_price: toMoney(l.unit_price),
-      })),
+      items: lines.flatMap((l) => (l.rolls
+        ? l.rolls.map((len) => ({ product_id: l.p.id, unit_id: l.p.base_unit_id, quantity: toNum(len), unit_price: toMoney(l.unit_price) }))
+        : [{ product_id: l.p.id, unit_id: l.unit_id, quantity: toNum(l.quantity), unit_price: toMoney(l.unit_price) }])),
       delivery_cost: toMoney($('#dlv').value),
       discount: toMoney($('#dsc').value),
       paid_amount: paid,
@@ -748,6 +788,45 @@ async function renderNew(root, ctx, preselect = null) {
   drawChips();
   drawGrid();
   drawLines();
+  // Yaqinda kelgan tovarlar: bosilsa — o'sha birlik, miqdor va narx bilan oyna ochiladi; «Oxirgi kirimni takrorlash» — hammasi birdan
+  let recent = [];
+  const drawRecent = () => {
+    const box = $('#recent');
+    if (!recent.length || q) { box.innerHTML = ''; return; }
+    const lastNo = recent[0].purchase_no;
+    const lastItems = recent.filter((r) => r.purchase_no === lastNo);
+    box.innerHTML = `
+      <section class="recent-box">
+        <div class="recent-head"><b>${icon('history', 'ico-sm')} Yaqinda kelganlar</b>
+          ${lastItems.length > 1 ? `<button type="button" class="btn btn-soft btn-sm" id="repeat-last">${icon('refresh', 'ico-sm')} Oxirgi kirimni takrorlash (${lastItems.length} xil)</button>` : ''}</div>
+        <div class="recent-list">${recent.slice(0, 12).map((r) => `
+          <button type="button" class="recent-item${inCart(r.product_id) ? ' on' : ''}" data-recent="${r.product_id}">
+            ${productPhoto({ name: r.name, image_path: r.image_path }, 'ri-img')}
+            <span class="ri-text"><b>${esc(r.name)}</b>
+              <small>oxirgi: ${num(r.quantity, 3)} ${esc(r.unit_name)} × ${money(r.unit_price)}</small>
+              <small>omborda ${num(r.stock_qty, 3)} ${esc(r.base_unit_name)}</small></span>
+            ${icon('plus', 'ico-sm')}
+          </button>`).join('')}</div>
+      </section>`;
+    box.querySelectorAll('[data-recent]').forEach((b) => b.addEventListener('click', () => {
+      const r = recent.find((x) => x.product_id === Number(b.dataset.recent));
+      const pr = catalog.find((x) => x.id === r.product_id);
+      if (pr) openPicker(pr, r);
+    }));
+    box.querySelector('#repeat-last')?.addEventListener('click', () => {
+      let added = 0;
+      for (const r of lastItems) {
+        const pr = catalog.find((x) => x.id === r.product_id);
+        if (!pr || inCart(pr.id)) continue;
+        putLine(pr, { quantity: String(r.quantity), unitId: r.unit_id, price: String(r.unit_price) });
+        added += 1;
+      }
+      toast(added ? `${added} xil tovar qo'shildi — sonini yoki narxini o'zgartirish uchun ustiga bosing` : "Bu tovarlar allaqachon ro'yxatda", added ? 'ok' : '');
+      drawRecent();
+    });
+  };
+  get('/purchases/recent-items').then((r) => { recent = r.items; drawRecent(); }).catch(() => {});
+  $('#pq').addEventListener('input', () => setTimeout(drawRecent, 0));
   // Mahsulot sahifasidagi «Yuk keldi» tugmasidan kelinganda: o'sha tovar oynasi darhol ochiladi
   if (preselect) {
     history.replaceState(null, '', '#/purchases/new');

@@ -67,6 +67,7 @@ export async function createSale(client, user, body) {
     if (discount > gross) throw new HttpError(400, `"${p.name}" uchun chegirma summadan katta`);
     lines.push({
       product: p,
+      batchId: item.batch_id ? num(item.batch_id, 'Rulon', { positive: true }) : null,
       unitId: unit.unitId,
       factor: unit.factor,
       qty,
@@ -138,7 +139,7 @@ export async function createSale(client, user, body) {
   for (const l of lines) {
     const { cost, parts } = await issueStock(client, l.product, l.baseQty, {
       type: 'sale', refType: 'sale', refId: saleId, userId: user.id,
-      costingMethod: settings.costing_method, note: receiptNo,
+      costingMethod: settings.costing_method, note: receiptNo, preferBatchId: l.batchId,
     });
     const { rows: si } = await client.query(
       `INSERT INTO sale_items

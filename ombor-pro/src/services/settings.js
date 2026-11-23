@@ -11,6 +11,13 @@ export const SETTING_DEFAULTS = {
   notify_low_stock: true,
   notify_debts: true,
   debt_warning_days: 3,
+  // Do'kon profili (birinchi sozlash): turi, xodimlar soni, joylashuvi, logotip
+  store_types: [],
+  employee_count: '',
+  region: '',
+  district: '',
+  logo_path: '',
+  setup_done: false,
 };
 
 export async function getSettings(db) {

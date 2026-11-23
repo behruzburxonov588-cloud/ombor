@@ -63,6 +63,20 @@ export function client(base) {
     post: (p, b = {}) => call('POST', p, b),
     put: (p, b = {}) => call('PUT', p, b),
     login: (username, password) => call('POST', '/api/auth/login', { username, password }),
+    // Fayl yuborish (multipart): field — maydon nomi, file — { name, data: Buffer|string, type }
+    async upload(path, field, file) {
+      const form = new FormData();
+      form.append(field, new Blob([file.data], { type: file.type || 'application/octet-stream' }), file.name);
+      const res = await fetch(base + path, { method: 'POST', headers: cookie ? { Cookie: cookie } : {}, body: form });
+      const text = await res.text();
+      let data = text;
+      try { data = JSON.parse(text); } catch { /* matn */ }
+      return { status: res.status, body: data };
+    },
+    async raw(path) {
+      const res = await fetch(base + path, { headers: cookie ? { Cookie: cookie } : {} });
+      return { status: res.status, type: res.headers.get('content-type'), buf: Buffer.from(await res.arrayBuffer()) };
+    },
   };
 }
 

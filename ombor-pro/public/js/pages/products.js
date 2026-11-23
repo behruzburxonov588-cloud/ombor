@@ -2,7 +2,7 @@
 import {
   get, post, put, icon, esc, num, money, qty, dateTime, toast, errorToast, openModal, withBusy,
   productThumb, emptyState, confirmBox, readForm, api, uploadProductImage, packText, productPhoto,
-  groupBySize, priceRange, skeletonGrid, download, parseMoney, formatMoneyInput,
+  groupBySize, priceRange, skeletonGrid, download, storeTypes, uploadFile, parseMoney, formatMoneyInput,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { renderProductWizard, openProductWizard } from '../productform.js';
@@ -31,6 +31,12 @@ export async function render(root, params, ctx) {
   if (params.id) return renderDetail(root, Number(params.id), ctx);
   return renderList(root, params, ctx);
 }
+
+// Tovar xususiyatlari nomlari (do'kon turiga qarab qo'shiladi)
+const ATTR_LABEL = {
+  brand: 'Brend', model: 'Model', color: 'Rangi', material: 'Materiali', dims: "O'lchami", width: 'Eni', volume: 'Hajmi',
+  batch: 'Partiya raqami', serial: 'Seriya raqami / IMEI', warranty: 'Kafolat', oem: 'OEM raqami', maker: 'Ishlab chiqaruvchi', cars: 'Mos mashinalar',
+};
 
 // ---------- Ro'yxat: kartochkalar yoki jadval, qidiruv, filtr, saralash, tez amallar ----------
 
@@ -115,7 +121,7 @@ function productCard(p, perm) {
         <div class="pcx-stock">
           <div class="pcx-stock-row"><span>Qoldiq</span><b class="pcx-qty">${num(p.stock_qty, 3)} <small>${esc(p.base_unit_name)}</small></b></div>
           ${stockBar(p)}
-          ${pk ? `<div class="pcx-pack">= ${esc(pk)}</div>` : ''}
+          ${p.is_roll && p.roll_count ? `<div class="pcx-pack">${p.roll_count} ta rulon</div>` : pk ? `<div class="pcx-pack">= ${esc(pk)}</div>` : ''}
         </div>
       </div>
       ${perm.sell || perm.manage ? `<div class="pcx-actions">${actionsHtml(p, perm)}</div>` : ''}
@@ -209,6 +215,7 @@ async function renderList(root, params, ctx) {
       <div class="row">
         ${canExport ? `<button class="btn btn-light hide-sm" type="button" data-export="xlsx" title="Ombor holati — Excel">${icon('xlsx', 'ico-sm')}<span class="mobile-hide">Excel</span></button>
         <button class="btn btn-light hide-sm" type="button" data-export="pdf" title="Ombor holati — PDF">${icon('pdf', 'ico-sm')}<span class="mobile-hide">PDF</span></button>` : ''}
+        ${canManage ? `<button class="btn btn-light hide-sm" type="button" id="btn-import" title="Ko'p tovarni Excel fayldan birdan qo'shish">${icon('upload', 'ico-sm')}<span>Excel'dan yuklash</span></button>` : ''}
         ${canBuy ? `<a class="btn btn-outline" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}
         ${canManage ? `<a class="btn" href="#/products/new" id="btn-new">${icon('plus', 'ico-sm')} Yangi tovar</a>` : ''}
       </div>
@@ -338,6 +345,14 @@ async function renderList(root, params, ctx) {
     root.querySelectorAll('[data-view]').forEach((x) => x.classList.toggle('active', x === b));
     draw();
   }));
+  root.querySelector('#btn-import')?.addEventListener('click', () => openImport(() => reloadActive().catch(errorToast)));
+  // Sozlashdan «Excel'dan yuklash» bosilgan bo'lsa — oyna darhol ochiladi
+  try {
+    if (canManage && sessionStorage.getItem('ombor.import') === '1') {
+      sessionStorage.removeItem('ombor.import');
+      setTimeout(() => openImport(() => reloadActive().catch(errorToast)), 300);
+    }
+  } catch { /* xotira yopiq */ }
   // «Yangi tovar» — ro'yxatdan chiqmasdan, o'ng tomondan chiqadigan panelda
   root.querySelector('#btn-new')?.addEventListener('click', (e) => {
     if (e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -381,6 +396,69 @@ async function renderList(root, params, ctx) {
   });
 
   await reloadActive();
+}
+
+// ---------- Excel / CSV dan ko'p tovarni birdan yuklash ----------
+// 1) namunani yuklab oling  2) faylni tanlang — avval tekshiriladi (hech narsa saqlanmaydi)  3) «N ta tovarni qo'shish»
+function openImport(done) {
+  let file = null;
+  const { el, close } = openModal({
+    title: "Excel'dan tovar yuklash",
+    wide: true,
+    body: `<div class="imp">
+      <ol class="imp-steps">
+        <li><b>1</b><div><span>Namunaviy faylni yuklab oling va to'ldiring</span><small>Ustunlar: Nomi, Kategoriya, Birlik, Kelish narxi, Sotuv narxi, Qoldiq… Majburiy: <b>Nomi</b> va <b>Sotuv narxi</b></small>
+          <button type="button" class="btn btn-light btn-sm" id="imp-tpl">${icon('download', 'ico-sm')} Namuna (.xlsx)</button></div></li>
+        <li><b>2</b><div><span>Faylni tanlang</span><small>Excel (.xlsx) yoki CSV. Bir martada 500 tagacha tovar</small>
+          <label class="btn btn-sm file-btn">${icon('upload', 'ico-sm')} Fayl tanlash<input type="file" id="imp-file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+          <span class="file-name" id="imp-name"></span></div></li>
+        <li><b>3</b><div><span>Tekshiring va qo'shing</span><small>Avval tekshiriladi: qaysi qator qo'shilishi, qaysi birida xato borligi ko'rinadi</small></div></li>
+      </ol>
+      <div id="imp-res"></div>
+    </div>`,
+    foot: `<button class="btn btn-outline" type="button" data-close>Bekor qilish</button><button class="btn" type="button" id="imp-go" disabled>${icon('check', 'ico-sm')} Qo'shish</button>`,
+  });
+  el.querySelector('[data-close]').addEventListener('click', close);
+  el.querySelector('#imp-tpl').addEventListener('click', (e) => withBusy(e.currentTarget, () => download('/products/import/template', 'tovarlar-namuna')).catch(errorToast));
+  const res = el.querySelector('#imp-res');
+  const go = el.querySelector('#imp-go');
+  const show = (r, dry) => {
+    const ok = (r.rows || []).filter((x) => x.ok);
+    res.innerHTML = `
+      <div class="imp-sum">
+        <div class="imp-ok">${icon('check', 'ico-sm')} <b>${r.created}</b> ta tovar ${dry ? "qo'shiladi" : "qo'shildi"}</div>
+        ${r.skipped.length ? `<div class="imp-bad">${icon('alert', 'ico-sm')} <b>${r.skipped.length}</b> ta qatorda xato — ular qo'shilmaydi</div>` : ''}
+      </div>
+      ${r.skipped.length ? `<div class="imp-list bad">${r.skipped.slice(0, 50).map((x) => `<div><span>${x.line}-qator</span><b>${esc(x.name || '—')}</b><em>${esc(x.reason)}</em></div>`).join('')}</div>` : ''}
+      ${ok.length ? `<div class="imp-list">${ok.slice(0, 8).map((x) => `<div><span>${x.line}-qator</span><b>${esc(x.name)}</b><em>${num(x.qty, 3)} ta · ${money(x.sell)}</em></div>`).join('')}${ok.length > 8 ? `<div class="muted small">… va yana ${ok.length - 8} ta</div>` : ''}</div>` : ''}`;
+  };
+  el.querySelector('#imp-file').addEventListener('change', async (e) => {
+    file = e.target.files[0] || null;
+    el.querySelector('#imp-name').textContent = file ? file.name : '';
+    go.disabled = true;
+    if (!file) return;
+    res.innerHTML = '<div class="empty small">Tekshirilmoqda…</div>';
+    try {
+      const r = await uploadFile('/products/import?dry=1', 'file', file);
+      show(r, true);
+      go.disabled = !r.created;
+      go.innerHTML = `${icon('check', 'ico-sm')} ${r.created} ta tovarni qo'shish`;
+    } catch (err) {
+      res.innerHTML = `<div class="alert alert-bad">${icon('alert', 'ico-sm')}<div>${esc(err.message)}</div></div>`;
+    }
+  });
+  go.addEventListener('click', () => withBusy(go, async () => {
+    try {
+      const r = await uploadFile('/products/import', 'file', file);
+      show(r, false);
+      toast(`${r.created} ta tovar qo'shildi`, 'ok');
+      go.disabled = true;
+      go.textContent = 'Tayyor';
+      done?.();
+    } catch (err) {
+      res.innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`;
+    }
+  }));
 }
 
 // Bo'sh ro'yxat: birinchi mahsulotga taklif yoki qidiruv bo'yicha yangi mahsulot qo'shish
@@ -436,7 +514,7 @@ function moveRow(m, p) {
       <span class="hist-ico">${icon(t.ico, 'ico-sm')}</span>
       <div class="hist-meta"><div class="hist-title">${esc(t.label)}</div><div class="hist-sub">${sub}</div></div>
       <div class="hist-qty"><b>${q >= 0 ? '+' : '−'}${num(Math.abs(q), 3)} ${esc(p.base_unit_name)}</b>
-        <span>${pk ? `${esc(pk)} · ` : ''}qoldi ${num(m.balance_after, 3)}</span></div>
+        <span>${num(m.balance_before ?? (Number(m.balance_after) - q), 3)} → <b class="hq-after">${num(m.balance_after, 3)}</b>${m.unit_price !== null && m.unit_price !== undefined ? ` · ${money(m.unit_price)}` : ''}${pk ? ` · ${esc(pk)}` : ''}</span></div>
     </${tag}>`;
 }
 
@@ -539,7 +617,7 @@ async function renderDetail(root, id, ctx) {
         <div class="pd-stock">
           <div class="pd-stock-label">Omborda qoldi</div>
           <div class="pd-stock-num">${num(p.stock_qty, 3)} <span>${unit}</span></div>
-          ${pk ? `<div class="pd-stock-pack">= ${esc(pk)}</div>` : ''}
+          ${p.is_roll && p.roll_count ? `<div class="pd-stock-pack">${p.roll_count} ta rulon</div>` : pk ? `<div class="pd-stock-pack">= ${esc(pk)}</div>` : ''}
           <div class="pd-stock-st"><span class="dot"></span>${esc(statusText)}</div>
         </div>
         ${p.expiry_date ? `<div class="pd-exp ${p.expiry_status || ''}">${icon('clock', 'ico-sm')}<span>Yaroqlilik muddati: <b>${esc(p.expiry_date.split('-').reverse().join('.'))}</b>${p.expiry_status === 'expired' ? " — muddati o'tgan, sotmang" : p.expiry_status === 'soon' ? ' — 30 kundan kam qoldi' : ''}</span></div>` : ''}
@@ -548,6 +626,7 @@ async function renderDetail(root, id, ctx) {
           ${canBuy ? `<a class="btn btn-lg" href="#/purchases/new?product=${id}">${icon('truck')} Yuk keldi</a>` : ''}
           ${canManage && !p.is_archived ? `<a class="btn btn-lg btn-outline" href="#/products/${id}/edit">${icon('edit')} O'zgartirish</a>` : ''}
           ${ctx.can('sales.create') && !p.is_archived && Number(p.stock_qty) > 0 ? `<a class="btn btn-lg btn-soft" href="#/sales?add=${id}">${icon('cart')} Sotuvga</a>` : ''}
+          ${canManage ? `<button class="btn btn-lg btn-light" type="button" id="dup" title="Shu tovarga o'xshash yangi tovar">${icon('copy')} Nusxa olish</button>` : ''}
         </div>
       </div>
     </section>
@@ -557,6 +636,18 @@ async function renderDetail(root, id, ctx) {
         <div class="small">${[missQty > 0 ? `omborda ${num(missQty, 3)} ${unit} narxsiz` : '', missSales > 0 ? `${missSales} ta sotuv tannarxsiz (butun tushum foyda bo'lib chiqqan)` : ''].filter(Boolean).join(' · ') || "Sotsangiz, butun tushum foyda bo'lib ko'rinadi"}. Kelish narxini yozing — foyda o'zi qayta hisoblanadi.</div></div>
         ${canManage ? `<button class="btn btn-sm" type="button" id="fix-cost">${icon('calc', 'ico-sm')} Kelish narxini yozish</button>` : ''}</div>` : ''}
     ${p.model_name ? '<section class="card" id="sizes"><div class="empty small">O\'lchamlar yuklanmoqda...</div></section>' : ''}
+    ${p.is_roll && batches.length ? `<section class="card">
+      <div class="card-head"><div><h2>Rulonlar</h2><div class="card-sub">Har bir rulonda qancha qolgani. Sotuvda butun rulonni yoki undan kerakli metrni tanlaysiz</div></div><span class="badge badge-info">${batches.length} ta · ${num(p.stock_qty, 3)} ${unit}</span></div>
+      <div class="roll-cards">${batches.map((b, i) => {
+        const left = Number(b.qty_remaining);
+        const full = Number(b.qty_initial);
+        return `<div class="roll-card${left < full ? ' cut' : ''}"><b>${i + 1}-rulon</b><span>${num(left, 3)} ${unit}</span>
+          <div class="roll-bar"><i style="width:${Math.max(4, Math.min(100, (left / (full || left || 1)) * 100))}%"></i></div>
+          <small>${left < full ? `${num(full, 3)} dan kesilgan` : 'butun'}</small></div>`;
+      }).join('')}</div>
+    </section>` : ''}
+    ${Object.keys(p.attributes || {}).length ? `<section class="card pd-attrs"><div class="card-head"><h2>Xususiyatlari</h2></div>
+      <dl>${Object.entries(p.attributes).map(([k, v]) => `<div><dt>${esc(ATTR_LABEL[k] || k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>` : ''}
 
     <div class="pd-facts">
       <div class="pd-fact"><span>Sotuv narxi</span><b>${money(p.selling_price)}</b><small>1 ${unit} uchun${p.pack ? ` · 1 ${esc(p.pack.name)} = ${money(Number(p.selling_price) * p.pack.factor)}` : ''}</small></div>
@@ -659,6 +750,11 @@ async function renderDetail(root, id, ctx) {
       } catch (err) { el.querySelector('#fc-err').innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`; }
     });
   };
+  root.querySelector('#dup')?.addEventListener('click', () => {
+    openProductWizard({ drawer: true, prefill: { ...p }, onAdded: () => {} }).then((created) => {
+      if (created.length === 1) ctx.go(`#/products/${created[0].id}`);
+    });
+  });
   root.querySelector('#fix-cost')?.addEventListener('click', fixCost);
   root.querySelector('#fix-cost2')?.addEventListener('click', fixCost);
   root.querySelector('#btn-arch')?.addEventListener('click', async (e) => {
@@ -694,11 +790,13 @@ function sourceLabel(s) {
 // ---------- Qo'shish / tahrirlash formasi ----------
 
 async function renderForm(root, id, ctx, prefill = {}) {
-  const [units, cats, sups] = await Promise.all([
+  const [units, cats, sups, cfg, cfgSettings] = await Promise.all([
     get('/units').then((r) => r.units),
     get('/categories').then((r) => r.categories),
     // Yetkazib beruvchilar ro'yxatiga ruxsat bo'lmasa ham mahsulot formasi ishlaydi
     get('/suppliers').then((r) => r.suppliers).catch(() => []),
+    storeTypes().catch(() => ({ types: [], fields: {} })),
+    get('/settings').then((r) => r.settings).catch(() => ({})),
   ]);
   let p = null;
   if (id) p = (await get(`/products/${id}`)).product;
@@ -771,6 +869,13 @@ async function renderForm(root, id, ctx, prefill = {}) {
 
       <label class="field" style="grid-column:1/-1"><span>Izoh <small>(ixtiyoriy)</small></span>
         <textarea class="input" name="description" maxlength="1000" rows="3" placeholder="Masalan: tarkibi, rangi, qaysi javonda turadi">${esc(p?.description || '')}</textarea></label>
+      ${(() => {
+    // Do'kon turiga mos xususiyatlar (brend, IMEI, OEM...) va tovarda allaqachon bor bo'lganlari
+    const picked = (cfgSettings.store_types || []).map((k) => cfg.types.find((t) => t.key === k)).filter(Boolean);
+    const keys = [...new Set([...(picked.length ? picked : [{ fields: ['brand', 'color'] }]).flatMap((t) => t.fields), ...Object.keys(p?.attributes || {})])].filter((k) => cfg.fields?.[k]);
+    return keys.map((k) => `<label class="field"><span>${esc(cfg.fields[k].label)} <small>(ixtiyoriy)</small></span>
+        <input class="input" data-attr="${k}" maxlength="200" value="${esc(p?.attributes?.[k] || '')}" placeholder="${esc(cfg.fields[k].placeholder || '')}"></label>`).join('');
+  })()}
 
       <div class="field" style="grid-column:1/-1">
         <span>Optomda qanday keladi? (qadoqlar)</span>
@@ -962,6 +1067,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
       selling_price: d.selling_price,
       min_stock: d.min_stock ?? 0,
       description: String(d.description || '').trim(),
+      attributes: Object.fromEntries([...form.querySelectorAll('[data-attr]')].map((x) => [x.dataset.attr, x.value.trim()]).filter(([, v]) => v)),
       expiry_date: d.expiry_date || '',
       conversions: convs.filter((c) => c.unit_id && c.factor > 0).map((c) => ({ unit_id: c.unit_id, factor: c.factor })),
     };

@@ -76,13 +76,18 @@ export async function issueStock(client, product, baseQty, opts) {
     });
   }
 
+  // preferBatchId — butun rulon sotilganda: aynan shu rulon (partiya) birinchi olinadi, qolgani FIFO bo'yicha
+  const prefer = opts.preferBatchId ? Number(opts.preferBatchId) : null;
   const { rows: batches } = await client.query(
     `SELECT id, qty_remaining, unit_cost FROM stock_batches
       WHERE product_id = $1 AND qty_remaining > 0
-      ORDER BY received_at, id
+      ORDER BY (id = $2) DESC, received_at, id
       FOR UPDATE`,
-    [product.id],
+    [product.id, prefer || 0],
   );
+  if (prefer && batches[0]?.id !== prefer) {
+    throw new HttpError(409, `"${product.name}": tanlangan rulon topilmadi yoki tugagan. Ro'yxatni yangilang`);
+  }
 
   let left = qty;
   const parts = [];

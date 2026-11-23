@@ -134,20 +134,22 @@ async function tabMovements(body, q, ctx) {
     </div>
     <div class="card">
       ${movements.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Vaqt</th><th>Mahsulot</th><th>Turi</th><th class="right">Miqdor</th><th class="right">Qoldiq</th><th class="right">Qiymat</th><th>Izoh</th></tr></thead>
-        <tbody>${movements.map((m) => `<tr>
+        <thead><tr><th>Vaqt</th><th>Mahsulot</th><th>Turi</th><th class="right">Oldin</th><th class="right">O'zgarish</th><th class="right">Keyin</th><th class="right">Narx</th><th>Kim</th></tr></thead>
+        <tbody>${movements.map((m) => `<tr class="clickable" data-href="#/products/${m.product_id}">
           <td data-label="Vaqt">${dateTime(m.created_at)}</td>
-          <td data-label="Mahsulot">${esc(m.product_name)}</td>
+          <td data-label="Mahsulot"><div><b>${esc(m.product_name)}</b>${m.note ? `<div class="small muted">${esc(m.note)}</div>` : ''}</div></td>
           <td data-label="Turi">${esc(MOVEMENT_LABELS[m.movement_type] || m.movement_type)}</td>
-          <td data-label="Miqdor" class="right num">${diffHtml(m.quantity)}</td>
-          <td data-label="Qoldiq" class="right num">${qty(m.balance_after)}</td>
-          <td data-label="Qiymat" class="right num">${money(m.value)}</td>
-          <td data-label="Izoh" class="small">${esc(m.note || '')}<div class="muted">${esc(m.user_name || '')}</div></td>
+          <td data-label="Oldin" class="right num muted">${qty(m.balance_before)}</td>
+          <td data-label="O'zgarish" class="right num"><span>${diffHtml(m.quantity)} <span class="small muted">${esc(m.unit || '')}</span></span></td>
+          <td data-label="Keyin" class="right num"><b>${qty(m.balance_after)}</b></td>
+          <td data-label="Narx" class="right num">${m.unit_price !== null && m.unit_price !== undefined ? `<div>${money(m.unit_price)}<div class="small muted">${m.movement_type === 'sale' ? 'sotuv narxi' : 'kelish narxi'}</div></div>` : '—'}</td>
+          <td data-label="Kim" class="small">${esc(m.user_name || '—')}</td>
         </tr>`).join('')}</tbody></table></div>`
         : emptyState("Harakatlar yo'q", 'clock')}
     </div>`;
 
   bindPeriod(body, (next) => ctx.go(`#/stock?tab=movements&${periodQuery(next)}&type=${type}`));
+  body.querySelectorAll('tr[data-href]').forEach((tr) => tr.addEventListener('click', () => ctx.go(tr.dataset.href)));
   body.querySelectorAll('[data-type]').forEach((b) => b.addEventListener('click', () => ctx.go(`#/stock?tab=movements&${periodQuery(range)}&type=${b.dataset.type}`)));
 }
 

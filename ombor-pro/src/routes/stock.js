@@ -81,10 +81,15 @@ router.get('/stock/movements', requirePerm('stock.view', 'history.view'), async 
   }
   const { limit, offset } = paging(req.query, { limit: 200, max: 1000 });
   const { rows } = await pool.query(
-    `SELECT m.id, m.movement_type, m.quantity, m.balance_after, m.value, m.reference_type,
-            m.reference_id, m.note, m.created_at, p.name AS product_name, u.full_name AS user_name
+    `SELECT m.id, m.movement_type, m.quantity, m.balance_after, m.balance_after - m.quantity AS balance_before, m.value, m.reference_type,
+            m.reference_id, m.note, m.created_at, p.id AS product_id, p.name AS product_name, un.name AS unit, u.full_name AS user_name,
+            CASE WHEN m.movement_type = 'sale' THEN
+                   (SELECT ROUND(SUM(si.line_total) / NULLIF(SUM(si.base_quantity), 0), 2) FROM sale_items si
+                     WHERE si.sale_id = m.reference_id AND si.product_id = m.product_id)
+                 ELSE ROUND(ABS(m.value) / NULLIF(ABS(m.quantity), 0), 2) END AS unit_price
        FROM stock_movements m
        JOIN products p ON p.id = m.product_id
+       JOIN units un ON un.id = p.base_unit_id
        LEFT JOIN users u ON u.id = m.created_by
       WHERE m.created_at >= $1 AND m.created_at < $2${extra}
       ORDER BY m.created_at DESC, m.id DESC LIMIT ${limit} OFFSET ${offset}`,

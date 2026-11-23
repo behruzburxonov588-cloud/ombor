@@ -23,6 +23,7 @@ const ROUTES = {
   history: { perms: ['history.view'], load: () => import('./pages/admin.js') },
   employees: { perms: ['employees.manage'], load: () => import('./pages/admin.js') },
   settings: { perms: [], load: () => import('./pages/admin.js') },
+  setup: { perms: ['settings.manage'], load: () => import('./pages/setup.js') },
 };
 
 // Yon panel: eng ko'p ishlatiladiganlari tepada, oddiy so'zlar bilan.
@@ -81,7 +82,7 @@ const NAV = [
 ];
 
 // Faqat yuqori paneldagi qo'ng'iroqcha orqali ochiladigan sahifalar (sarlavha uchun)
-const EXTRA_TITLES = { notifications: 'Bildirishnomalar' };
+const EXTRA_TITLES = { notifications: 'Bildirishnomalar', setup: "Do'konni sozlash" };
 
 // Telefondagi pastki menyu: Bosh, Sotuv, [+ Qo'shish], Mahsulotlar, Menyu
 const MOBILE = ['dashboard', 'sales', 'products'];
@@ -115,6 +116,8 @@ const ctx = {
     state.settings = r.settings;
     const storeEl = document.querySelector('.sb-brand .store');
     if (storeEl) storeEl.textContent = state.settings.store_name || '';
+    const markEl = document.querySelector('.sb-brand .brand-mark');
+    if (markEl) markEl.outerHTML = brandMark();
     document.title = `${state.settings.store_name || 'OMBOR PRO'} · OMBOR PRO`;
   },
   setUnread(n) { setBadge(n); },
@@ -122,6 +125,7 @@ const ctx = {
 };
 
 const navAllowed = (item) => {
+  if (item.id === 'staff' && state.settings.employee_count === '1') return false;
   const route = ROUTES[item.route || item.id];
   if (!route) return false;
   const perms = item.perms || route.perms;
@@ -329,12 +333,18 @@ function toggleDrawer(open) {
   }
 }
 
+// Do'kon logotipi bo'lsa — o'sha, bo'lmasa OMBOR PRO belgisi
+function brandMark() {
+  const logo = state.settings.logo_path;
+  return logo ? `<span class="brand-mark has-logo"><img src="${esc(logo)}" alt=""></span>` : `<span class="brand-mark">${icon('layers')}</span>`;
+}
+
 function renderNav(p) {
   const active = activeNav(p);
   const u = state.user;
   $('#sidebar').innerHTML = `
     <div class="sb-brand">
-      <span class="brand-mark">${icon('layers')}</span>
+      ${brandMark()}
       <div class="names"><div class="product">OMBOR PRO</div><div class="store">${esc(state.settings.store_name || '')}</div></div>
     </div>
     <nav class="sb-nav">
@@ -621,7 +631,14 @@ async function bootShell() {
   $('#app').hidden = false;
   document.title = `${state.settings.store_name || 'OMBOR PRO'} · OMBOR PRO`;
   startPolling();
-  if (parseHash().key) route();
+  // Yangi do'kon (hali tovar yo'q va sozlanmagan): avval bosqichma-bosqich sozlash
+  let setupFirst = false;
+  if (!state.settings.setup_done && ctx.can('settings.manage')) {
+    const o = await get('/onboarding').catch(() => null);
+    setupFirst = Boolean(o && !o.products && !o.sales);
+  }
+  if (setupFirst) ctx.go('#/setup');
+  else if (parseHash().key) route();
   else ctx.go(firstAllowed());
   let welcome = false;
   try {

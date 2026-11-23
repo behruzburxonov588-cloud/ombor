@@ -109,25 +109,32 @@ function payValidity(t) {
 async function productDetail(id) {
   if (!detailCache.has(id)) {
     const r = await get(`/products/${id}`);
-    detailCache.set(id, r.product);
+    // Rulonli tovar uchun ombordagi rulonlar (partiyalar) ham kerak
+    detailCache.set(id, { ...r.product, batches: r.batches || [] });
   }
   return detailCache.get(id);
 }
 
-async function addProduct(p, qtyDelta = 1) {
+// Kasrli birlik (metr, kg, litr...): bosilganda «Necha metr?» oynasi ochiladi
+const FRACTION_UNITS = ['kilogramm', 'gramm', 'litr', 'millilitr', 'metr', 'santimetr', 'kvadrat metr', 'kub metr', 'tonna'];
+const needsQty = (p) => Boolean(p.is_roll) || FRACTION_UNITS.includes(String(p.base_unit_name || '').toLowerCase());
+
+// roll — {id, n, qty}: aynan shu rulondan sotiladi (butun rulon yoki uning bir qismi)
+async function addProduct(p, qtyDelta = 1, { roll = null } = {}) {
   const d = await productDetail(p.id);
   if (Number(d.stock_qty) <= 0) throw new Error(`"${d.name}" tugagan`);
-  let line = S.cart.find((l) => l.pid === d.id && l.unit_id === d.base_unit_id);
+  let line = S.cart.find((l) => l.pid === d.id && l.unit_id === d.base_unit_id && (l.batch_id || null) === (roll ? roll.id : null));
   if (!line) {
     line = {
-      pid: d.id, name: d.name, base_unit_id: d.base_unit_id, base_unit_name: d.base_unit_name,
-      unit_id: d.base_unit_id, unit_name: d.base_unit_name, conv: d.conversions || [],
+      pid: d.id, name: roll ? `${d.name} · ${roll.n}-rulon` : d.name, base_unit_id: d.base_unit_id, base_unit_name: d.base_unit_name,
+      unit_id: d.base_unit_id, unit_name: d.base_unit_name, conv: roll ? [] : (d.conversions || []),
       qty: 0, price: Number(d.selling_price), discount: 0, stock: Number(d.stock_qty), image_path: d.image_path,
+      ...(roll ? { batch_id: roll.id } : {}),
     };
     S.cart.push(line);
   }
   line.qty = round4(Number(line.qty) + qtyDelta);
-  line.stock = Number(d.stock_qty);
+  line.stock = roll ? Number(roll.qty) : Number(d.stock_qty);
   line.price = Number(d.selling_price);
   if (calc(line).over) {
     line.qty = round4(line.qty - qtyDelta);
@@ -435,6 +442,7 @@ async function checkout(btn, ctx) {
     unit_id: l.unit_id,
     quantity: Number(l.qty),
     discount: Number(l.discount || 0) || 0,
+    ...(l.batch_id ? { batch_id: l.batch_id } : {}),
   }));
   const payment = { method: S.method };
   if (S.method === 'mixed') {
@@ -666,6 +674,7 @@ function bindGrid() {
   document.querySelectorAll('[data-pid]').forEach((b) => b.addEventListener('click', async () => {
     const p = products.find((x) => String(x.id) === b.dataset.pid);
     if (!p) return;
+    if (needsQty(p)) { openQtyPick(p).catch(errorToast); return; }
     try {
       await addProduct(p, 1);
       // Xabar o'rniga: plitka bir lahza yonadi va pastdagi «Savatcha» tugmasi silkinadi
@@ -682,6 +691,69 @@ function bindGrid() {
       errorToast(err);
     }
   }));
+}
+
+// «Necha metr?» — katta maydon, tez tugmalar (0,5 · 1 · 2 ...), rulonli tovarda — rulonni tanlash (butun yoki bir qismi)
+async function openQtyPick(p) {
+  const d = await productDetail(p.id);
+  if (Number(d.stock_qty) <= 0) throw new Error(`"${d.name}" tugagan`);
+  const unit = esc(d.base_unit_name);
+  const rolls = d.is_roll ? d.batches.filter((b) => Number(b.qty_remaining) > 0).map((b, i) => ({ id: b.id, n: i + 1, qty: Number(b.qty_remaining) })) : [];
+  const quick = d.base_unit_name === 'gramm' || d.base_unit_name === 'millilitr' ? [100, 200, 250, 500, 1000] : [0.5, 1, 1.5, 2, 3, 5, 10];
+  let roll = null;
+  const { el, close } = openModal({
+    title: d.name,
+    body: `<form id="qpf" class="qp" novalidate>
+      <div class="qp-info"><span>${money(d.selling_price)} / ${unit}</span><span>Omborda: <b>${num(d.stock_qty, 3)} ${unit}</b>${rolls.length ? ` · ${rolls.length} ta rulon` : ''}</span></div>
+      <label class="field"><span class="qp-label">Necha ${unit}?</span>
+        <div class="money-input qp-input"><input class="input input-lg" id="qp-q" inputmode="decimal" autocomplete="off" placeholder="Masalan: 3,5" aria-label="Necha ${unit}"><em>${unit}</em></div></label>
+      <div class="chips qp-quick">${quick.map((v) => `<button type="button" class="chip" data-qv="${v}">${num(v, 3)}</button>`).join('')}</div>
+      ${rolls.length ? `<div class="qp-rolls"><div class="qp-sub">Yoki rulonni tanlang <small>— butun rulon yoki undan qancha kerak bo'lsa</small></div>
+        <div class="qp-roll-list">${rolls.map((r) => `<button type="button" class="qp-roll" data-roll="${r.id}"><b>${r.n}-rulon</b><span>${num(r.qty, 3)} ${unit}</span><small>${money(r.qty * Number(d.selling_price))}</small></button>`).join('')}</div></div>` : ''}
+      <div class="qp-sum" id="qp-sum"></div>
+      <div id="qp-err"></div>
+      <button class="btn btn-lg btn-block" type="submit">${icon('cart')} Savatchaga qo'shish</button>
+    </form>`,
+  });
+  const inp = el.querySelector('#qp-q');
+  const val = () => {
+    const n = Number(String(inp.value).replace(/\s/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  };
+  const refresh = () => {
+    const v = val();
+    el.querySelector('#qp-sum').innerHTML = v > 0
+      ? `${roll ? `<span class="badge badge-info">${roll.n}-rulondan</span> ` : ''}${num(v, 3)} ${unit} × ${money(d.selling_price)} = <b>${money(Math.round(v * Number(d.selling_price) * 100) / 100)}</b>`
+      : '';
+    el.querySelector('#qp-err').innerHTML = '';
+  };
+  inp.addEventListener('input', refresh);
+  el.querySelectorAll('[data-qv]').forEach((b) => b.addEventListener('click', () => { inp.value = String(b.dataset.qv).replace('.', ','); refresh(); inp.focus(); }));
+  el.querySelectorAll('[data-roll]').forEach((b) => b.addEventListener('click', () => {
+    const r = rolls.find((x) => String(x.id) === b.dataset.roll);
+    roll = roll && roll.id === r.id ? null : r;
+    el.querySelectorAll('[data-roll]').forEach((x) => x.classList.toggle('on', roll && x === b));
+    if (roll) inp.value = String(roll.qty).replace('.', ',');
+    refresh();
+    inp.focus();
+    inp.select();
+  }));
+  el.querySelector('#qpf').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const v = val();
+    const fail = (m) => { el.querySelector('#qp-err').innerHTML = `<div class="alert alert-warn">${esc(m)}</div>`; inp.focus(); };
+    if (!(v > 0)) return fail(`Necha ${d.base_unit_name} kerakligini yozing`);
+    if (roll && v > roll.qty + 1e-9) return fail(`${roll.n}-rulonda faqat ${num(roll.qty, 3)} ${d.base_unit_name} bor`);
+    try {
+      await addProduct(d, Math.round(v * 10000) / 10000, { roll });
+      close();
+      toast(`${d.name}: ${num(v, 3)} ${d.base_unit_name} savatchaga qo'shildi`, 'ok');
+    } catch (err) {
+      fail(err.message);
+    }
+    return undefined;
+  });
+  if (window.matchMedia('(min-width: 720px)').matches) inp.focus();
 }
 
 async function loadProducts(q = '') {
@@ -926,6 +998,23 @@ export async function render(root, params, ctx) {
       C.query = q.value.trim();
       loadProducts(C.query).catch(errorToast);
     }, 220);
+  });
+  q.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    clearTimeout(timer);
+    try {
+      C.query = q.value.trim();
+      await loadProducts(C.query);
+      const first = document.querySelector('#grid [data-pid]:not([disabled]), #grid [data-model]:not([disabled])');
+      if (!first) { toast('Hech narsa topilmadi', 'warn'); return; }
+      first.click();
+      if (!first.dataset.model && !needsQty(products.find((x) => String(x.id) === first.dataset.pid) || {})) {
+        q.select();
+      }
+    } catch (err) {
+      errorToast(err);
+    }
   });
   const bc = root.querySelector('#barcode');
   const doBarcode = async () => {

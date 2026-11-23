@@ -30,6 +30,28 @@ const router = Router();
 
 // ---------- Kirimlar ----------
 
+// Yaqinda kelgan tovarlar: har bir tovarning oxirgi kirimi (miqdor, birlik, narx) — «Yana keldi» uchun
+router.get('/purchases/recent-items', requirePerm('purchases.view', 'purchases.create'), async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT ON (pi.product_id) pi.product_id, pi.unit_id, pi.quantity, pi.unit_price, pi.factor,
+            p.created_at AS received_at, p.purchase_no, pr.name, pr.image_path, pr.stock_qty, u.name AS unit_name, bu.name AS base_unit_name
+       FROM purchase_items pi
+       JOIN purchases p ON p.id = pi.purchase_id AND p.kind = 'purchase'
+       JOIN products pr ON pr.id = pi.product_id AND NOT pr.is_archived
+       JOIN units u ON u.id = pi.unit_id
+       JOIN units bu ON bu.id = pr.base_unit_id
+      ORDER BY pi.product_id, p.created_at DESC, pi.id DESC`,
+  );
+  rows.sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
+  res.json({
+    items: rows.slice(0, 24).map((r) => ({
+      product_id: r.product_id, name: r.name, image_path: r.image_path, stock_qty: Number(r.stock_qty), base_unit_name: r.base_unit_name,
+      unit_id: r.unit_id, unit_name: r.unit_name, factor: Number(r.factor), quantity: Number(r.quantity), unit_price: Number(r.unit_price),
+      received_at: r.received_at, purchase_no: r.purchase_no,
+    })),
+  });
+});
+
 router.get('/purchases', requirePerm('purchases.view'), async (req, res) => {
   const period = periodBounds(req.query.from, req.query.to);
   const params = [period.fromDate, period.toDate];

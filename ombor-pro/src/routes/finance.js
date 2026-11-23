@@ -1,5 +1,6 @@
 // Kassa, xarajatlar, bosh sahifa, hisobotlar, tarix, qidiruv va sozlamalar
 import { Router } from 'express';
+import { STORE_TYPES, STORE_TYPE_KEYS, EMPLOYEE_COUNTS, ATTRIBUTE_FIELDS, applyStoreTypes } from '../services/storetypes.js';
 import { pool, withTransaction } from '../db.js';
 import { requirePerm, can } from '../auth.js';
 import { HttpError, num, round2, str, todayLocal, addDays, periodBounds, dateStr, paging } from '../util.js';
@@ -392,6 +393,42 @@ router.get('/admin/backup', async (req, res) => {
 
 router.get('/settings', async (req, res) => {
   res.json({ settings: await getSettings(pool) });
+});
+
+// Do'kon turlari va ularga mos turkum/birlik/maydonlar (sozlash va tovar formasi uchun)
+router.get('/store-types', (req, res) => {
+  res.json({ types: STORE_TYPES, fields: ATTRIBUTE_FIELDS, employee_counts: EMPLOYEE_COUNTS });
+});
+
+// Birinchi sozlash (va keyin o'zgartirish): turi, xodimlar soni, joylashuv, do'kon ma'lumotlari
+router.put('/setup', requirePerm('settings.manage'), async (req, res) => {
+  const body = req.body || {};
+  const types = Array.isArray(body.store_types) ? [...new Set(body.store_types.map(String))] : [];
+  if (!types.length) throw new HttpError(400, "Do'kon turini tanlang (bir nechtasini ham tanlash mumkin)");
+  if (types.some((t) => !STORE_TYPE_KEYS.includes(t))) throw new HttpError(400, "Do'kon turi noto'g'ri");
+  const employees = String(body.employee_count || '');
+  if (!EMPLOYEE_COUNTS.includes(employees)) throw new HttpError(400, 'Xodimlar sonini tanlang');
+  const patch = {
+    store_types: types,
+    employee_count: employees,
+    region: str(body.region, 'Viloyat', { max: 60 }) || '',
+    district: str(body.district, 'Tuman', { max: 60 }) || '',
+    store_name: str(body.store_name, "Do'kon nomi", { required: true, max: 100 }),
+    store_phone: str(body.store_phone, 'Telefon', { max: 30 }) || '',
+    store_address: str(body.store_address, 'Manzil', { max: 200 }) || '',
+    setup_done: true,
+  };
+  if (!patch.region) throw new HttpError(400, 'Viloyatni tanlang');
+  if (body.receipt_footer !== undefined) patch.receipt_footer = str(body.receipt_footer, 'Chek izohi', { max: 200 }) || '';
+  if (body.notify_low_stock !== undefined) patch.notify_low_stock = Boolean(body.notify_low_stock);
+  if (body.costing_method !== undefined) patch.costing_method = body.costing_method;
+  const result = await withTransaction(async (client) => {
+    const saved = await saveSettings(client, patch);
+    const applied = await applyStoreTypes(client, types);
+    await audit(client, req.user.id, 'settings.update', 'settings', null, { store_types: types, employee_count: employees, region: patch.region });
+    return { settings: saved, ...applied };
+  });
+  res.json(result);
 });
 
 router.put('/settings', requirePerm('settings.manage'), async (req, res) => {

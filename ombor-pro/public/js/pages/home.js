@@ -55,6 +55,9 @@ export async function renderHome(root, ctx, opts) {
       </div>
     </div>
     <div class="home">
+      ${!ctx.settings.setup_done && ctx.can('settings.manage') ? `<div class="alert alert-info setup-banner">${icon('sliders', 'ico-sm')}<div class="grow"><b>Do'koningiz turini belgilang — 2 daqiqa</b>
+        <div class="small">Kiyim, oziq-ovqat, qurilish mollari… Shunga qarab turkumlar, o'lchov birliklari va tovar qo'shish formasi moslashadi.</div></div>
+        <a class="btn btn-sm" href="#/setup">Sozlash</a></div>` : ''}
       ${opts.actionTiles(ctx)}
       ${onbHtml || ''}
       ${d.cost_missing?.products ? `<div class="alert alert-warn cost-alert">${icon('alert', 'ico-sm')}<div class="grow">

@@ -26,6 +26,7 @@ import m008 from '../migrations/008_sizes.sql';
 import m009 from '../migrations/009_product_details.sql';
 import m010 from '../migrations/010_more_units.sql';
 import m011 from '../migrations/011_expense_categories.sql';
+import m012 from '../migrations/012_store_profile.sql';
 import interRegular from '../assets/fonts/Inter-Regular.ttf';
 import interSemiBold from '../assets/fonts/Inter-SemiBold.ttf';
 
@@ -42,6 +43,7 @@ const MIGRATIONS = [
   { name: '009_product_details.sql', sql: m009 },
   { name: '010_more_units.sql', sql: m010 },
   { name: '011_expense_categories.sql', sql: m011 },
+  { name: '012_store_profile.sql', sql: m012 },
 ];
 
 setMigrationSources(MIGRATIONS);
