@@ -69,7 +69,7 @@ function actionTiles(ctx) {
     <section class="actions-card" aria-label="Tez amallar">
       <div class="actions-title">Nima qilmoqchisiz?</div>
       <div class="action-grid">
-        ${list.map((a) => `<a class="action-tile" href="${a.href}"><span class="at-ico">${icon(a.icon)}</span><b>${esc(a.label)}</b><span>${esc(a.hint)}</span></a>`).join('')}
+        ${list.map((a) => `<a class="action-tile" href="${a.href}" title="${esc(a.hint)}"><span class="at-ico">${icon(a.icon)}</span><b>${esc(a.label)}</b></a>`).join('')}
       </div>
     </section>`;
 }

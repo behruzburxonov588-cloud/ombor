@@ -1,16 +1,16 @@
-// Bosh sahifa: do'kon egasi 5 soniyada tushunadigan asosiy raqamlar.
-//   1) Tez amallar (Sotish, Yuk keldi, ...)
-//   2) Davr bo'yicha: savdo, sof foyda, xarajat, cheklar (grafikchali kartalar)
-//   3) Hozirgi holat: naqd pul, karta, mijozlar qarzi, sizning qarzingiz, mahsulotlar, kam qolgan, tugagan, ombor qiymati
-//   4) Savdo grafigi + bildirishnomalar; haftalik/oylik dinamika + tugayotgan tovarlar
-//   5) Eng ko'p sotilganlar va so'nggi amallar
-//   6) Pul nima bo'ldi? (oddiy so'zlar bilan), nima keldi va nima ketdi
+// Bosh sahifa («Toza ko'k» dizayni): do'kon egasi 5 soniyada tushunadigan asosiy raqamlar.
+//   1) Tez amallar (Sotish, Yangi tovar, Yuk keldi, ...)
+//   2) Qancha foyda qildingiz? — savdo − kelish narxi = tovardan foyda − xarajatlar = sof foyda (bir qatorda)
+//   3) To'rtta asosiy raqam: savdo, kassadagi naqd, mijozlar qarzi, sizning qarzingiz
+//   4) Savdo grafigi + bildirishnomalar; eng ko'p sotilganlar + so'nggi amallar; dinamika + tugayotgan tovarlar
+//   5) Nima keldi va nima ketdi; ombor holati (qiymati, turlari, kam qolgan, tugagan)
 // Hamma raqamlar haqiqiy yozuvlardan: /api/analytics/dashboard, /overview, /daily, /monthly, /cash/summary, /notifications.
 import {
   get, put, esc, icon, num, compact, moneyFull, longDate, errorToast, dateTime, timeAgo, emptyState,
   periodPicker, bindPeriod, resolvePeriod, periodWord, periodQuery, monthName, shortDate, weekdayShort,
+  deltaAmount, compareText,
 } from '../ui.js';
-import { kpiCards, salesCard, mountSalesChart, topCard, mountTop, destroyCharts } from './dashboard.js';
+import { salesCard, mountSalesChart, topCard, mountTop, destroyCharts } from './dashboard.js';
 import { chart, tableView } from '../charts.js';
 
 const SHOW = 8;
@@ -64,25 +64,22 @@ export async function renderHome(root, ctx, opts) {
         <b>Foyda ko'proq chiqib qolgan: ${d.cost_missing.products} ta tovarning kelish narxi yozilmagan</b>
         <div class="small">${esc(word)} ular ${moneyFull(d.cost_missing.revenue)} so'mga sotilgan va bu summa to'liq foyda deb hisoblandi. Kelish narxini yozing — foyda o'zi to'g'rilanadi.</div></div>
         <a class="btn btn-sm" href="#/products?filter=nocost">${icon('calc', 'ico-sm')} Narxini yozish</a></div>` : ''}
-      <section class="home-sec" aria-label="Davr bo'yicha ko'rsatkichlar">
-        <div class="sec-title"><h2>${esc(word)}</h2><span>savdo, foyda va xarajat</span></div>
-        ${kpiCards(d, range, { periodOnly: true })}
-      </section>
       ${moneySection(ov, word)}
-      ${snapshotSection(d, ov, cash)}
+      ${kpiRow(d, cash, range)}
       <div class="home-row wide-narrow">
         ${salesCard(d, range)}
         ${notesCard(notes)}
-      </div>
-      <div class="home-row wide-narrow">
-        ${trendCard(d.access.financial)}
-        ${lowStockCard(ov, canBuy)}
       </div>
       <div class="home-row halves">
         ${d.access.financial ? topCard(d) : ''}
         ${recentCard(d, canSell)}
       </div>
+      <div class="home-row wide-narrow">
+        ${trendCard(d.access.financial)}
+        ${lowStockCard(ov, canBuy)}
+      </div>
       ${movesSection(ov, word, { canBuy, canSell })}
+      ${stockStrip(d, ov)}
       ${d.access.financial ? `<div class="home-foot no-print"><a class="btn btn-light" href="#/analytics?${periodQuery(range)}">${icon('chart', 'ico-sm')} Grafiklar, prognoz va batafsil tahlil</a></div>` : ''}
     </div>`;
 
@@ -106,40 +103,56 @@ export async function renderHome(root, ctx, opts) {
 }
 
 // ---------- Hozirgi holat: pul, qarzlar, ombor ----------
-function snapshotSection(d, ov, cash) {
+// To'rtta asosiy raqam: savdo (davr bo'yicha), kassadagi naqd, mijozlar qarzi, sizning qarzingiz (hozir)
+function kpiRow(d, cash, range) {
   const k = d.kpis;
-  const st = ov.stock;
-  const tile = ({ label, value, money = true, unit = '', href, ico, tone = '', note = '', hint = '' }) => `
-    <a class="snap ${tone}" href="${href}" title="${esc(hint)}">
-      <span class="snap-ico ${tone}">${icon(ico, 'ico-sm')}</span>
-      <span class="snap-text">
-        <span class="snap-l">${esc(label)}</span>
-        <b class="snap-v ${money && value < 0 ? 'neg' : ''}" title="${money ? esc(`${moneyFull(value)} so'm`) : ''}">${money ? `${compact(value)}<small>so'm</small>` : `${num(value, 0)}<small>${esc(unit)}</small>`}</b>
-        ${note ? `<span class="snap-n">${note}</span>` : ''}
-      </span>
+  const card = ({ label, value, href, foot = '', hint = '', tone = '' }) => `
+    <a class="kcard ${tone}" href="${href}" title="${esc(hint)}">
+      <span class="kc-l">${esc(label)}</span>
+      <b class="kc-v ${value < 0 ? 'neg' : ''}" title="${esc(`${moneyFull(value)} so'm`)}">${moneyFull(value)}<small>so'm</small></b>
+      <span class="kc-f">${foot}</span>
     </a>`;
-  const tiles = [];
+  const cards = [];
+  const sc = k.sales_count?.value || 0;
+  cards.push(card({
+    label: periodWord(range) === 'Bugun' ? 'Bugun sotildi' : 'Savdo', value: k.revenue.value, href: `#/sales/history?from=${range.from}&to=${range.to}`,
+    foot: `${deltaAmount(k.revenue.value, k.revenue.previous, { title: compareText(range) })}<span class="kc-n">${num(sc, 0)} ta chek</span>`,
+    hint: "Sotuvdan tushgan pul (chegirma va qaytarilgan tovar ayirilgan). Qarz to'lovlari kirmaydi.",
+  }));
   if (cash) {
     const b = cash.balances;
-    tiles.push(tile({ label: 'Naqd pul', value: b.cash, href: '#/cash?tab=cash', ico: 'money', tone: b.cash < 0 ? 'neg' : 'pos', note: 'kassada hozir', hint: "Kassadagi naqd pul (barcha kirim va chiqimlardan keyin)" }));
-    tiles.push(tile({ label: 'Karta', value: b.card, href: '#/cash?tab=cash', ico: 'card', tone: 'blue', note: b.transfer ? `o'tkazma ${esc(compact(b.transfer))}` : 'plastik karta orqali', hint: "Karta hisobidagi pul" }));
+    cards.push(card({
+      label: 'Kassada naqd', value: b.cash, href: '#/cash?tab=cash',
+      foot: `<span class="kc-n">kartada ${esc(moneyFull(b.card))}${b.transfer ? ` · o'tkazma ${esc(moneyFull(b.transfer))}` : ''}</span>`,
+      hint: 'Kassadagi naqd pul — barcha kirim va chiqimlardan keyin',
+    }));
   }
   if (k.customer_debt) {
-    tiles.push(tile({ label: 'Mijozlar qarzi', value: k.customer_debt.value, href: '#/debts', ico: 'debt', tone: k.customer_debt.value > 0 ? 'warn' : '', note: 'sizga qaytarishlari kerak', hint: "Mijozlarning hali to'lanmagan nasiyasi" }));
+    cards.push(card({
+      label: 'Mijozlar qarzi', value: k.customer_debt.value, href: '#/debts', tone: k.customer_debt.value > 0 ? 'warn' : '',
+      foot: '<span class="kc-n">sizga qaytarishlari kerak</span>', hint: "Mijozlarning hali to'lanmagan nasiyasi",
+    }));
   }
   if (d.access.debts !== false && d.supplier_debt !== undefined && d.supplier_debt !== null) {
-    tiles.push(tile({ label: 'Sizning qarzingiz', value: d.supplier_debt, href: '#/debts?tab=suppliers', ico: 'store', tone: d.supplier_debt > 0 ? 'warn' : '', note: "yetkazib beruvchilarga", hint: "Yuk olib, hali to'lanmagan summa" }));
+    cards.push(card({
+      label: 'Sizning qarzingiz', value: d.supplier_debt, href: '#/debts?tab=suppliers', tone: d.supplier_debt > 0 ? 'warn' : '',
+      foot: "<span class=\"kc-n\">yetkazib beruvchilarga</span>", hint: "Yuk olib, hali to'lanmagan summa",
+    }));
   }
-  tiles.push(tile({ label: 'Jami mahsulot', value: st.products, money: false, unit: 'xil', href: '#/products', ico: 'box', tone: 'blue', note: "sotuvdagi tovarlar" }));
-  tiles.push(tile({ label: 'Kam qolgan', value: st.low, money: false, unit: 'ta', href: '#/products?filter=low', ico: 'alert', tone: st.low ? 'warn' : '', note: st.low ? 'tez orada tugaydi' : 'hammasi yetarli' }));
-  tiles.push(tile({ label: 'Tugagan', value: st.out, money: false, unit: 'ta', href: '#/products?filter=out', ico: 'warnCircle', tone: st.out ? 'neg' : '', note: st.out ? 'yuk kiritish kerak' : "tugagan tovar yo'q" }));
-  if (k.inventory_value) {
-    tiles.push(tile({ label: 'Ombordagi tovar', value: k.inventory_value.value, href: '#/stock', ico: 'warehouse', tone: 'slate', note: 'kelish narxida', hint: "Ombordagi barcha tovarlar kelish narxida qancha turadi" }));
-  }
+  return `<section class="kgrid" aria-label="Asosiy raqamlar">${cards.join('')}</section>`;
+}
+
+// Ombor holati — bitta qator: qiymati, turlari, kam qolgan, tugagan
+function stockStrip(d, ov) {
+  const st = ov.stock;
+  const k = d.kpis;
   return `
-    <section class="home-sec" aria-label="Hozirgi holat">
-      <div class="sec-title"><h2>Hozirgi holat</h2><span>pul, qarzlar va ombor — shu daqiqada</span></div>
-      <div class="snap-grid">${tiles.join('')}</div>
+    <section class="card stock-strip" aria-label="Ombor holati">
+      ${k.inventory_value ? `<span class="ss-item"><span>Ombor qiymati</span><b>${moneyFull(k.inventory_value.value)} so'm</b></span>` : ''}
+      <span class="ss-item"><span>Tovar turlari</span><b>${num(st.products, 0)}</b></span>
+      <a class="ss-badge ${st.low ? 'warn' : ''}" href="#/products?filter=low">Kam qolgan: ${num(st.low, 0)}</a>
+      <a class="ss-badge ${st.out ? 'bad' : ''}" href="#/products?filter=out">Tugagan: ${num(st.out, 0)}</a>
+      <a class="link-btn ss-go" href="#/stock">Ombor qoldig'i ${icon('right', 'ico-xs')}</a>
     </section>`;
 }
 
@@ -303,40 +316,35 @@ function moneySection(d, word) {
   if (!d.access.financial) return '';
   const profit = m.net_profit;
   const goods = m.gross_profit;
+  const spent = Math.round((m.expenses + m.losses) * 100) / 100;
   const left = Math.round((m.revenue - m.expenses) * 100) / 100;
-  const pct = (v) => (m.revenue > 0 ? ` <em class="pfs-pct">${String(Math.round((v / m.revenue) * 1000) / 10).replace('.', ',')}%</em>` : '');
   const sum = (v, sign = '') => `${v < 0 ? '−' : sign}${moneyFull(Math.abs(v))}`;
-  const parts = [
-    { label: "Tovar o'zingizga tushgan narx", value: Math.max(0, m.cogs), cls: 'seg-cost' },
-    { label: 'Xarajatlar', value: Math.max(0, m.expenses), cls: 'seg-exp' },
-    { label: "Buzilgan / yo'qolgan tovar", value: Math.max(0, m.losses), cls: 'seg-loss' },
-    { label: 'Sof foyda', value: Math.max(0, profit), cls: 'seg-profit' },
-  ];
-  const total = parts.reduce((s2, p) => s2 + p.value, 0) || 1;
+  const margin = m.revenue > 0 ? String(Math.round((goods / m.revenue) * 1000) / 10).replace('.', ',') : null;
   const empty = m.sales_count === 0 && m.expenses === 0 && m.losses === 0;
   return `
-    <section class="card home-card profit-card">
-      <div class="hc-head">
-        <span class="hc-ico in">${icon('trendUp')}</span>
-        <div><h2>Qancha foyda qildingiz?</h2><div class="card-sub">${esc(word)}: savdodan sof foydagacha — qadamma-qadam</div></div>
-        <a class="link-btn" href="#/reports?tab=pnl&from=${d.range.from}&to=${d.range.to}">Batafsil ${icon('right', 'ico-xs')}</a>
+    <section class="card pchain-card" aria-labelledby="pchain-h">
+      <div class="pchain-head">
+        <div><h2 id="pchain-h">Qancha foyda qildingiz?</h2><div class="card-sub">${esc(word)}: savdodan kelish narxi va xarajatlar ayiriladi — qadamma-qadam</div></div>
+        <div class="pchain-net ${profit < 0 ? 'neg' : ''}"><span>${profit < 0 ? 'Zarar' : 'Sof foyda'}</span><b>${sum(profit, '+')}<small>so'm</small></b></div>
       </div>
       ${empty ? `<p class="money-sentence">${esc(word)} savdo ham, xarajat ham bo'lmadi.</p>` : `
-      <div class="pf-steps" role="table" aria-label="Foyda hisobi">
-        <div class="pfs" role="row"><span class="pfs-n">1</span><span class="pfs-l">Savdo <small>${m.sales_count} ta chek, chegirma va qaytarilganlar ayirilgan</small></span><b>${sum(m.revenue)}</b></div>
-        <div class="pfs minus" role="row"><span class="pfs-n">2</span><span class="pfs-l">Sotilgan tovarlarning kelish narxi</span><b>${sum(-m.cogs)}</b></div>
-        <div class="pfs result" role="row"><span class="pfs-n">=</span><span class="pfs-l"><span>Tovardan foyda${pct(goods)}</span><small>sotuv narxi − kelish narxi</small></span><b class="${goods < 0 ? 'red' : 'green'}">${sum(goods, '+')}</b></div>
-        <div class="pfs minus" role="row"><span class="pfs-n">3</span><span class="pfs-l">Xarajatlar <small>obed, suv, ijara, maosh… — savdo pulidan</small></span><b>${sum(-m.expenses)}</b></div>
-        ${m.losses > 0 ? `<div class="pfs minus" role="row"><span class="pfs-n">4</span><span class="pfs-l">Buzilgan / yo'qolgan tovar</span><b>${sum(-m.losses)}</b></div>` : ''}
-        <div class="pfs total ${profit < 0 ? 'neg' : ''}" role="row"><span class="pfs-n">=</span><span class="pfs-l">${profit < 0 ? 'Zarar' : 'Sof foyda'} <small>${profit < 0 ? 'xarajatlar foydadan ko\'p bo\'ldi' : "qo'lingizda qoladigan foyda"}</small></span><b>${sum(profit, '+')} <small>so'm</small></b></div>
-      </div>
-      <div class="pf-cash">${icon('wallet', 'ico-sm')}<span>Savdo pulidan xarajatlar olingach qolgan pul: <b class="${left < 0 ? 'red' : ''}">${sum(left)} so'm</b></span></div>
-      ${m.revenue > 0 ? `<div class="flowbar" role="img" aria-label="Savdo pulining taqsimoti">${parts.filter((p) => p.value > 0).map((p) => `<i class="${p.cls}" style="width:${(p.value / total) * 100}%" title="${esc(p.label)}: ${moneyFull(p.value)} so'm"></i>`).join('')}</div>
-      <div class="flow-legend">${parts.map((p) => `<span><i class="${p.cls}"></i>${esc(p.label)} <b>${moneyFull(p.value)}</b></span>`).join('')}</div>` : ''}`}
+      <div class="pchain" role="list" aria-label="Foyda hisobi">
+        <div class="pc-step" role="listitem"><span>Savdo</span><b>${sum(m.revenue)}</b><small>${num(m.sales_count, 0)} ta chek</small></div>
+        <div class="pc-op" aria-hidden="true">−</div>
+        <div class="pc-step" role="listitem"><span>Kelish narxi</span><b>${sum(m.cogs)}</b><small>sotilgan tovarlarniki</small></div>
+        <div class="pc-op" aria-hidden="true">=</div>
+        <div class="pc-step ${goods < 0 ? 'bad' : 'good'}" role="listitem"><span>Tovardan foyda</span><b>${sum(goods, '+')}</b><small>${margin !== null ? `marja ${margin}%` : 'sotuv − kelish narxi'}</small></div>
+        <div class="pc-op" aria-hidden="true">−</div>
+        <div class="pc-step" role="listitem"><span>Xarajatlar</span><b>${sum(spent)}</b><small>${m.losses > 0 ? `shundan buzilgan tovar ${moneyFull(m.losses)}` : 'obed, suv, ijara… savdo pulidan'}</small></div>
+        <div class="pc-op" aria-hidden="true">=</div>
+        <div class="pc-step total ${profit < 0 ? 'neg' : ''}" role="listitem"><span>${profit < 0 ? 'Zarar' : 'Sof foyda'}</span><b>${sum(profit, '+')}</b><small>qo'lingizda qoladi</small></div>
+      </div>`}
       <div class="money-foot">
+        <span>${icon('wallet', 'ico-xs')} Savdodan qolgan pul (savdo − xarajat): <b class="${left < 0 ? 'red' : ''}">${sum(left)} so'm</b></span>
         <span>${icon('truck', 'ico-xs')} Yuk keldi: <b>${m.purchases_count} ta</b>, ${moneyFull(m.purchases_total)} so'm${m.purchases_unpaid > 0 ? ` <span class="amber">(to'lanmagan ${moneyFull(m.purchases_unpaid)})</span>` : ''}</span>
         <span>${icon('wallet', 'ico-xs')} Yetkazib beruvchilarga to'landi: <b>${moneyFull(m.paid_suppliers)} so'm</b></span>
         ${m.debt_collected > 0 ? `<span>${icon('debt', 'ico-xs')} Qarzdorlar to'ladi: <b>${moneyFull(m.debt_collected)} so'm</b> <span class="muted">(savdoga qo'shilmaydi)</span></span>` : ''}
+        <a class="link-btn" href="#/reports?tab=pnl&from=${d.range.from}&to=${d.range.to}">Batafsil hisobot ${icon('right', 'ico-xs')}</a>
       </div>
     </section>`;
 }

@@ -2314,3 +2314,122 @@ tr.clickable:hover td { background: #f7f9fd; }
   .su-done-acts { width: 100%; flex-direction: column; }
   .su-done-acts .btn { width: 100%; }
 }
+
+/* =====================================================================
+   «Toza ko'k» — dizayn kanvasidagi yangi ko'rinish
+   Oq fon, bitta ko'k rang, katta raqamlar (Manrope), aniq foyda zanjiri.
+   ===================================================================== */
+@font-face { font-family: 'Manrope'; font-style: normal; font-display: swap; font-weight: 200 800; src: url(/fonts/manrope-latin-ext-wght-normal.woff2) format('woff2-variations'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'Manrope'; font-style: normal; font-display: swap; font-weight: 200 800; src: url(/fonts/manrope-latin-wght-normal.woff2) format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+:root {
+  --bg: #f4f6fa;
+  --text: #0e1726;
+  --text-2: #344054;
+  --muted: #5b6478;
+  --border: #e4e8ef;
+  --border-strong: #cbd3df;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: #eef3ff;
+  --accent-soft-2: #dce6ff;
+  --accent-grad: linear-gradient(#2563eb, #2563eb);
+  --pos: #157f3b;
+  --pos-bg: #eaf7ee;
+  --neg: #b42318;
+  --neg-bg: #fdecea;
+  --warn: #9a5200;
+  --warn-bg: #fff4e5;
+  --radius: 16px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --font-display: 'Manrope', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Sarlavhalar va katta raqamlar — Manrope */
+h1 { font-family: var(--font-display); font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+.stat .stat-value, .snap-v, .pfs b, .pc-qty, .pd-stock-num, .pd-name, .cart-foot .big, .cart-totals .big, .big-figure,
+.qp-input .input, .su-done h2, .su-q { font-family: var(--font-display); font-weight: 800; }
+.sb-brand .product { font-family: var(--font-display); font-weight: 800; font-size: 14px; letter-spacing: .06em; }
+
+/* Yon panel: doim ko'z oldida «Sotuvni boshlash» */
+.sb-cta { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; margin: 2px 14px 12px; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 600; font-size: 15px; text-decoration: none; box-shadow: var(--shadow-accent); flex: none; }
+.sb-cta:hover { background: var(--accent-hover); color: #fff; text-decoration: none; }
+.sb-cta .ico-sm { width: 18px; height: 18px; }
+.sb-label { color: var(--muted); }
+
+/* Tez amallar: belgi va nom, kartasiz */
+.home .actions-card { background: none; border: 0; padding: 0; box-shadow: none; }
+.home .actions-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.home .action-grid { gap: 12px; }
+.home .action-tile { flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 12px; min-height: 104px; padding: 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); box-shadow: none; }
+.home .action-tile b { margin: 0; font-size: 14.5px; font-weight: 600; }
+.home .action-tile .at-ico { width: 40px; height: 40px; border-radius: 11px; background: var(--accent-soft); border: 0; color: var(--accent); }
+.home .action-tile:hover { border-color: #9db7ff; background: var(--surface); }
+.home .action-tile:first-child { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
+.home .action-tile:first-child .at-ico { background: rgba(255, 255, 255, .18); color: #fff; }
+
+/* Qancha foyda qildingiz? — bir qatorda */
+.pchain-card { padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
+.pchain-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px 20px; }
+.pchain-head h2 { font-size: 17px; font-weight: 700; }
+.pchain-net { text-align: right; }
+.pchain-net span { display: block; font-size: 13px; font-weight: 600; color: var(--pos); }
+.pchain-net b { display: block; font: 800 38px/1.05 var(--font-display); letter-spacing: -.025em; color: var(--pos); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pchain-net b small { font-size: 17px; margin-left: 5px; letter-spacing: 0; }
+.pchain-net.neg span, .pchain-net.neg b { color: var(--neg); }
+.pchain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
+.pc-step { flex: 1 1 150px; min-width: 0; padding: 14px 16px; border-radius: 14px; background: var(--surface-2); border: 1px solid #eef1f5; display: flex; flex-direction: column; gap: 4px; }
+.pc-step span { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.pc-step b { font: 800 20px var(--font-display); letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-step small { font-size: 12px; color: var(--muted); }
+.pc-step.good { background: var(--pos-bg); border-color: #cdebd6; }
+.pc-step.good span, .pc-step.good b { color: var(--pos); }
+.pc-step.bad { background: var(--neg-bg); border-color: #f8d3cf; }
+.pc-step.bad span, .pc-step.bad b { color: var(--neg); }
+.pc-step.total { background: var(--pos); border-color: var(--pos); }
+.pc-step.total span, .pc-step.total small { color: #d7f5e1; }
+.pc-step.total b { color: #fff; }
+.pc-step.total.neg { background: var(--neg); border-color: var(--neg); }
+.pc-step.total.neg span, .pc-step.total.neg small { color: #fde2df; }
+.pc-op { flex: none; width: 22px; display: grid; place-items: center; font: 700 18px Inter, sans-serif; color: var(--muted); }
+.pchain-card .money-foot { align-items: center; }
+.pchain-card .money-foot .link-btn { margin-left: auto; font-weight: 600; }
+
+/* To'rtta asosiy raqam */
+.kgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+.kcard { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); color: var(--text); text-decoration: none; }
+.kcard:hover { border-color: #9db7ff; text-decoration: none; color: var(--text); }
+.kc-l { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.kc-v { font: 800 26px var(--font-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-v small { font: 600 13px Inter, sans-serif; color: var(--muted); margin-left: 5px; letter-spacing: 0; }
+.kc-v.neg { color: var(--neg); }
+.kc-f { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12.5px; color: var(--muted); }
+.kcard.warn { border-left: 3px solid #e08a00; }
+
+/* Ombor holati — bitta qator */
+.stock-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 16px 22px; }
+.ss-item { display: flex; align-items: baseline; gap: 10px; }
+.ss-item span { font-size: 13.5px; color: var(--muted); }
+.ss-item b { font: 800 19px var(--font-display); font-variant-numeric: tabular-nums; }
+.ss-badge { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: 999px; font-weight: 600; font-size: 12.5px; background: var(--hover); color: var(--muted); text-decoration: none; }
+.ss-badge:hover { text-decoration: none; filter: brightness(.97); }
+.ss-badge.warn { background: var(--warn-bg); color: var(--warn); }
+.ss-badge.bad { background: var(--neg-bg); color: var(--neg); }
+.ss-go { margin-left: auto; font-weight: 600; }
+
+@media (max-width: 720px) {
+  h1 { font-size: 24px; }
+  .pchain-card { padding: 18px 16px; }
+  .pchain-net { text-align: left; }
+  .pchain-net b { font-size: 32px; }
+  .pchain { flex-direction: column; gap: 4px; }
+  .pc-step { flex: none; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 12px 14px; }
+  .pc-step b { margin-left: auto; font-size: 18px; }
+  .pc-step small { width: 100%; }
+  .pc-op { width: 100%; height: 14px; font-size: 15px; line-height: 1; }
+  .kgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kcard { padding: 14px; }
+  .kc-v { font-size: 20px; }
+  .ss-go { margin-left: 0; }
+}

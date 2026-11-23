@@ -318,6 +318,7 @@ function renderNav(p) {
       ${brandMark()}
       <div class="names"><div class="product">OMBOR PRO</div><div class="store">${esc(state.settings.store_name || '')}</div></div>
     </div>
+    ${ctx.can('sales.create') ? `<a class="sb-cta" href="#/sales">${icon('cart', 'ico-sm')}<span>Sotuvni boshlash</span></a>` : ''}
     <nav class="sb-nav">
       ${NAV.map((g) => {
         const items = g.items.filter(navAllowed);
@@ -335,7 +336,7 @@ function renderNav(p) {
         ${icon('more', 'ico-sm')}
       </button>
     </div>`;
-  $('#sidebar').querySelectorAll('.nav-item').forEach((a) => a.addEventListener('click', () => toggleDrawer(false)));
+  $('#sidebar').querySelectorAll('.nav-item, .sb-cta').forEach((a) => a.addEventListener('click', () => toggleDrawer(false)));
   $('#sb-user').addEventListener('click', (e) => openUserMenu(e.currentTarget, 'left'));
   $('#btn-user .avatar').textContent = initials(u.full_name);
   $('#btn-add').hidden = quickActions().length === 0;
