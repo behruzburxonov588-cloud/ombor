@@ -54,7 +54,7 @@ if (process.argv?.[1] && import.meta.url === pathToFileURL(process.argv[1]).href
   const fs = await import('node:fs/promises');
   try {
     const stats = await restoreBackup(await fs.readFile(file, 'utf8'));
-    console.log(`Tiklandi: ${stats.users} ta xodim, ${stats.products} ta mahsulot, ${stats.sales} ta savdo, ${stats.customers} ta mijoz`);
+    console.log(`Tiklandi: ${stats.users} ta xodim, ${stats.products} ta tovar, ${stats.sales} ta savdo, ${stats.customers} ta mijoz`);
     await pool.end();
   } catch (err) {
     console.error(`Xato: ${err.message}`);

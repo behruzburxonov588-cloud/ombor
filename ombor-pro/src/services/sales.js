@@ -45,16 +45,16 @@ export async function createSale(client, user, body) {
   }
 
   const items = Array.isArray(body.items) ? body.items : [];
-  if (items.length === 0) throw new HttpError(400, "Savatcha bo'sh. Mahsulot qo'shing");
-  if (items.length > 200) throw new HttpError(400, "Bitta savdoda 200 tadan ko'p mahsulot bo'lishi mumkin emas");
+  if (items.length === 0) throw new HttpError(400, "Savatcha bo'sh. Tovar qo'shing");
+  if (items.length > 200) throw new HttpError(400, "Bitta savdoda 200 tadan ko'p tovar bo'lishi mumkin emas");
 
   const products = await lockProducts(client, items.map((i) => i.product_id));
   const allowDiscount = can(user, 'sales.discount');
   const lines = [];
   for (const item of items) {
-    const pid = num(item.product_id, 'Mahsulot', { positive: true });
+    const pid = num(item.product_id, 'Tovar', { positive: true });
     const p = products.get(pid);
-    if (!p) throw new HttpError(400, 'Mahsulot topilmadi');
+    if (!p) throw new HttpError(400, 'Tovar topilmadi');
     if (p.is_archived) throw new HttpError(400, `"${p.name}" arxivlangan va sotilmaydi`);
     const qty = round4(num(item.quantity, 'Miqdor', { positive: true }));
     const unit = await resolveUnit(client, p, item.unit_id);
@@ -177,10 +177,10 @@ export async function returnSale(client, user, saleId, body) {
   if (!sr[0]) throw new HttpError(404, 'Savdo topilmadi');
   const sale = sr[0];
   if (sale.kind === 'debt') throw new HttpError(400, "Bu qo'lda yozilgan qarz, savdo emas — undan tovar qaytarib bo'lmaydi");
-  if (sale.status === 'returned') throw new HttpError(400, 'Bu savdodagi barcha mahsulotlar allaqachon qaytarilgan');
+  if (sale.status === 'returned') throw new HttpError(400, 'Bu savdodagi barcha tovarlar allaqachon qaytarilgan');
 
   const list = Array.isArray(body.items) ? body.items : [];
-  if (list.length === 0) throw new HttpError(400, 'Qaytariladigan mahsulotni tanlang');
+  if (list.length === 0) throw new HttpError(400, 'Qaytariladigan tovarni tanlang');
   const refundMethod = body.refund_method || 'cash';
   if (!CASH_METHODS.includes(refundMethod)) throw new HttpError(400, "Qaytarish usuli noto'g'ri");
 
@@ -194,7 +194,7 @@ export async function returnSale(client, user, saleId, body) {
   const seen = new Set();
   const lines = list.map((item) => {
     const siId = num(item.sale_item_id, 'Savdo qatori', { positive: true });
-    if (seen.has(siId)) throw new HttpError(400, 'Bir xil mahsulot qatori ikki marta tanlangan');
+    if (seen.has(siId)) throw new HttpError(400, 'Bir xil tovar qatori ikki marta tanlangan');
     seen.add(siId);
     const si = byId.get(siId);
     if (!si) throw new HttpError(400, 'Savdo qatori topilmadi');

@@ -198,14 +198,14 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
         out.push({
           id: 'sales_trend', kind: 'sales_decline', level: 'warning', title: 'Savdo pasaymoqda',
           text: `So'nggi 7 kunda ${money(w.net_revenue)} savdo bo'ldi — oldingi 7 kundan ${pct(Math.abs(ch), 0)} kam.`,
-          recommendation: "Eng ko'p sotiladigan mahsulotlar omborda borligini tekshiring, mijozlarga aksiya yoki chegirma taklif qiling.",
+          recommendation: "Eng ko'p sotiladigan tovarlar omborda borligini tekshiring, mijozlarga aksiya yoki chegirma taklif qiling.",
           link: '#/reports?tab=sales',
         });
       } else if (ch >= 10) {
         out.push({
           id: 'sales_trend', kind: 'sales_growth', level: 'success', title: "Savdo o'smoqda",
           text: `So'nggi 7 kunda ${money(w.net_revenue)} savdo bo'ldi — oldingi 7 kundan ${pct(ch, 0)} ko'p.`,
-          recommendation: "Talab oshgan mahsulotlar zaxirasini oldindan to'ldiring.",
+          recommendation: "Talab oshgan tovarlar zaxirasini oldindan to'ldiring.",
           link: '#/reports?tab=sales',
         });
       }
@@ -240,34 +240,34 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
       out.push({
         id: 'returns_high', kind: 'returns', level: 'warning', title: "Qaytarishlar ko'p",
         text: `30 kunda qaytarishlar ${money(m30.returns)} — savdoning ${pct((m30.returns / sold30) * 100)}.`,
-        recommendation: "Qaysi mahsulotlar ko'p qaytarilayotganini tekshiring: sifat yoki tavsif muammosi bo'lishi mumkin.",
+        recommendation: "Qaysi tovarlar ko'p qaytarilayotganini tekshiring: sifat yoki tavsif muammosi bo'lishi mumkin.",
         link: '#/reports?tab=sales',
       });
     }
 
-    // Eng ko'p sotilgan va eng foydali mahsulotlar (30 kun)
+    // Eng ko'p sotilgan va eng foydali tovarlar (30 kun)
     const top = await topProducts(db, ts(30 * D), new Date(now).toISOString(), 10);
     if (top.length) {
       out.push({
-        id: 'best_sellers', kind: 'best_sellers', level: 'info', title: "Eng ko'p sotilayotgan mahsulotlar",
+        id: 'best_sellers', kind: 'best_sellers', level: 'info', title: "Eng ko'p sotilayotgan tovarlar",
         text: `30 kunda: ${top.slice(0, 3).map((p) => `${p.name} (${money(p.revenue)})`).join(', ')}.`,
-        recommendation: "Bu mahsulotlar hech qachon tugab qolmasligi kerak — minimal qoldiqni to'g'ri belgilang.",
+        recommendation: "Bu tovarlar hech qachon tugab qolmasligi kerak — minimal qoldiqni to'g'ri belgilang.",
         link: '#/reports?tab=products',
         products: top.slice(0, 3),
       });
       const prof = [...top].filter((p) => p.profit > 0).sort((a, b) => b.profit - a.profit).slice(0, 3);
       if (prof.length) {
         out.push({
-          id: 'most_profitable', kind: 'most_profitable', level: 'info', title: 'Eng foydali mahsulotlar',
+          id: 'most_profitable', kind: 'most_profitable', level: 'info', title: 'Eng foydali tovarlar',
           text: `30 kunda eng ko'p foyda: ${prof.map((p) => `${p.name} (${money(p.profit)})`).join(', ')}.`,
-          recommendation: "Bu mahsulotlarni ko'rinadigan joyga qo'ying va sotuvchilarga tavsiya qilishni ayting.",
+          recommendation: "Bu tovarlarni ko'rinadigan joyga qo'ying va sotuvchilarga tavsiya qilishni ayting.",
           link: '#/reports?tab=products&sort=profit',
           products: prof,
         });
       }
     }
 
-    // Savdosi pasayayotgan mahsulotlar (so'nggi 14 kun <-> oldingi 14 kun)
+    // Savdosi pasayayotgan tovarlar (so'nggi 14 kun <-> oldingi 14 kun)
     const { rows: dec } = await db.query(
       `WITH a AS (
           SELECT si.product_id,
@@ -283,7 +283,7 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
     );
     if (dec.length) {
       out.push({
-        id: 'product_decline', kind: 'product_decline', level: 'warning', title: 'Savdosi pasayayotgan mahsulotlar',
+        id: 'product_decline', kind: 'product_decline', level: 'warning', title: 'Savdosi pasayayotgan tovarlar',
         text: dec.map((r) => `${r.name}: ${money(r.prior)} → ${money(r.recent)}`).join('; '),
         recommendation: "Narxni raqobatchilar bilan solishtiring, javonda joylashuvini tekshiring yoki aksiya qiling.",
         link: '#/reports?tab=products',
@@ -319,7 +319,7 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
       const critical = inv.restock.filter((p) => p.status === 'out').length;
       out.push({
         id: 'restock', kind: 'restock', level: critical ? 'critical' : 'warning', title: 'Olib kelish kerak',
-        text: `${inv.restock.length} ta mahsulot: ${inv.restock.slice(0, 4).map((p) => `${p.name} (~${p.suggested_qty} ${p.unit})`).join(', ')}${inv.restock.length > 4 ? ' va boshqalar' : ''}.`,
+        text: `${inv.restock.length} ta tovar: ${inv.restock.slice(0, 4).map((p) => `${p.name} (~${p.suggested_qty} ${p.unit})`).join(', ')}${inv.restock.length > 4 ? ' va boshqalar' : ''}.`,
         recommendation: "Qavs ichidagi miqdor taxminan 2 haftaga yetadi (so'nggi 30 kunlik savdoga qarab hisoblangan).",
         link: '#/reports?tab=inventory',
         products: inv.restock.slice(0, 8).map((p) => ({ id: p.id, name: p.name, suggested_qty: p.suggested_qty, unit: p.unit, status: p.status })),
@@ -327,9 +327,9 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
     }
     if (inv.dead.length) {
       out.push({
-        id: 'dead_stock', kind: 'slow_moving', level: 'info', title: 'Sotilmayotgan mahsulotlar',
-        text: `${inv.dead.length} ta mahsulot 30 kundan beri sotilmadi. Ularda ${money(inv.totals.dead_value)} pul muzlab turibdi.`,
-        recommendation: 'Chegirma, aksiya yoki boshqa mahsulot bilan birga sotishni sinab ko\'ring. Bu mahsulotlarga yangi buyurtma bermang.',
+        id: 'dead_stock', kind: 'slow_moving', level: 'info', title: 'Sotilmayotgan tovarlar',
+        text: `${inv.dead.length} ta tovar 30 kundan beri sotilmadi. Ularda ${money(inv.totals.dead_value)} pul muzlab turibdi.`,
+        recommendation: 'Chegirma, aksiya yoki boshqa tovar bilan birga sotishni sinab ko\'ring. Bu tovarlarga yangi buyurtma bermang.',
         link: '#/reports?tab=slow',
         products: inv.dead.slice(0, 5).map((p) => ({ id: p.id, name: p.name, value: p.stock_value })),
       });
@@ -337,8 +337,8 @@ export async function computeInsights(db, { financial, stock, debts, thresholds 
     if (inv.overstock.length) {
       out.push({
         id: 'overstock', kind: 'overstock', level: 'info', title: "Ko'p turib qolgan tovar",
-        text: `${inv.overstock.length} ta mahsulot omborda 3 oydan ko'proqqa yetadigan darajada ko'p (ortiqcha qismga ≈ ${money(inv.totals.excess_value)} pul bog'langan).`,
-        recommendation: 'Keyingi kirimda bu mahsulotlarni kamroq oling.',
+        text: `${inv.overstock.length} ta tovar omborda 3 oydan ko'proqqa yetadigan darajada ko'p (ortiqcha qismga ≈ ${money(inv.totals.excess_value)} pul bog'langan).`,
+        recommendation: 'Keyingi kirimda bu tovarlarni kamroq oling.',
         link: '#/reports?tab=slow',
       });
     }
@@ -403,13 +403,13 @@ export async function briefing(db, user, { thresholds } = {}) {
   if (inv) {
     if (inv.out.length) {
       attention.push({
-        level: 'critical', kind: 'out_of_stock', title: `${inv.out.length} ta mahsulot tugagan`,
+        level: 'critical', kind: 'out_of_stock', title: `${inv.out.length} ta tovar tugagan`,
         text: inv.out.slice(0, 5).map((p) => p.name).join(', '), link: '#/products?filter=out',
       });
     }
     if (inv.low.length) {
       attention.push({
-        level: 'warning', kind: 'low_stock', title: `${inv.low.length} ta mahsulot kam qoldi`,
+        level: 'warning', kind: 'low_stock', title: `${inv.low.length} ta tovar kam qoldi`,
         text: inv.low.slice(0, 5).map((p) => `${p.name} (${round2(p.stock_qty)} ${p.unit})`).join(', '), link: '#/products?filter=low',
       });
     }
@@ -432,7 +432,7 @@ export async function briefing(db, user, { thresholds } = {}) {
   const summary = periodSentences(day, { label: 'Bugun', against: 'kechaning shu vaqtiga nisbatan', financial });
   if (best.length) summary.push(`Eng ko'p sotilgan: ${best.map((p) => p.name).join(', ')}.`);
   if (inv && (inv.low.length || inv.out.length)) {
-    summary.push(`${inv.low.length + inv.out.length} ta mahsulotni to'ldirish kerak.`);
+    summary.push(`${inv.low.length + inv.out.length} ta tovarni to'ldirish kerak.`);
   }
 
   const insights = await computeInsights(db, {

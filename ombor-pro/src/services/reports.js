@@ -1,7 +1,7 @@
 // Moliyaviy hisob-kitoblar. Dashboard va hisobotlar shu funksiyalardan foydalanadi.
 //
 // Qoidalar:
-//  - Sof tushum = sotuvlar jami - qaytarilgan mahsulotlar (qaytarilgan kun bo'yicha)
+//  - Sof tushum = sotuvlar jami - qaytarilgan tovarlar (qaytarilgan kun bo'yicha)
 //  - Yalpi foyda = sof tushum - sotilgan tovarlar tannarxi
 //  - Sof foyda = yalpi foyda - xarajatlar - zarar (yaroqsiz va kamomad)
 //  - Nasiya sotuv tushum hisoblanadi, lekin naqd tushum hisoblanmaydi
@@ -168,7 +168,7 @@ export async function periodSeries(db, period, kind) {
     });
 }
 
-// Mahsulot bo'yicha foyda (qaytarishlar hisobga olingan)
+// Tovar bo'yicha foyda (qaytarishlar hisobga olingan)
 export async function productProfitability(db, period) {
   const { rows } = await db.query(
     `WITH sold AS (

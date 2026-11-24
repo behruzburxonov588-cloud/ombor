@@ -2,15 +2,14 @@
 import {
   get, post, put, icon, esc, num, money, dateTime, readForm, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, monthStartStr, download,
-  takeNewFlag, presetRange, initials,
-} from '../ui.js';
+  takeNewFlag, presetRange, initials, parseQty } from '../ui.js';
 
 const ACTION_LABELS = {
   'sale.create': 'Savdo', 'sale.return': 'Qaytarish', 'purchase.create': 'Kirim',
-  'product.create': "Mahsulot qo'shildi", 'product.update': 'Mahsulot tahrirlandi',
+  'product.create': "Tovar qo'shildi", 'product.update': 'Tovar tahrirlandi',
   'product.archive': 'Arxivlandi', 'product.restore': 'Arxivdan tiklandi',
   'stock.damage': 'Zarar yozildi', 'stock.correction': 'Qoldiq tuzatildi',
-  'count.create': 'Inventarizatsiya boshlandi', 'count.approve': 'Inventarizatsiya tasdiqlandi',
+  'count.create': 'Sanash boshlandi', 'count.approve': 'Sanash tasdiqlandi',
   'customer.create': 'Mijoz qo\'shildi', 'customer.update': 'Mijoz tahrirlandi',
   'supplier.create': 'Yetkazib beruvchi qo\'shildi', 'supplier.update': 'Yetkazib beruvchi tahrirlandi',
   'shift.open': 'Smena ochildi', 'shift.close': 'Smena yopildi',
@@ -45,15 +44,11 @@ const STORE_TYPE_LABEL = {
 };
 
 const ENTITY_LABELS = {
-  product: 'Mahsulot', sale: 'Savdo', purchase: 'Kirim', customer: 'Mijoz', supplier: 'Yetkazib beruvchi',
-  cash: 'Kassa', cash_shift: 'Smena', expense: 'Xarajat', inventory_count: 'Inventarizatsiya',
+  product: 'Tovar', sale: 'Savdo', purchase: 'Kirim', customer: 'Mijoz', supplier: 'Yetkazib beruvchi',
+  cash: 'Kassa', cash_shift: 'Smena', expense: 'Xarajat', inventory_count: 'Sanash',
   user: 'Xodim', settings: 'Sozlamalar', unit: 'Birlik',
 };
 
-const toNum = (v) => {
-  const n = Number(String(v ?? '').trim().replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-};
 
 export async function render(root, params, ctx) {
   if (params.key === 'history') return renderHistory(root, params, ctx);
@@ -320,7 +315,7 @@ async function renderSettings(root, ctx) {
           <input class="input" name="debt_warning_days" data-type="num" inputmode="numeric" value="${s.debt_warning_days}"></label>
       </div>
       <div class="stack">
-        <label class="check"><input type="checkbox" name="notify_low_stock" ${s.notify_low_stock ? 'checked' : ''}><span>Kam qolgan va tugagan mahsulotlar haqida ogohlantirish</span></label>
+        <label class="check"><input type="checkbox" name="notify_low_stock" ${s.notify_low_stock ? 'checked' : ''}><span>Kam qolgan va tugagan tovarlar haqida ogohlantirish</span></label>
         <label class="check"><input type="checkbox" name="notify_debts" ${s.notify_debts ? 'checked' : ''}><span>Muddati yaqin va o'tgan qarzlar haqida eslatish</span></label>
         <a class="link-btn" href="#/notifications?tab=settings">${icon('bell', 'ico-xs')} Batafsil: jadval, Telegram, chegaralar</a>
       </div>
@@ -348,7 +343,7 @@ async function renderSettings(root, ctx) {
     ${ctx.user.role === 'owner' ? `
     <div class="card stack" style="margin-top:14px">
       <div class="card-head"><div><h2>Zaxira nusxa</h2><div class="card-sub">Butun bazani bitta faylga yuklab olish</div></div></div>
-      <p class="small muted">Faylda barcha ma'lumotlar bor: mahsulotlar, savdolar, qarzlar, kassa, xodimlar va sozlamalar. Uni xavfsiz joyda saqlang va hech kimga bermang.
+      <p class="small muted">Faylda barcha ma'lumotlar bor: tovarlar, savdolar, qarzlar, kassa, xodimlar va sozlamalar. Uni xavfsiz joyda saqlang va hech kimga bermang.
         Yangi serverga o'tganda: <code>npm run restore -- fayl.sql</code> (faqat bo'sh bazaga tiklanadi, mavjud ma'lumot ustidan yozilmaydi).</p>
       <div><button class="btn btn-light" type="button" id="backup">${icon('download', 'ico-sm')} Zaxira nusxasini yuklab olish (.sql)</button></div>
     </div>` : ''}`;
@@ -368,7 +363,7 @@ async function renderSettings(root, ctx) {
       store_address: d.store_address || '',
       receipt_footer: d.receipt_footer || '',
       costing_method: d.costing_method,
-      debt_warning_days: toNum(d.debt_warning_days),
+      debt_warning_days: parseQty(d.debt_warning_days),
       notify_low_stock: form.querySelector('[name=notify_low_stock]').checked,
       notify_debts: form.querySelector('[name=notify_debts]').checked,
     };

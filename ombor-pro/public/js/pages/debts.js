@@ -1,8 +1,7 @@
 // Mijoz qarzlari: jami, muddati o'tgan, qarz yoshi va to'lovlar
 import {
   get, esc, icon, num, moneyFull, kpiMoney, dateOnly, timeAgo, emptyState, download, errorToast, withBusy, debounce,
-  takeNewFlag, todayStr, addDaysStr,
-} from '../ui.js';
+  takeNewFlag, todayStr, addDaysStr, PAY_METHOD } from '../ui.js';
 import { openDebtForm, openReceivePayment } from '../debtform.js';
 import { openSupplierPayment } from './parties.js';
 import { segbar } from '../charts.js';
@@ -12,7 +11,6 @@ const STATUS = {
   due_soon: '<span class="badge badge-low">Muddati yaqin</span>',
   open: '<span class="badge badge-muted">Ochiq</span>',
 };
-const METHOD = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
 
 // Ikki xil qarz aniq ajratilgan: «Mijozlar qarzi» (sizga to'lashlari kerak) va «Sizning qarzingiz» (yetkazib beruvchilarga)
 export async function render(root, params, ctx) {
@@ -80,7 +78,7 @@ async function renderCustomers(root, params, ctx, tabs) {
           <div class="card-head"><div><h2>So'nggi to'lovlar</h2><div class="card-sub">Mijozlar qarzini to'lashi</div></div></div>
           ${d.recent_payments.length ? `<div class="list">${d.recent_payments.map((p) => `
             <a class="list-item" href="#/customers/${p.customer_id}"><div class="meta"><div class="name">${esc(p.customer_name)}</div>
-              <div class="sub">${esc(METHOD[p.method] || p.method)} · ${esc(timeAgo(p.created_at))}</div></div>
+              <div class="sub">${esc(PAY_METHOD[p.method] || p.method)} · ${esc(timeAgo(p.created_at))}</div></div>
               <div class="end num green strong">+${moneyFull(p.amount)}</div></a>`).join('')}</div>` : '<div class="empty small">To\'lovlar yo\'q</div>'}
         </section>
       </div>

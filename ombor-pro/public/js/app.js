@@ -92,7 +92,7 @@ const MOBILE = ['dashboard', 'sales', 'goods', 'money'];
 // "+ Qo'shish" menyusi: har sahifadan bir bosishda yangi yozuv (faqat ruxsat berilganlari ko'rinadi)
 const QUICK = [
   { label: 'Yangi tovar', hint: 'Tovar, narxi, qadog\'i', icon: 'box', href: '#/products/new', perms: ['products.manage'] },
-  { label: 'Sotuv', hint: 'Tovar sotish (kassa)', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
+  { label: 'Sotish', hint: 'Xaridorga tovar sotish', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
   { label: 'Yuk keldi', hint: 'Kelgan tovarni omborga kiritish', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
   { label: 'Qarz yozish', hint: 'Daftardagi eski qarz', icon: 'debt', href: '#/debts?new=1', perms: ['customers.manage'], route: 'debts' },
   { label: 'Xarajat', hint: 'Ijara, maosh, kommunal', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'], route: 'cash' },
@@ -410,7 +410,7 @@ function openGlobalSearch() {
   closePopover();
   openModal({
     title: 'Qidiruv',
-    body: `<div class="search-input">${icon('search', 'ico-sm')}<input class="input" id="gs" type="search" placeholder="Mahsulot, mijoz yoki yetkazib beruvchi (nomi yoki telefoni)" autofocus></div>
+    body: `<div class="search-input">${icon('search', 'ico-sm')}<input class="input" id="gs" type="search" placeholder="Tovar, mijoz yoki yetkazib beruvchi (nomi yoki telefoni)" autofocus></div>
            <div id="gs-res" style="margin-top:12px"><div class="empty small">Kamida 2 ta harf kiriting</div></div>`,
     onMount: (el, close) => {
       const input = el.querySelector('#gs');
@@ -424,7 +424,7 @@ function openGlobalSearch() {
           try {
             const r = await get(`/search?q=${encodeURIComponent(q)}`);
             const rows = [
-              ...r.products.map((p) => ({ k: 'products', id: p.id, t: p.name, s: `Qoldiq: ${num(p.stock_qty, 3)} · ${money(p.selling_price)}`, tag: 'Mahsulot', ic: 'box' })),
+              ...r.products.map((p) => ({ k: 'products', id: p.id, t: p.name, s: `Qoldiq: ${num(p.stock_qty, 3)} · ${money(p.selling_price)}`, tag: 'Tovar', ic: 'box' })),
               ...r.customers.map((c) => ({ k: 'customers', id: c.id, t: c.name, s: c.phone || '', tag: 'Mijoz', ic: 'user' })),
               ...r.suppliers.map((s) => ({ k: 'suppliers', id: s.id, t: s.name, s: s.phone || '', tag: 'Yetkazib beruvchi', ic: 'store' })),
             ];

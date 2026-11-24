@@ -1,4 +1,4 @@
-// Biznes tahlili: KPI, foyda va zarar, mahsulotlar, ombor, haftalik hisobot, prognoz, qarzlar va xodimlar.
+// Biznes tahlili: KPI, foyda va zarar, tovarlar, ombor, haftalik hisobot, prognoz, qarzlar va xodimlar.
 // Barcha ko'rsatkichlar bazadagi haqiqiy yozuvlardan hisoblanadi.
 //
 // Buxgalteriya formulalari (barcha hisobotlarda bir xil):
@@ -13,6 +13,7 @@
 
 import { HttpError, round2, round4, todayLocal, addDays } from '../util.js';
 import { getSettings } from './settings.js';
+import { balances as cashBalances } from './cash.js';
 
 export const TZ = 'Asia/Tashkent';
 const DAY_MS = 86400000;
@@ -358,7 +359,7 @@ async function debtDeltas(db, sinceDay) {
   return rows;
 }
 
-// ---------- Mahsulotlar bo'yicha tahlil ----------
+// ---------- Tovarlar bo'yicha tahlil ----------
 
 export async function productStats(db, range, method) {
   const since30 = tsStart(addDays(todayLocal(), -29));
@@ -496,7 +497,7 @@ export function filterSortPage(items, q) {
 const fmtQty = (v) => String(round2(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const fmtMoney = (v) => `${String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} so'm`;
 
-// Mahsulot uchun tushunarli tavsiya (faqat haqiqiy ko'rsatkichlar asosida)
+// Tovar uchun tushunarli tavsiya (faqat haqiqiy ko'rsatkichlar asosida)
 export function recommendation(p) {
   if (p.status === 'out') {
     return p.qty_30d > 0
@@ -600,10 +601,10 @@ export async function inventoryAnalytics(db, { financial = false, method } = {})
   );
 
   const summaryNotes = [];
-  if (out.length) summaryNotes.push({ level: 'critical', text: `${out.length} ta mahsulot tugagan${out.filter((p) => p.qty_30d > 0).length ? `, ulardan ${out.filter((p) => p.qty_30d > 0).length} tasi yaqinda sotilgan` : ''}.` });
-  if (low.length) summaryNotes.push({ level: 'warning', text: `${low.length} ta mahsulot minimal qoldiqdan kam — qayta buyurtma bering.` });
-  if (dead.length) summaryNotes.push({ level: 'warning', text: `${fmtMoney(deadValue)} pul 30 kundan beri sotilmagan ${dead.length} ta mahsulotda muzlab turibdi.` });
-  if (overstock.length) summaryNotes.push({ level: 'info', text: `${overstock.length} ta mahsulotda ortiqcha zaxira bor (≈ ${fmtMoney(excessValue)}).` });
+  if (out.length) summaryNotes.push({ level: 'critical', text: `${out.length} ta tovar tugagan${out.filter((p) => p.qty_30d > 0).length ? `, ulardan ${out.filter((p) => p.qty_30d > 0).length} tasi yaqinda sotilgan` : ''}.` });
+  if (low.length) summaryNotes.push({ level: 'warning', text: `${low.length} ta tovar minimal qoldiqdan kam — qayta buyurtma bering.` });
+  if (dead.length) summaryNotes.push({ level: 'warning', text: `${fmtMoney(deadValue)} pul 30 kundan beri sotilmagan ${dead.length} ta tovarda muzlab turibdi.` });
+  if (overstock.length) summaryNotes.push({ level: 'info', text: `${overstock.length} ta tovarda ortiqcha zaxira bor (≈ ${fmtMoney(excessValue)}).` });
   if (!summaryNotes.length && items.length) summaryNotes.push({ level: 'success', text: "Ombor holati yaxshi: tugagan yoki ortiqcha zaxira yo'q." });
 
   return {
@@ -829,13 +830,7 @@ export async function dashboard(db, user, query) {
     out.pnl = { current: cur, previous: prev };
     out.supplier_debt = supDebt;
     // Kelish narxi yozilmagan tovarlar sotilgan bo'lsa, foyda keragidan ko'p chiqadi — egasiga ko'rsatiladi
-    const { rows: nc } = await db.query(
-      `SELECT COUNT(DISTINCT si.product_id)::int AS products, COALESCE(SUM(si.line_total), 0) AS revenue
-         FROM sale_items si JOIN sales s ON s.id = si.sale_id
-        WHERE s.kind = 'sale' AND s.created_at >= $1 AND s.created_at < $2 AND si.cost_total = 0 AND si.line_total > 0`,
-      [range.fromTs, range.toTs],
-    );
-    out.cost_missing = { products: nc[0].products, revenue: round2(nc[0].revenue) };
+    out.cost_missing = await costMissing(db, range);
     const items = await productStats(db, range, settings.costing_method);
     out.top = topLists(items);
     out.forecast = await forecast(db);
@@ -1028,6 +1023,17 @@ export async function overview(db, user, query) {
   };
 }
 
+// Kelish narxi yozilmagan tovar sotilgan bo'lsa, foyda keragidan ko'p chiqadi — egasiga ko'rsatiladi
+async function costMissing(db, range) {
+  const { rows } = await db.query(
+    `SELECT COUNT(DISTINCT si.product_id)::int AS products, COALESCE(SUM(si.line_total), 0) AS revenue
+       FROM sale_items si JOIN sales s ON s.id = si.sale_id
+      WHERE s.kind = 'sale' AND s.created_at >= $1 AND s.created_at < $2 AND si.cost_total = 0 AND si.line_total > 0`,
+    [range.fromTs, range.toTs],
+  );
+  return { products: rows[0].products, revenue: round2(rows[0].revenue) };
+}
+
 // ---------- Oddiy bosh sahifa: bozorchiga kerakli hamma raqam bitta so'rovda ----------
 // Savdo, foyda (faqat egasi/hisobot huquqi borlarga), kassadagi pul va «Diqqat»:
 // tugagan va kam qolgan tovar, muddati o'tgan mijoz qarzi, to'lov kuni kelgan yetkazib beruvchi qarzi,
@@ -1053,10 +1059,7 @@ export async function homeSummary(db, user, query) {
         WHERE NOT p.is_archived AND (p.stock_qty <= 0 OR (p.min_stock > 0 AND p.stock_qty <= p.min_stock))
         ORDER BY (p.stock_qty <= 0) DESC, p.name LIMIT 40`,
     ),
-    cashAccess
-      ? db.query(`SELECT method, COALESCE(SUM(CASE WHEN direction = 'in' THEN amount ELSE -amount END), 0) AS balance
-                    FROM cash_transactions GROUP BY method`)
-      : null,
+    cashAccess ? cashBalances(db) : null,
     debtAccess
       ? db.query(
         `SELECT c.id, c.name, SUM(s.balance_due) AS debt, MIN(s.due_date) AS since,
@@ -1076,20 +1079,11 @@ export async function homeSummary(db, user, query) {
         [addDays(today, warnDays)],
       )
       : null,
-    financial
-      ? db.query(
-        `SELECT COUNT(DISTINCT si.product_id)::int AS products, COALESCE(SUM(si.line_total), 0) AS revenue
-           FROM sale_items si JOIN sales s ON s.id = si.sale_id
-          WHERE s.kind = 'sale' AND s.created_at >= $1 AND s.created_at < $2 AND si.cost_total = 0 AND si.line_total > 0`,
-        [range.fromTs, range.toTs],
-      )
-      : null,
+    financial ? costMissing(db, range) : null,
   ]);
 
   const item = (r) => ({ id: r.id, name: r.name, unit: r.unit, qty: round4(r.stock_qty), min: round4(r.min_stock) });
   const st = stock.rows;
-  const balances = { cash: 0, card: 0, transfer: 0 };
-  for (const r of bal?.rows || []) balances[r.method] = round2(r.balance);
   const c0 = cust?.rows[0];
   const s0 = sup?.rows[0];
   return {
@@ -1106,7 +1100,7 @@ export async function homeSummary(db, user, query) {
       losses: pnl.losses,
       net: pnl.net_profit,
     } : null,
-    cash: cashAccess ? balances : null,
+    cash: bal ? { cash: round2(bal.cash), card: round2(bal.card), transfer: round2(bal.transfer) } : null,
     attention: {
       out: st.filter((r) => n(r.stock_qty) <= 0).slice(0, 5).map(item),
       out_count: st.length ? Number(st[0].out_count) : 0,
@@ -1117,7 +1111,7 @@ export async function homeSummary(db, user, query) {
       overdue_total: c0 ? round2(c0.total) : 0,
       supplier_due: (sup?.rows || []).map((r) => ({ id: r.id, name: r.name, debt: round2(r.debt), due: r.due, late: r.due < today })),
       supplier_due_count: s0 ? Number(s0.cnt) : 0,
-      cost_missing: nc && nc.rows[0].products > 0 ? { products: nc.rows[0].products, revenue: round2(nc.rows[0].revenue) } : null,
+      cost_missing: nc && nc.products > 0 ? nc : null,
     },
   };
 }

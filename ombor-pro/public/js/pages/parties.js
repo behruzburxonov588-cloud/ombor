@@ -1,12 +1,10 @@
 // Mijozlar va yetkazib beruvchilar: ro'yxat, tafsilot, qarz to'lovlari, yaratish va tahrirlash
 import {
-  get, post, put, icon, esc, money, dateTime, dateOnly, readForm, toast, errorToast, initials, timeAgo,
+  get, post, put, icon, esc, money, dateTime, dateOnly, readForm, toast, initials, timeAgo,
   openModal, withBusy, emptyState, newKey,
-  takeNewFlag, parseMoney,
-} from '../ui.js';
+  takeNewFlag, parseMoney, PAY_METHOD } from '../ui.js';
 import { openDebtForm } from '../debtform.js';
 
-const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
 const SALE_STATUS = {
   completed: '<span class="badge badge-ok">Yakunlangan</span>',
   returned: '<span class="badge badge-muted">Qaytarilgan</span>',
@@ -217,7 +215,7 @@ async function renderDetail(root, cfg, id, ctx) {
             <thead><tr><th>Vaqt</th><th>Usul</th><th class="right">Summa</th><th>Izoh</th></tr></thead>
             <tbody>${payments.map((p) => `<tr>
               <td data-label="Vaqt">${dateTime(p.created_at)}</td>
-              <td data-label="Usul">${esc(METHOD_LABELS[p.method] || p.method)}</td>
+              <td data-label="Usul">${esc(PAY_METHOD[p.method] || p.method)}</td>
               <td data-label="Summa" class="right num green">${money(p.amount)}</td>
               <td data-label="Izoh" class="small">${esc(p.note || '')}</td>
             </tr>`).join('')}</tbody></table></div>`

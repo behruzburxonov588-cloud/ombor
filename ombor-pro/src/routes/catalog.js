@@ -1,4 +1,4 @@
-// Mahsulotlar, birliklar, kategoriyalar, rasmlar va shtrix-kodlar
+// Tovarlar, birliklar, kategoriyalar, rasmlar va shtrix-kodlar
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'node:path';
@@ -83,7 +83,7 @@ router.post('/categories', requirePerm('products.manage'), async (req, res) => {
   res.status(201).json({ category: rows[0] });
 });
 
-// ---------- Mahsulotlar ----------
+// ---------- Tovarlar ----------
 
 const PRODUCT_SELECT = `
   SELECT p.*, u.name AS base_unit_name, c.name AS category_name, s.name AS supplier_name,
@@ -202,8 +202,8 @@ router.get('/products', requirePerm('products.view', 'sales.create', 'purchases.
 router.get('/products/barcode/:code', requirePerm('sales.create', 'products.view', 'stock.view', 'purchases.create'), async (req, res) => {
   const code = String(req.params.code || '').trim();
   const { rows } = await pool.query(`${PRODUCT_SELECT} WHERE p.barcode = $1`, [code]);
-  if (!rows[0]) throw new HttpError(404, "Bu shtrix-kod bo'yicha mahsulot topilmadi");
-  if (rows[0].is_archived) throw new HttpError(400, 'Bu mahsulot arxivlangan');
+  if (!rows[0]) throw new HttpError(404, "Bu shtrix-kod bo'yicha tovar topilmadi");
+  if (rows[0].is_archived) throw new HttpError(400, 'Bu tovar arxivlangan');
   const conv = await productUnits(pool, rows[0].id);
   res.json({ product: hideCost(shapeProduct(rows[0], conv), req.user) });
 });
@@ -211,7 +211,7 @@ router.get('/products/barcode/:code', requirePerm('sales.create', 'products.view
 router.get('/products/:id', requirePerm('products.view', 'stock.view'), async (req, res) => {
   const id = Number(req.params.id);
   const { rows } = await pool.query(`${PRODUCT_SELECT} WHERE p.id = $1`, [id]);
-  if (!rows[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+  if (!rows[0]) throw new HttpError(404, 'Tovar topilmadi');
   const conv = await productUnits(pool, id);
   const { rows: batches } = await pool.query(
     `SELECT id, received_at, qty_initial, qty_remaining, unit_cost, source_type
@@ -226,7 +226,7 @@ router.get('/products/:id', requirePerm('products.view', 'stock.view'), async (r
 });
 
 async function validateProductBody(client, body, existingId = null) {
-  const name = str(body.name, 'Mahsulot nomi', { required: true, max: 150 });
+  const name = str(body.name, 'Tovar nomi', { required: true, max: 150 });
   const barcode = str(body.barcode, 'Shtrix-kod', { max: 64 });
   // Artikul (SKU): yuborilmasa — o'zgarmaydi; bo'sh satr — o'chiriladi
   const skuGiven = body.sku !== undefined;
@@ -236,7 +236,7 @@ async function validateProductBody(client, body, existingId = null) {
       'SELECT id, name FROM products WHERE lower(sku) = lower($1) AND ($2::int IS NULL OR id <> $2)',
       [sku, existingId],
     );
-    if (dupSku[0]) throw new HttpError(409, `Bu artikul "${dupSku[0].name}" mahsulotida allaqachon bor`);
+    if (dupSku[0]) throw new HttpError(409, `Bu artikul "${dupSku[0].name}" tovarida allaqachon bor`);
   }
   // O'lcham: model nomi va o'lcham birga keladi (masalan: "Futbolka" + "M"); yuborilmasa — o'zgarmaydi
   const sizeGiven = body.model_name !== undefined || body.variant_label !== undefined;
@@ -275,7 +275,7 @@ async function validateProductBody(client, body, existingId = null) {
       'SELECT id, name FROM products WHERE barcode = $1 AND ($2::int IS NULL OR id <> $2)',
       [barcode, existingId],
     );
-    if (dup[0]) throw new HttpError(409, `Bu shtrix-kod "${dup[0].name}" mahsulotida allaqachon bor`);
+    if (dup[0]) throw new HttpError(409, `Bu shtrix-kod "${dup[0].name}" tovarida allaqachon bor`);
   }
   const conversions = Array.isArray(body.conversions) ? body.conversions : [];
   const seen = new Set();
@@ -373,7 +373,7 @@ const IMPORT_COLUMNS = [
   ['unit', /(birlik|olchov|unit)/],
   ['brand', /(brend|brand)/],
   ['color', /(rang|color)/],
-  ['name', /(nomi|nom|tovar|mahsulot|name)/],
+  ['name', /(nomi|nom|tovar|tovar|name)/],
 ];
 const norm = (s) => String(s || '').toLowerCase().replace(/[ʻ'’`‘"]/g, '').replace(/\s+/g, ' ').trim();
 const UNIT_SYNONYMS = {
@@ -549,10 +549,10 @@ router.put('/products/:id', requirePerm('products.manage'), async (req, res) => 
   const body = req.body || {};
   await withTransaction(async (client) => {
     const { rows: cur } = await client.query('SELECT * FROM products WHERE id = $1 FOR UPDATE', [id]);
-    if (!cur[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+    if (!cur[0]) throw new HttpError(404, 'Tovar topilmadi');
     const v = await validateProductBody(client, body, id);
     if (v.baseUnitId !== cur[0].base_unit_id && Number(cur[0].stock_qty) > 0) {
-      throw new HttpError(400, "Qoldig'i bor mahsulotning asosiy birligini o'zgartirib bo'lmaydi");
+      throw new HttpError(400, "Qoldig'i bor tovarning asosiy birligini o'zgartirib bo'lmaydi");
     }
     await client.query(
       `UPDATE products SET name = $2, barcode = $3, category_id = $4, supplier_id = $5,
@@ -594,7 +594,7 @@ router.post('/products/:id/recost', requirePerm('products.manage'), async (req, 
   const mode = body.mode === 'all' ? 'all' : 'missing';
   const result = await withTransaction(async (client) => {
     const { rows } = await client.query('SELECT id, name FROM products WHERE id = $1 FOR UPDATE', [id]);
-    if (!rows[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+    if (!rows[0]) throw new HttpError(404, 'Tovar topilmadi');
     const r = await recostProduct(client, id, price, mode);
     await audit(client, req.user.id, 'product.recost', 'product', id, { name: rows[0].name, purchase_price: price, mode, recost_batches: r.batches, recost_sales: r.sales });
     return r;
@@ -609,7 +609,7 @@ router.post('/products/:id/archive', requirePerm('products.manage'), async (req,
       'UPDATE products SET is_archived = TRUE, updated_at = now() WHERE id = $1 RETURNING name',
       [id],
     );
-    if (!rows[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+    if (!rows[0]) throw new HttpError(404, 'Tovar topilmadi');
     await audit(client, req.user.id, 'product.archive', 'product', id, { name: rows[0].name });
   });
   res.json({ ok: true });
@@ -622,7 +622,7 @@ router.post('/products/:id/restore', requirePerm('products.manage'), async (req,
       'UPDATE products SET is_archived = FALSE, updated_at = now() WHERE id = $1 RETURNING name',
       [id],
     );
-    if (!rows[0]) throw new HttpError(404, 'Mahsulot topilmadi');
+    if (!rows[0]) throw new HttpError(404, 'Tovar topilmadi');
     await audit(client, req.user.id, 'product.restore', 'product', id, { name: rows[0].name });
   });
   res.json({ ok: true });
@@ -639,7 +639,7 @@ router.post('/products/:id/image', requirePerm('products.manage'), (req, res, ne
       const { rows } = await pool.query('SELECT image_path FROM products WHERE id = $1', [id]);
       if (!rows[0]) {
         if (req.file.path) await fs.unlink(req.file.path).catch(() => {});
-        throw new HttpError(404, 'Mahsulot topilmadi');
+        throw new HttpError(404, 'Tovar topilmadi');
       }
       const old = rows[0].image_path && rows[0].image_path.startsWith('/uploads/') ? path.basename(rows[0].image_path) : null;
       let name = req.file.filename;

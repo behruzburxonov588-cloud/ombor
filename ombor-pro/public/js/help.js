@@ -5,7 +5,7 @@ import { openModal, esc, icon } from './ui.js';
 // Atamalar lug'ati: sahifalarda ishlatiladigan so'zlarning oddiy ma'nosi
 export const TERMS = {
   tushum: ['Tushum', "Sotuvdan kelgan pul. Chegirma va qaytarilgan tovar ayirib tashlangan. Qarz to'lovlari bunga kirmaydi."],
-  tannarx: ['Tannarx (kelish narxi)', "Tovarni o'zingiz necha so'mga olgansiz. Foyda shu narxdan hisoblanadi."],
+  tannarx: ['Kelish narxi (tannarx)', "Tovarni o'zingiz necha so'mga olgansiz. Foyda shu narxdan hisoblanadi."],
   savdo_foyda: ['Savdo foydasi', "Tushum minus sotilgan tovarlarning kelish narxi. Xarajatlar hali ayirilmagan."],
   sof_foyda: ['Sof foyda', "Qo'lingizda qoladigan pul: savdo foydasi minus xarajatlar (ijara, maosh...) va buzilgan yoki yo'qolgan tovar."],
   marja: ['Foyda ulushi (marja)', "Har 100 so'm tushumdan necha so'm sof foyda qolishi. Masalan, 20% — har 100 so'mdan 20 so'm foyda."],
@@ -17,7 +17,7 @@ export const TERMS = {
   qoldiq: ['Qoldiq', "Omborda hozir qancha tovar borligi. Sotilganda kamayadi, kirim qilinganda ko'payadi."],
   min_qoldiq: ['Minimal qoldiq', "Tovar shu miqdordan kam qolsa, dastur «kam qolgan» deb ogohlantiradi."],
   smena: ['Smena', "Kassir ishlagan vaqt. Ochilganda kassadagi naqd pul yoziladi, yopilganda pul sanalib solishtiriladi."],
-  sanash: ['Tovar sanash (inventarizatsiya)', "Tovarni qo'lda sanab, dasturdagi qoldiq bilan solishtirish. Farq bo'lsa, tasdiqlangandan keyin qoldiq to'g'rilanadi."],
+  sanash: ['Sanash (inventarizatsiya)', "Tovarni qo'lda sanab, dasturdagi qoldiq bilan solishtirish. Farq bo'lsa, tasdiqlangandan keyin qoldiq to'g'rilanadi."],
   zarar: ['Zarar va tuzatish', "Buzilgan, muddati o'tgan yoki yo'qolgan tovarni hisobdan chiqarish yoki qoldiqdagi xatoni to'g'rilash."],
   ombor_qiymati: ['Ombordagi tovar qiymati', "Ombordagi barcha tovarlar kelish narxida qancha turadi — tovarga «bog'langan» pulingiz."],
   taxmin: ['Taxmin', "So'nggi haftalar savdosi asosida hisoblangan kutilma. Aniq natija emas, faqat yo'l-yo'riq."],
@@ -27,19 +27,18 @@ export const TERMS = {
 const HELP = {
   dashboard: {
     title: 'Bosh sahifa',
-    what: "Do'koningizning eng muhim raqamlari bir joyda: savdo, foyda, xarajat, kassadagi pul, ombor va qarzlar.",
+    what: "Bir qarashda: bugun qancha sotdingiz, qancha foyda qoldi, kassada qancha pul bor va nimaga e'tibor berish kerak.",
     steps: [
-      "Tepadagi tugmalar bilan davrni tanlang: Bugun, Kecha, 7 kun, 30 kun, Shu oy yoki «Boshqa» (o'zingiz sana tanlaysiz).",
-      "8 ta karta — eng muhim raqamlar. Kartani bossangiz, tegishli bo'lim ochiladi (masalan, «Mijozlar qarzi» → Qarzlar). «hozir» belgisi — bu raqam davrga bog'liq emas, hozirgi holat.",
-      "«Savdo grafigi» — har kuni (bugun bo'lsa — har soatda) qancha sotilgani; kulrang chiziq — oldingi davr.",
-      "«Tugayotgan tovarlar» — olib kelish kerak bo'lganlar. «Eng ko'p sotilgan» va «So'nggi savdolar» — pastda.",
-      "«Pul nima bo'ldi?» — oddiy so'zlar bilan: qancha tushdi, qayerga ketdi va foyda (yashil) yoki zarar (qizil, minus).",
-      "«Oylik natija» — so'nggi oylar: savdo, xarajat va sof foyda. Oyni bossangiz, batafsil hisobot ochiladi.",
+      "Tepadagi «Bugun», «Kecha», «Shu oy» tugmalari bilan davrni tanlang.",
+      "Foyda raqamini bossangiz, qanday hisoblangani ochiladi: sotdingiz − olgan narxingiz − xarajatlar.",
+      "4 ta katta tugma — eng ko'p qilinadigan ishlar: Sotish, Yuk keldi, Qarz, Xarajat.",
+      "«Diqqat» — tugagan va kam qolgan tovar, muddati o'tgan qarz, to'lov kuni yaqin yetkazib beruvchi. Yonidagi tugma kerakli joyni ochadi.",
+      "Grafik va batafsil raqamlar kerak bo'lsa, pastdagi «To'liq ko'rinish» ni bosing. Qaytish uchun — «Oddiy ko'rinish».",
     ],
-    terms: ['tushum', 'tannarx', 'sof_foyda', 'kassa_puli', 'ombor_qiymati', 'qoldiq'],
+    terms: ['tushum', 'tannarx', 'sof_foyda', 'kassa_puli', 'qoldiq'],
   },
   analytics: {
-    title: 'Tahlil',
+    title: 'Grafiklar',
     what: "Chuqurroq tahlil: grafiklar, foyda hisobi, eng foydali va sekin sotiladigan tovarlar, keyingi 7 kunga taxmin.",
     steps: [
       "Davrni tepadagi tugmalar bilan tanlang.",
@@ -49,18 +48,18 @@ const HELP = {
     terms: ['savdo_foyda', 'sof_foyda', 'marja', 'foiz', 'taxmin'],
   },
   sales: {
-    title: 'Sotuv (kassa)',
+    title: 'Sotish',
     what: "Xaridorga tovar sotish joyi. Har bir sotuv chek bo'lib saqlanadi va ombordan avtomatik ayiriladi.",
     steps: [
       "Tovarni bosing yoki nomini yozing (shtrix-kod skaneri ham ishlaydi) — u o'ngdagi savatchaga tushadi.",
       "Savatchada miqdorni o'zgartiring (masalan, 1,5 kg).",
-      "To'lov turini tanlang: naqd, karta, o'tkazma yoki nasiya (qarzga).",
+      "To'lov turini tanlang: naqd, karta, o'tkazma yoki «Nasiya (qarzga)».",
       "«Sotish» tugmasini bosing. Chekni chop etish yoki ulashish mumkin.",
     ],
     terms: ['nasiya', 'qoldiq'],
   },
   'sales-history': {
-    title: 'Savdolar tarixi',
+    title: 'Cheklar',
     what: "Barcha cheklar ro'yxati: qachon, kim sotdi, nima sotildi va qancha.",
     steps: [
       "Davrni tanlang (Bugun, Kecha, 7 kun...). Chek raqami yoki mijoz ismi bo'yicha qidiring.",
@@ -93,7 +92,7 @@ const HELP = {
     title: 'Mijozlar',
     what: "Doimiy xaridorlaringiz ro'yxati. Nasiyaga sotish uchun mijoz shu yerda bo'lishi kerak.",
     steps: [
-      "«Yangi» tugmasi bilan mijoz qo'shing: ismi va telefoni kifoya.",
+      "«Yangi mijoz» tugmasi bilan mijoz qo'shing: ismi va telefoni kifoya.",
       "Mijozni bossangiz, uning xaridlari va qarzi ko'rinadi.",
       "Mijoz qarzini to'lasa, mijoz sahifasida «Qarzni to'lash» ni bosing.",
       "Daftardagi eski qarzni mijoz sahifasidagi «Qarz yozish» bilan kiriting.",
@@ -104,8 +103,8 @@ const HELP = {
     title: 'Yetkazib beruvchilar',
     what: "Tovar oladigan joylaringiz (firma, ulgurji do'kon, bozor). Ularga qancha qarzingiz borligi shu yerda ko'rinadi.",
     steps: [
-      "«Yangi» tugmasi bilan yetkazib beruvchi qo'shing.",
-      "Tovar kirimi qilganda yetkazib beruvchini tanlaysiz; to'lanmagan qism qarz bo'lib yoziladi.",
+      "«Yangi yetkazib beruvchi» tugmasi bilan qo'shing.",
+      "«Yuk keldi» da qarzga olgan bo'lsangiz, kimdan kelganini tanlaysiz — to'lanmagan qism qarz bo'lib yoziladi.",
       "Qarzni to'laganingizda yetkazib beruvchi sahifasida to'lovni kiriting.",
       "Oldindan qolgan qarzingiz bo'lsa, yetkazib beruvchi sahifasida «Qarz yozish» ni bosing (bu kirim emas, omborga tovar qo'shilmaydi).",
     ],
@@ -120,12 +119,12 @@ const HELP = {
       "«Qarz yozish» — daftardagi eski qarz yoki dasturdan tashqari berilgan nasiyani kiritish. Bu savdo hisoblanmaydi, faqat qarz bo'lib turadi.",
       "«To'lov qabul qilish» yoki qatordagi «To'lov» — mijoz qarzini to'laganda bosing. To'lov eng eski qarzdan boshlab yopiladi.",
       "Qizil — muddati o'tgan qarzlar. Ularga birinchi bo'lib qo'ng'iroq qiling.",
-      "Tovar hozir nasiyaga sotilsa, «Sotuv» bo'limida to'lov turini «Nasiya» qiling — qarz o'zi shu yerga tushadi.",
+      "Tovar hozir qarzga sotilsa, «Sotish» da to'lov turini «Nasiya (qarzga)» qiling — qarz o'zi shu yerga tushadi.",
     ],
     terms: ['nasiya'],
   },
   products: {
-    title: 'Mahsulotlar',
+    title: 'Tovarlar',
     what: "Do'koningizdagi barcha tovarlar. Har bir kartochkada katta raqam — omborda qancha qolgani.",
     steps: [
       "«Yangi tovar» tugmasi bilan tovar qo'shing — nomi va sotuv narxi kifoya.",
@@ -137,29 +136,30 @@ const HELP = {
     terms: ['qoldiq', 'min_qoldiq', 'tannarx'],
   },
   'product-form': {
-    title: "Mahsulot qo'shish",
-    what: "Yangi tovar kartochkasi. Faqat nomi va sotuv narxi majburiy, qolganini keyin ham to'ldirish mumkin.",
+    title: 'Yangi tovar',
+    what: "Yangi tovar qo'shish. Faqat nomi va sotuv narxi majburiy, qolganini keyin ham to'ldirish mumkin.",
     steps: [
-      "Nomini yozing (masalan: «Un oliy nav 1 kg»).",
-      "Sotuv narxini va (bilsangiz) kelish narxini yozing — foyda shundan hisoblanadi.",
-      "O'lchov birligini tanlang: dona, kg, litr...",
-      "Tovar hozir omborda bo'lsa, miqdorini «Hozir omborda qancha bor?» ga yozing.",
+      "Nomini yozing va xohlasangiz rasmga oling.",
+      "Sotuv narxini va (bilsangiz) kelish narxini yozing — har biridan qancha foyda qolishi pastda o'zi chiqadi.",
+      "«Xaridorga qanday sotasiz?» — dona, metr, kilogramm... Rulon, quti yoki blokda kelsa, shu belgini qo'ying: narxni rulon yoki metr uchun yozasiz, ikkinchisi o'zi hisoblanadi.",
+      "O'lchami yoki rangi bo'lsa (kiyim, poyabzal), shu belgini qo'ying. Ranglarni rasmga olib qo'shasiz.",
+      "Hozir omborda bo'lsa, «Hozir nechta bor?» ga yozing.",
       "Ko'p tovar kiritayotgan bo'lsangiz, «Saqlab, yana qo'shish» ni bosing.",
     ],
     terms: ['tannarx', 'qoldiq', 'min_qoldiq', 'artikul'],
   },
   purchases: {
-    title: 'Tovar kirimi',
-    what: "Omborga kelgan tovarlar ro'yxati. Kirim qilinganda tovar qoldig'i ko'payadi.",
+    title: 'Yuk keldi',
+    what: "Omborga kelgan yuklar ro'yxati. Yuk kiritilganda tovar qoldig'i ko'payadi.",
     steps: [
-      "Yuk kelsa — «Yuk keldi» tugmasini bosing (tugma «Mahsulotlar» va tovar sahifasida ham bor).",
+      "Yuk kelsa — «Yuk keldi — kiritish» tugmasini bosing (tugma tovar sahifasida ham bor).",
       "Kelgan tovarni bosing, nechta kelgani va narxini yozing.",
       "Pulini to'liq to'lagan bo'lsangiz — shuning o'zi. Qarzga olgan bo'lsangiz, kimdan kelganini tanlang.",
     ],
     terms: ['kirim', 'tannarx'],
   },
   'purchase-new': {
-    title: 'Yangi kirim',
+    title: 'Yuk keldi — kiritish',
     what: "Kelgan tovarni omborga kiritish. Saqlangandan keyin qoldiq o'zi ko'payadi.",
     steps: [
       "Kelgan tovarning rasmini bosing (yoki nomini qidiring, shtrix-kodni o'qiting) — tovar oynasi ochiladi. Ro'yxatda yo'q bo'lsa — «Yangi tovar».",
@@ -173,7 +173,7 @@ const HELP = {
     terms: ['kirim', 'tannarx'],
   },
   stock: {
-    title: "Ombor qoldig'i",
+    title: 'Qoldiq va tarix',
     what: "Har bir tovardan qancha qolgani, qancha kelgani va qancha sotilgani.",
     steps: [
       "Yuk kelsa — tepadagi «Yuk keldi — kiritish» tugmasini bosing.",
@@ -184,8 +184,8 @@ const HELP = {
     terms: ['qoldiq', 'ombor_qiymati', 'zarar', 'min_qoldiq'],
   },
   counts: {
-    title: 'Tovar sanash',
-    what: "Ombordagi tovarni qo'lda sanab, dasturdagi qoldiq bilan solishtirish (inventarizatsiya).",
+    title: 'Sanash',
+    what: "Ombordagi tovarni qo'lda sanab, dasturdagi qoldiq bilan solishtirish.",
     steps: [
       "«Yangi sanash» ni boshlang.",
       "Har bir tovarning haqiqiy sonini yozing.",
@@ -194,7 +194,7 @@ const HELP = {
     terms: ['sanash', 'qoldiq'],
   },
   cash: {
-    title: 'Kassa',
+    title: 'Kassadagi pul',
     what: "Kassadagi pul: naqd, karta va o'tkazma bo'yicha qancha kirdi va chiqdi.",
     steps: [
       "Ish boshida «Smenani ochish» — kassadagi naqd pulni yozing.",
@@ -207,7 +207,7 @@ const HELP = {
     title: 'Xarajatlar',
     what: "Do'kon chiqimlari: ijara, maosh, kommunal, transport va boshqalar. Ular sof foydadan ayiriladi.",
     steps: [
-      "Turkumni tanlang, summani yozing va «Xarajatni saqlash» ni bosing.",
+      "«Xarajat qo'shish» ni bosing: turini tanlang, summani yozing va saqlang.",
       "Pastda shu oydagi barcha xarajatlar ro'yxati.",
     ],
     terms: ['sof_foyda'],
@@ -244,6 +244,16 @@ const HELP = {
     steps: ["Sana va amal turi bo'yicha saralang."],
     terms: [],
   },
+  platform: {
+    title: 'AI tariflari',
+    what: "Faqat siz — dastur egasi — ko'rasiz: do'konlarga AI yordamchini yoqasiz va undan qancha pul qolishini kuzatasiz.",
+    steps: [
+      "Avval «AI ulanishi» kartasida «Tekshirish» ni bosing: AI ishlayaptimi yoki nima qilish kerakligini aytadi.",
+      "Bozorchi to'lov qilgach, uning do'koniga «+30 kun Oddiy» yoki «+30 kun Pro» ni bosing.",
+      "Tepadagi kartalarda oylik tushum, AI xarajati va sizga qancha qolishi ko'rinadi.",
+    ],
+    terms: [],
+  },
   settings: {
     title: 'Sozlamalar',
     what: "Do'kon nomi, chek ma'lumotlari, parolni o'zgartirish va zaxira nusxa.",
@@ -261,7 +271,7 @@ export function helpKeyFor(p) {
   if (key === 'sales') return id === undefined || id === null || id === '' ? 'sales' : 'sales-history';
   if (key === 'products') return id === 'new' || sub === 'edit' ? 'product-form' : 'products';
   if (key === 'purchases') return id === 'new' ? 'purchase-new' : 'purchases';
-  if (key === 'stock') return query.tab === 'counts' || id === 'count' ? 'counts' : 'stock';
+  if (key === 'stock') return ['counts', 'discrepancies'].includes(query.tab) || id === 'count' ? 'counts' : 'stock';
   if (key === 'cash') return query.tab === 'expenses' ? 'expenses' : 'cash';
   return HELP[key] ? key : 'dashboard';
 }

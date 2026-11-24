@@ -24,8 +24,8 @@ const PG_MESSAGES = {
 
 function dbErrorMessage(err) {
   if (err.code === '23505') {
-    if (err.constraint === 'products_barcode_key') return 'Bu shtrix-kod boshqa mahsulotda mavjud';
-    if (err.constraint === 'products_sku_uniq') return 'Bu artikul (SKU) boshqa mahsulotda mavjud';
+    if (err.constraint === 'products_barcode_key') return 'Bu shtrix-kod boshqa tovarda mavjud';
+    if (err.constraint === 'products_sku_uniq') return 'Bu artikul (SKU) boshqa tovarda mavjud';
     if (err.constraint === 'users_username_key' || err.constraint === 'logins_pkey') return 'Bu login band';
     return 'Bunday yozuv allaqachon mavjud';
   }

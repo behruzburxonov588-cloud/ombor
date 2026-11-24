@@ -9,7 +9,7 @@ import { audit } from '../audit.js';
 
 const router = Router();
 
-// Har bir mahsulot bo'yicha ombor jadvali (davr ichida)
+// Har bir tovar bo'yicha ombor jadvali (davr ichida)
 router.get('/stock/overview', requirePerm('stock.view'), async (req, res) => {
   const period = periodBounds(req.query.from, req.query.to);
   const { rows } = await pool.query(
@@ -101,7 +101,7 @@ router.get('/stock/movements', requirePerm('stock.view', 'history.view'), async 
 // Zarar yozish (yaroqsiz) yoki qoldiqni tuzatish (ortiqcha/kamomad)
 router.post('/stock/adjust', requirePerm('stock.adjust'), async (req, res) => {
   const body = req.body || {};
-  const productId = num(body.product_id, 'Mahsulot', { positive: true });
+  const productId = num(body.product_id, 'Tovar', { positive: true });
   const kind = body.kind;
   if (!['damage', 'correction'].includes(kind)) throw new HttpError(400, "Amal turi noto'g'ri");
   const qty = round4(num(body.quantity, 'Miqdor', { positive: true }));
@@ -114,7 +114,7 @@ router.post('/stock/adjust', requirePerm('stock.adjust'), async (req, res) => {
   const result = await withTransaction(async (client) => {
     const products = await lockProducts(client, [productId]);
     const p = products.get(productId);
-    if (!p) throw new HttpError(404, 'Mahsulot topilmadi');
+    if (!p) throw new HttpError(404, 'Tovar topilmadi');
     const settings = await getSettings(client);
     let value = 0;
     if (kind === 'damage' || direction === 'minus') {
@@ -173,7 +173,7 @@ router.post('/stock/counts', requirePerm('stock.count'), async (req, res) => {
 router.get('/stock/counts/:id', requirePerm('stock.view', 'stock.count'), async (req, res) => {
   const id = Number(req.params.id);
   const { rows } = await pool.query('SELECT * FROM inventory_counts WHERE id = $1', [id]);
-  if (!rows[0]) throw new HttpError(404, 'Inventarizatsiya topilmadi');
+  if (!rows[0]) throw new HttpError(404, 'Sanash topilmadi');
   const { rows: items } = await pool.query(
     `SELECT i.id, i.product_id, p.name AS product_name, un.name AS unit, p.stock_qty AS current_qty,
             i.system_qty, i.counted_qty, i.applied_diff
@@ -192,10 +192,10 @@ router.put('/stock/counts/:id', requirePerm('stock.count'), async (req, res) => 
   const list = Array.isArray(req.body?.items) ? req.body.items : [];
   await withTransaction(async (client) => {
     const { rows } = await client.query('SELECT status FROM inventory_counts WHERE id = $1 FOR UPDATE', [id]);
-    if (!rows[0]) throw new HttpError(404, 'Inventarizatsiya topilmadi');
-    if (rows[0].status !== 'draft') throw new HttpError(400, 'Tasdiqlangan inventarizatsiyani o\'zgartirib bo\'lmaydi');
+    if (!rows[0]) throw new HttpError(404, 'Sanash topilmadi');
+    if (rows[0].status !== 'draft') throw new HttpError(400, 'Tasdiqlangan sanashni o\'zgartirib bo\'lmaydi');
     for (const item of list) {
-      const pid = num(item.product_id, 'Mahsulot', { positive: true });
+      const pid = num(item.product_id, 'Tovar', { positive: true });
       const counted = item.counted_qty === null || item.counted_qty === ''
         ? null
         : round4(num(item.counted_qty, 'Sanoq natijasi', { min: 0 }));
@@ -213,15 +213,15 @@ router.post('/stock/counts/:id/approve', requirePerm('stock.approve'), async (re
   const id = Number(req.params.id);
   const result = await withTransaction(async (client) => {
     const { rows } = await client.query('SELECT * FROM inventory_counts WHERE id = $1 FOR UPDATE', [id]);
-    if (!rows[0]) throw new HttpError(404, 'Inventarizatsiya topilmadi');
-    if (rows[0].status !== 'draft') throw new HttpError(400, 'Bu inventarizatsiya allaqachon tasdiqlangan');
+    if (!rows[0]) throw new HttpError(404, 'Sanash topilmadi');
+    if (rows[0].status !== 'draft') throw new HttpError(400, 'Bu sanash allaqachon tasdiqlangan');
     const { rows: items } = await client.query(
       'SELECT * FROM inventory_count_items WHERE count_id = $1 ORDER BY product_id',
       [id],
     );
     const missing = items.filter((i) => i.counted_qty === null);
     if (missing.length) {
-      throw new HttpError(400, `Barcha mahsulotlar sanalishi kerak. Sanalmagan: ${missing.length} ta`);
+      throw new HttpError(400, `Barcha tovarlar sanalishi kerak. Sanalmagan: ${missing.length} ta`);
     }
     const products = await lockProducts(client, items.map((i) => i.product_id));
     const settings = await getSettings(client);
@@ -238,13 +238,13 @@ router.post('/stock/counts/:id/approve', requirePerm('stock.approve'), async (re
         const unitCost = Number(p.avg_cost) || Number(p.purchase_price) || 0;
         await receiveStock(client, p, diff, unitCost, {
           type: 'correction', refType: 'inventory_count', refId: id, userId: req.user.id,
-          note: `${rows[0].count_no} inventarizatsiya`,
+          note: `${rows[0].count_no} sanash`,
         });
         gain += diff * unitCost;
       } else {
         const r = await issueStock(client, p, -diff, {
           type: 'correction', refType: 'inventory_count', refId: id, userId: req.user.id,
-          note: `${rows[0].count_no} inventarizatsiya`, costingMethod: settings.costing_method,
+          note: `${rows[0].count_no} sanash`, costingMethod: settings.costing_method,
         });
         loss += r.cost;
       }

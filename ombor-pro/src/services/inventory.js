@@ -2,7 +2,7 @@
 // Barcha funksiyalar tranzaksiya ichida (client) chaqiriladi.
 import { HttpError, round2, round4 } from '../util.js';
 
-// Mahsulotlarni qulflaydi (id tartibida, tiqilib qolishning oldini olish uchun)
+// Tovarlarni qulflaydi (id tartibida, tiqilib qolishning oldini olish uchun)
 export async function lockProducts(client, ids) {
   const unique = [...new Set(ids.map(Number))].filter(Number.isInteger).sort((a, b) => a - b);
   const map = new Map();
@@ -99,7 +99,7 @@ export async function issueStock(client, product, baseQty, opts) {
     left = round4(left - take);
   }
   if (left > 1e-9) {
-    throw new HttpError(409, `"${product.name}" partiyalari bo'yicha qoldiq mos kelmadi. Ombor qoldig'ini tekshiring`);
+    throw new HttpError(409, `"${product.name}" partiyalari bo'yicha qoldiq mos kelmadi. «Qoldiq va tarix» ni tekshiring`);
   }
 
   const cost = round2(parts.reduce((sum, p) => sum + p.qty * p.unitCost, 0));
@@ -118,15 +118,6 @@ export async function issueStock(client, product, baseQty, opts) {
   });
   product.stock_qty = newQty;
   return { cost, parts };
-}
-
-// Qoldiq partiyalar yig'indisi bilan mos keladimi (ombor nomuvofiqligini aniqlash uchun)
-export async function batchTotal(client, productId) {
-  const { rows } = await client.query(
-    'SELECT COALESCE(SUM(qty_remaining), 0) AS total FROM stock_batches WHERE product_id = $1',
-    [productId],
-  );
-  return Number(rows[0].total);
 }
 
 // Kelish narxi keyin yozilsa yoki to'g'rilansa — foyda to'g'ri chiqishi uchun tannarx qayta hisoblanadi:

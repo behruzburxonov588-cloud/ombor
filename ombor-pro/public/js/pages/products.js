@@ -1,7 +1,7 @@
-// Mahsulotlar: ro'yxat, tafsilot, qo'shish/tahrirlash, arxiv, rasm, konvertatsiya
+// Tovarlar: ro'yxat, tafsilot, qo'shish/tahrirlash, arxiv, rasm, konvertatsiya
 import {
   get, post, put, icon, esc, num, money, qty, dateTime, toast, errorToast, openModal, withBusy,
-  productThumb, emptyState, confirmBox, readForm, api, uploadProductImage, packText, productPhoto,
+  productThumb, emptyState, confirmBox, readForm, uploadProductImage, packText, productPhoto,
   groupBySize, priceRange, skeletonGrid, download, storeTypes, uploadFile, parseMoney, formatMoneyInput,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
@@ -167,11 +167,11 @@ function tableHtml(rows, perm) {
   const showCost = rows.some((p) => !p.cost_hidden);
   return `
     <div class="card flush ptable-card"><div class="table-wrap cards"><table class="ptable">
-      <thead><tr><th>Mahsulot</th><th>Shtrix-kod / SKU</th>${showCost ? '<th class="right">Kelish narxi</th>' : ''}<th class="right">Sotuv narxi</th><th class="right">Qoldiq</th><th>Holati</th>${perm.sell || perm.manage ? '<th class="right">Amallar</th>' : ''}</tr></thead>
+      <thead><tr><th>Tovar</th><th>Shtrix-kod / SKU</th>${showCost ? '<th class="right">Kelish narxi</th>' : ''}<th class="right">Sotuv narxi</th><th class="right">Qoldiq</th><th>Holati</th>${perm.sell || perm.manage ? '<th class="right">Amallar</th>' : ''}</tr></thead>
       <tbody>${rows.map((p) => {
         const cost = costOf(p);
         return `<tr class="clickable st-${p.is_archived ? 'arch' : p.status}" data-href="#/products/${p.id}">
-          <td data-label="Mahsulot"><div class="pt-name">${productPhoto(p, 'pt-img')}<div class="pt-text"><a href="#/products/${p.id}">${esc(p.name)}</a><small>${p.category_name ? esc(p.category_name) : 'Turkumsiz'}</small></div></div></td>
+          <td data-label="Tovar"><div class="pt-name">${productPhoto(p, 'pt-img')}<div class="pt-text"><a href="#/products/${p.id}">${esc(p.name)}</a><small>${p.category_name ? esc(p.category_name) : 'Turkumsiz'}</small></div></div></td>
           <td data-label="Shtrix-kod" class="pt-code">${p.barcode ? esc(p.barcode) : '<span class="faint">—</span>'}${p.sku ? `<small>SKU ${esc(p.sku)}</small>` : ''}</td>
           ${showCost ? `<td data-label="Kelish narxi" class="right num">${cost === null ? '' : costCell(cost)}</td>` : ''}
           <td data-label="Sotuv narxi" class="right num"><b>${money(p.selling_price)}</b></td>
@@ -329,7 +329,7 @@ async function renderList(root, params, ctx) {
     if (rest) {
       try {
         await withBusy(rest, () => post(`/products/${rest.dataset.restore}/restore`));
-        toast('Mahsulot arxivdan qaytarildi', 'ok');
+        toast('Tovar arxivdan qaytarildi', 'ok');
         await reloadActive();
       } catch (err) { errorToast(err); }
       return;
@@ -461,25 +461,25 @@ function openImport(done) {
   }));
 }
 
-// Bo'sh ro'yxat: birinchi mahsulotga taklif yoki qidiruv bo'yicha yangi mahsulot qo'shish
+// Bo'sh ro'yxat: birinchi tovarga taklif yoki qidiruv bo'yicha yangi tovar qo'shish
 function emptyList(q, filter, canManage) {
   if (!q && !filter) {
     return `<div class="card empty-hero">
       <span class="hero-ico">${icon('box')}</span>
-      <h2>Hali mahsulot yo'q</h2>
-      <p>${canManage ? "Birinchi mahsulotingizni qo'shing: nomi va sotuv narxi kifoya. Bir daqiqa vaqt oladi." : "Mahsulot qo'shish uchun do'kon egasi yoki administratorga murojaat qiling."}</p>
-      ${canManage ? `<a class="btn btn-lg" href="#/products/new">${icon('plus')} Birinchi mahsulotni qo'shish</a>` : ''}
+      <h2>Hali tovar yo'q</h2>
+      <p>${canManage ? "Birinchi tovaringizni qo'shing: nomi va sotuv narxi kifoya. Bir daqiqa vaqt oladi." : "Tovar qo'shish uchun do'kon egasi yoki administratorga murojaat qiling."}</p>
+      ${canManage ? `<a class="btn btn-lg" href="#/products/new">${icon('plus')} Birinchi tovarni qo'shish</a>` : ''}
     </div>`;
   }
   if (q && canManage && filter !== 'archived') {
     return `<div class="card empty-hero">
       <span class="hero-ico">${icon('search')}</span>
       <h2>«${esc(q)}» topilmadi</h2>
-      <p>Bunday mahsulot hali qo'shilmagan bo'lsa, hoziroq qo'shishingiz mumkin.</p>
+      <p>Bunday tovar hali qo'shilmagan bo'lsa, hoziroq qo'shishingiz mumkin.</p>
       <a class="btn" href="#/products/new?name=${encodeURIComponent(q)}">${icon('plus')} «${esc(q)}» ni qo'shish</a>
     </div>`;
   }
-  const text = { nocost: "Hamma tovarning kelish narxi yozilgan — foyda to'g'ri hisoblanadi", expiry: "Muddati yaqin tovar yo'q", archived: "Arxivda mahsulot yo'q", low: "Kam qolgan mahsulot yo'q — hammasi yetarli", out: "Tugagan mahsulot yo'q — hammasi bor" }[filter] || 'Hech narsa topilmadi';
+  const text = { nocost: "Hamma tovarning kelish narxi yozilgan — foyda to'g'ri hisoblanadi", expiry: "Muddati yaqin tovar yo'q", archived: "Arxivda tovar yo'q", low: "Kam qolgan tovar yo'q — hammasi yetarli", out: "Tugagan tovar yo'q — hammasi bor" }[filter] || 'Hech narsa topilmadi';
   return `<div class="card">${emptyState(text, 'box')}</div>`;
 }
 
@@ -603,7 +603,7 @@ async function renderDetail(root, id, ctx) {
 
   root.innerHTML = `
     <div class="page-head">
-      <a class="btn btn-light btn-sm" href="#/products">${icon('back', 'ico-sm')} Mahsulotlar</a>
+      <a class="btn btn-light btn-sm" href="#/products">${icon('back', 'ico-sm')} Tovarlar</a>
     </div>
 
     <section class="card pd-hero st-${st}">
@@ -633,7 +633,7 @@ async function renderDetail(root, id, ctx) {
 
     ${costProblem ? `<div class="alert alert-warn cost-alert">${icon('alert', 'ico-sm')}<div class="grow">
         <b>Foyda to'g'ri hisoblanmayapti: ${cost <= 0 ? 'kelish narxi yozilmagan' : 'ba\'zi tovarlarning kelish narxi yozilmagan'}</b>
-        <div class="small">${[missQty > 0 ? `omborda ${num(missQty, 3)} ${unit} narxsiz` : '', missSales > 0 ? `${missSales} ta sotuv tannarxsiz (butun tushum foyda bo'lib chiqqan)` : ''].filter(Boolean).join(' · ') || "Sotsangiz, butun tushum foyda bo'lib ko'rinadi"}. Kelish narxini yozing — foyda o'zi qayta hisoblanadi.</div></div>
+        <div class="small">${[missQty > 0 ? `omborda ${num(missQty, 3)} ${unit} narxsiz` : '', missSales > 0 ? `${missSales} ta sotuv kelish narxisiz (butun tushum foyda bo'lib chiqqan)` : ''].filter(Boolean).join(' · ') || "Sotsangiz, butun tushum foyda bo'lib ko'rinadi"}. Kelish narxini yozing — foyda o'zi qayta hisoblanadi.</div></div>
         ${canManage ? `<button class="btn btn-sm" type="button" id="fix-cost">${icon('calc', 'ico-sm')} Kelish narxini yozish</button>` : ''}</div>` : ''}
     ${p.model_name ? '<section class="card" id="sizes"><div class="empty small">O\'lchamlar yuklanmoqda...</div></section>' : ''}
     ${p.is_roll && batches.length ? `<section class="card">
@@ -759,7 +759,7 @@ async function renderDetail(root, id, ctx) {
   root.querySelector('#fix-cost2')?.addEventListener('click', fixCost);
   root.querySelector('#btn-arch')?.addEventListener('click', async (e) => {
     if (!p.is_archived) {
-      const ok = await confirmBox(`"${p.name}" arxivlansinmi? Arxivdagi mahsulot sotilmaydi, tarix saqlanadi.`, { okText: 'Arxivlash', danger: true });
+      const ok = await confirmBox(`"${p.name}" arxivlansinmi? Arxivdagi tovar sotilmaydi, tarix saqlanadi.`, { okText: 'Arxivlash', danger: true });
       if (!ok) return;
       await withBusy(e.currentTarget, () => post(`/products/${id}/archive`));
     } else {
@@ -793,7 +793,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
   const [units, cats, sups, cfg, cfgSettings] = await Promise.all([
     get('/units').then((r) => r.units),
     get('/categories').then((r) => r.categories),
-    // Yetkazib beruvchilar ro'yxatiga ruxsat bo'lmasa ham mahsulot formasi ishlaydi
+    // Yetkazib beruvchilar ro'yxatiga ruxsat bo'lmasa ham tovar formasi ishlaydi
     get('/suppliers').then((r) => r.suppliers).catch(() => []),
     storeTypes().catch(() => ({ types: [], fields: {} })),
     get('/settings').then((r) => r.settings).catch(() => ({})),
@@ -801,7 +801,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
   let p = null;
   if (id) p = (await get(`/products/${id}`)).product;
   if (!id && !ctx.can('products.manage')) {
-    root.innerHTML = '<div class="alert alert-bad">Mahsulot qo\'shish uchun ruxsatingiz yo\'q</div>';
+    root.innerHTML = '<div class="alert alert-bad">Tovar qo\'shish uchun ruxsatingiz yo\'q</div>';
     return;
   }
   let unitList = units;
@@ -811,12 +811,12 @@ async function renderForm(root, id, ctx, prefill = {}) {
   root.innerHTML = `
     <div class="page-head">
       <a class="btn btn-light btn-sm" href="${id ? `#/products/${id}` : '#/products'}">${icon('back', 'ico-sm')} Orqaga</a>
-      <h1>${id ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot'}</h1>
+      <h1>${id ? 'Tovarni tahrirlash' : 'Yangi tovar'}</h1>
     </div>
     <form id="pf" class="card form-grid two" novalidate>
       <div class="form-sec" style="grid-column:1/-1"><h3>Asosiy ma'lumot</h3><small>* belgili maydonlar majburiy. Qolganini keyin ham to'ldirish mumkin.</small></div>
 
-      <label class="field" style="grid-column:1/-1"><span>Mahsulot nomi *</span>
+      <label class="field" style="grid-column:1/-1"><span>Tovar nomi *</span>
         <input class="input" name="name" required maxlength="150" value="${esc(p?.name || prefill.name || '')}" placeholder="Masalan: Un oliy nav" autocomplete="off"></label>
 
       <div class="field"><span class="price-head">Sotuv narxi <span class="req">*</span> <span class="unit-fixed" data-ulbl></span></span>
@@ -846,7 +846,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
           <input class="input" name="barcode" maxlength="64" inputmode="numeric" value="${esc(p?.barcode || '')}" placeholder="Skaner yoki qo'lda">
           ${cameraScanSupported() ? `<button class="btn btn-light" type="button" id="scan" aria-label="Kamera bilan o'qish" style="min-width:56px">${icon('camera')}</button>` : ''}
         </div>
-        <small>Bo'sh qoldirsangiz, shtrix-kodsiz mahsulot bo'ladi</small></div>
+        <small>Bo'sh qoldirsangiz, shtrix-kodsiz tovar bo'ladi</small></div>
 
       <label class="field"><span>Artikul (SKU)</span>
         <input class="input" name="sku" maxlength="64" value="${esc(p?.sku || '')}" placeholder="Masalan: PEP-05">
@@ -885,7 +885,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
       </div>
 
       <div class="field" style="grid-column:1/-1">
-        <span>Mahsulot rasmi</span>
+        <span>Tovar rasmi</span>
         <div class="row" style="gap:12px">
           ${productThumb(p || { name: '?' }, true)}
           <div class="stack" style="gap:4px">
@@ -1052,7 +1052,7 @@ async function renderForm(root, id, ctx, prefill = {}) {
     const errEl = root.querySelector('#form-error');
     errEl.innerHTML = '';
     const fail = (msg) => { errEl.innerHTML = `<div class="alert alert-bad">${esc(msg)}</div>`; };
-    if (!d.name) return fail('Mahsulot nomini kiriting');
+    if (!d.name) return fail('Tovar nomini kiriting');
     if (d.selling_price === null || d.selling_price === '' || Number.isNaN(d.selling_price)) return fail('Sotuv narxini kiriting');
     if (d.selling_price < 0 || Number.isNaN(d.purchase_price)) return fail("Narx noto'g'ri yozilgan. Masalan: 12000 yoki 12 000");
     const body = {
@@ -1096,13 +1096,13 @@ async function renderForm(root, id, ctx, prefill = {}) {
         const file = root.querySelector('#imgf').files[0];
         if (file) await uploadProductImage(productId, file);
         if (again) {
-          toast(`«${d.name}» saqlandi. Keyingi mahsulotni kiriting`, 'ok');
+          toast(`«${d.name}» saqlandi. Keyingi tovarni kiriting`, 'ok');
           window.scrollTo({ top: 0 });
           history.replaceState(null, '', '#/products/new');
           await renderForm(root, null, ctx);
           return;
         }
-        toast(id ? (recost?.sales ? `Mahsulot yangilandi. ${recost.sales} ta sotuvning foydasi qayta hisoblandi` : 'Mahsulot yangilandi') : 'Mahsulot saqlandi', 'ok');
+        toast(id ? (recost?.sales ? `Tovar yangilandi. ${recost.sales} ta sotuvning foydasi qayta hisoblandi` : 'Tovar yangilandi') : 'Tovar saqlandi', 'ok');
         ctx.go(`#/products/${productId}`);
       } catch (err) {
         fail(err.message);

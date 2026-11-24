@@ -2,9 +2,8 @@
 import {
   resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery,
   get, post, icon, esc, num, money, dateTime, dateOnly, readForm, toast, errorToast,
-  openModal, closeModal, withBusy, productThumb, emptyState, confirmBox, todayStr, productPhoto,
-  groupBySize, priceRange, parseMoney, formatMoneyInput,
-} from '../ui.js';
+  openModal, closeModal, withBusy, emptyState, confirmBox, productPhoto,
+  groupBySize, priceRange, parseMoney, formatMoneyInput, newKey, round4 } from '../ui.js';
 import { openBarcodeScanner } from '../scanner.js';
 
 const LS_KEY = 'ombor-pos-v3';
@@ -17,7 +16,6 @@ const METHODS = [
   { key: 'mixed', label: "Bir nechta usul", ico: 'split' },
 ];
 
-const newKey = () => `pos-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 // Savatcha har bir foydalanuvchi uchun alohida saqlanadi (login butun tizimda yagona):
 // bitta qurilmada boshqa do'kon yoki boshqa kassir kirsa, oldingi savatcha aralashmaydi
@@ -38,7 +36,7 @@ function loadState(owner = '') {
 
 // Bo'sh savatcha (egasi saqlanadi — aks holda boshqa kalit ostida saqlanib, eski savatcha qaytib chiqadi)
 function emptyState0(owner = '') {
-  return { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey(), owner };
+  return { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey('pos'), owner };
 }
 
 let S = loadState('');
@@ -145,7 +143,6 @@ async function addProduct(p, qtyDelta = 1, { roll = null } = {}) {
   return line;
 }
 
-const round4 = (n) => Math.round((Number(n) + Number.EPSILON) * 10000) / 10000;
 
 function setMethod(m) {
   S.method = m;
@@ -311,7 +308,7 @@ function mountCart(el, ctx) {
     refreshAll();
   });
   el.querySelector('[data-clear]')?.addEventListener('click', async () => {
-    if (await confirmBox('Savatchadagi hamma mahsulotlar o\'chirilsinmi?', { okText: 'Ha, tozalash', danger: true })) {
+    if (await confirmBox('Savatchadagi hamma tovarlar o\'chirilsinmi?', { okText: 'Ha, tozalash', danger: true })) {
       S = emptyState0(S.owner);
       save();
       refreshAll();
@@ -572,10 +569,10 @@ async function showReceipt(sale, ctx, opts = {}) {
   });
 }
 
-// ---------- Mahsulotlar ro'yxati ----------
+// ---------- Tovarlar ro'yxati ----------
 
 function gridHtml(list) {
-  if (!list.length) return emptyState('Mahsulot topilmadi', 'box');
+  if (!list.length) return emptyState('Tovar topilmadi', 'box');
   const items = groupBySize(list);
   C.groups = new Map(items.filter((x) => x.group).map((g) => [g.model_name, g]));
   return items.map((p) => {
@@ -915,7 +912,7 @@ async function openReturn(saleId, ctx, done) {
     const remaining = round4(Number(i.base_quantity) - Number(i.returned_base_qty)) / Number(i.factor);
     return { ...i, remainingUnits: round4(remaining) };
   }).filter((i) => i.remainingUnits > 0);
-  if (!rows.length) { toast('Bu savdodagi mahsulotlar allaqachon qaytarilgan', 'warn'); return; }
+  if (!rows.length) { toast('Bu savdodagi tovarlar allaqachon qaytarilgan', 'warn'); return; }
   const { close, el } = openModal({
     title: `Qaytarish · ${sale.receipt_no}`,
     body: `
@@ -972,7 +969,7 @@ export async function render(root, params, ctx) {
       <div class="pos-main-col">
         <div class="pos-search">
           <div class="input-group">
-            <div class="search-input grow">${icon('search', 'ico-sm')}<input class="input" id="q" type="search" placeholder="Tovar nomi yoki shtrix-kodini yozing" autocomplete="off" aria-label="Mahsulot qidirish"></div>
+            <div class="search-input grow">${icon('search', 'ico-sm')}<input class="input" id="q" type="search" placeholder="Tovar nomi yoki shtrix-kodini yozing" autocomplete="off" aria-label="Tovar qidirish"></div>
             <button class="btn btn-light" type="button" id="btn-scan" aria-label="Kamera bilan shtrix-kod" style="min-width:56px">${icon('camera')}</button>
           </div>
           <div class="input-group pos-bc" style="margin-top:8px">
@@ -1041,7 +1038,7 @@ export async function render(root, params, ctx) {
   refreshAll();
   // Qoldiq ma'lumoti yangi bo'lishi uchun keshni tozalaymiz
   detailCache.clear();
-  // Mahsulotlar sahifasidan kelganda: ?q= — shu nom bo'yicha qidiruv (o'lchamli tovar), ?add= — tovar savatchaga qo'shiladi
+  // Tovarlar sahifasidan kelganda: ?q= — shu nom bo'yicha qidiruv (o'lchamli tovar), ?add= — tovar savatchaga qo'shiladi
   const preQ = String(params.query.q || '').trim();
   const addId = Number(params.query.add) || 0;
   if (preQ || addId) history.replaceState(null, '', '#/sales');

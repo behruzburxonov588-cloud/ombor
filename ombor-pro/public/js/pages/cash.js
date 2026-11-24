@@ -1,19 +1,13 @@
 // Kassa: balanslar, smena, kirim-chiqim, kassa harakatlari va xarajatlar
 import {
   get, post, icon, esc, num, money, dateTime, dateOnly, toast, errorToast, openModal, withBusy,
-  emptyState, todayStr, newKey, takeNewFlag, compact, monthName, download,
-  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, parseMoney,
-} from '../ui.js';
+  emptyState, todayStr, newKey, takeNewFlag, monthName, download,
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, parseMoney, EXPENSE_LABEL, PAY_METHOD } from '../ui.js';
 
-const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma" };
 const CATEGORY_LABELS = {
   sale: 'Savdo', refund: 'Qaytarish', customer_payment: "Qarz to'lovi",
   supplier_payment: "Yetkazib beruvchiga to'lov", expense: 'Xarajat',
   deposit: 'Kirim (depozit)', withdrawal: 'Pul olish',
-};
-const EXPENSE_LABELS = {
-  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish',
-  transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 
 // Hamma summalar pul: "12.000" ham, "12 000" ham 12 000 so'm
@@ -108,7 +102,7 @@ async function tabCash(body, q, ctx, refresh) {
         <tbody>${tx.transactions.map((t) => `<tr>
           <td data-label="Vaqt">${dateTime(t.created_at)}</td>
           <td data-label="Turi">${esc(CATEGORY_LABELS[t.category] || t.category)}</td>
-          <td data-label="Usul">${esc(METHOD_LABELS[t.method] || t.method)}</td>
+          <td data-label="Usul">${esc(PAY_METHOD[t.method] || t.method)}</td>
           <td data-label="Summa" class="right num ${t.direction === 'in' ? 'green' : 'red'}">${t.direction === 'in' ? '+' : '−'}${money(t.amount)}</td>
           <td data-label="Izoh" class="small">${esc(t.note || '')}<div class="muted">${esc(t.user_name || '')}</div></td>
         </tr>`).join('')}</tbody></table></div>`
@@ -290,7 +284,7 @@ async function tabExpenses(body, q, ctx, refresh) {
       <div class="sum-cell bad"><span>Jami xarajat</span><b>${money(total)}</b><small>${esc(word)}</small></div>
       <div class="sum-cell"><span>Yozuvlar</span><b>${expenses.length} ta</b></div>
       <div class="sum-cell"><span>Kuniga o'rtacha</span><b>${money(days > 0 ? total / days : 0)}</b><small>${days} kun</small></div>
-      <div class="sum-cell"><span>Eng katta turkum</span><b>${top ? esc(EXPENSE_LABELS[top.category] || top.category) : '—'}</b>${top ? `<small>${money(top.total)}</small>` : ''}</div>
+      <div class="sum-cell"><span>Eng katta turkum</span><b>${top ? esc(EXPENSE_LABEL[top.category] || top.category) : '—'}</b>${top ? `<small>${money(top.total)}</small>` : ''}</div>
     </div>
 
     <div class="home-row halves" style="margin-top:14px">
@@ -299,7 +293,7 @@ async function tabExpenses(body, q, ctx, refresh) {
         ${cats.length ? `<div class="cat-bars">${cats.map((c) => {
           const share = total > 0 ? (Number(c.total) / total) * 100 : 0;
           return `<button type="button" class="cat-bar" data-cat="${esc(c.category)}">
-            <span class="cb-top"><b>${esc(EXPENSE_LABELS[c.category] || c.category)}</b><span class="num">${money(c.total)} <small class="muted">${Math.round(share)}%</small></span></span>
+            <span class="cb-top"><b>${esc(EXPENSE_LABEL[c.category] || c.category)}</b><span class="num">${money(c.total)} <small class="muted">${Math.round(share)}%</small></span></span>
             <span class="cb-track"><i style="width:${share}%"></i></span>
           </button>`;
         }).join('')}</div>` : emptyState(`${word} xarajat yo'q`, 'wallet')}
@@ -311,7 +305,7 @@ async function tabExpenses(body, q, ctx, refresh) {
       <div class="card-head"><h2>Xarajatlar ro'yxati</h2></div>
       <div class="list-tools">
         <div class="search-input">${icon('search', 'ico-sm')}<input class="input" id="eq" type="search" placeholder="Izoh bo'yicha qidirish" autocomplete="off"></div>
-        <div class="chips" id="ecats"><button type="button" class="chip active" data-ec="">Hammasi</button>${cats.map((c) => `<button type="button" class="chip" data-ec="${esc(c.category)}">${esc(EXPENSE_LABELS[c.category] || c.category)}</button>`).join('')}</div>
+        <div class="chips" id="ecats"><button type="button" class="chip active" data-ec="">Hammasi</button>${cats.map((c) => `<button type="button" class="chip" data-ec="${esc(c.category)}">${esc(EXPENSE_LABEL[c.category] || c.category)}</button>`).join('')}</div>
       </div>
       <div id="elist"></div>
     </div>`;
@@ -323,9 +317,9 @@ async function tabExpenses(body, q, ctx, refresh) {
         <thead><tr><th>Sana</th><th>Turkum</th><th>Izoh</th><th>Qayerdan</th><th class="right">Summa</th><th>Kim yozdi</th></tr></thead>
         <tbody>${rows.map((e) => `<tr>
           <td data-label="Sana">${dateOnly(e.expense_date)}</td>
-          <td data-label="Turkum"><span class="badge badge-muted">${esc(EXPENSE_LABELS[e.category] || e.category)}</span></td>
+          <td data-label="Turkum"><span class="badge badge-muted">${esc(EXPENSE_LABEL[e.category] || e.category)}</span></td>
           <td data-label="Izoh">${esc(e.description || '—')}</td>
-          <td data-label="Qayerdan">${esc(METHOD_LABELS[e.method] || e.method)}</td>
+          <td data-label="Qayerdan">${esc(PAY_METHOD[e.method] || e.method)}</td>
           <td data-label="Summa" class="right num"><b>${money(e.amount)}</b></td>
           <td data-label="Kim yozdi" class="small muted">${esc(e.user_name || '')}</td>
         </tr>`).join('')}</tbody>
@@ -374,7 +368,7 @@ function openExpense(categories, refresh) {
     title: "Xarajat qo'shish",
     body: `<form id="ef" class="form-grid two" style="gap:12px" novalidate>
         <div class="field" style="grid-column:1/-1"><span>Nimaga ketdi? *</span>
-          <div class="chips" id="ef-cats">${categories.map((c, i) => `<button type="button" class="chip ${i === 0 ? 'active' : ''}" data-c="${c}">${esc(EXPENSE_LABELS[c] || c)}</button>`).join('')}</div></div>
+          <div class="chips" id="ef-cats">${categories.map((c, i) => `<button type="button" class="chip ${i === 0 ? 'active' : ''}" data-c="${c}">${esc(EXPENSE_LABEL[c] || c)}</button>`).join('')}</div></div>
         <label class="field"><span>Summa *</span><div class="money-input"><input class="input input-lg" name="amount" data-money inputmode="decimal" placeholder="0" autocomplete="off"><em>so'm</em></div></label>
         <label class="field"><span>Qayerdan to'landi?</span>
           <select class="input" name="method"><option value="cash">Naqd (kassadan)</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>

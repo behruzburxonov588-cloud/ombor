@@ -161,11 +161,9 @@ button { -webkit-tap-highlight-color: transparent; }
 .nav-item:hover { background: var(--hover); color: var(--text); text-decoration: none; }
 .nav-item:hover .ico-sm { color: var(--muted); }
 .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.nav-item.active .ico-sm { color: var(--accent); }
 .nav-item .count { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--neg); color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; }
 .sb-foot { border-top: 1px solid var(--border); padding: 10px; }
 .user-chip { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border-radius: 10px; border: 0; background: none; cursor: pointer; text-align: left; }
-.user-chip:hover { background: var(--hover); }
 .avatar { width: 32px; height: 32px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 650; font-size: 12.5px; flex: none; }
 .user-chip .who { min-width: 0; flex: 1; }
 .user-chip .who b { display: block; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -279,10 +277,6 @@ button { -webkit-tap-highlight-color: transparent; }
 
 /* ---------- Belgilar va ogohlantirishlar ---------- */
 .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; line-height: 1.5; }
-.badge-ok { background: var(--pos-bg); color: var(--pos); }
-.badge-low { background: var(--warn-bg); color: var(--warn); }
-.badge-out { background: var(--neg-bg); color: var(--neg); }
-.badge-info { background: var(--info-bg); color: var(--info); }
 .badge-muted { background: var(--hover); color: var(--muted); }
 .badge-est { background: transparent; color: var(--muted); border: 1px dashed var(--border-strong); }
 
@@ -321,7 +315,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .btn-danger { background: var(--neg); border-color: var(--neg); }
 .btn-danger:hover { background: #b42318; }
 .btn-warn { background: #b56d00; border-color: #b56d00; }
-.btn-light, .btn-outline { background: var(--surface); color: var(--text); border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
 .btn-light:hover, .btn-outline:hover { background: var(--surface-2); border-color: #c3c8d0; }
 .btn-ghost { background: transparent; color: var(--text-2); border-color: transparent; padding: 0 10px; }
 .btn-ghost:hover { background: var(--hover); }
@@ -350,7 +343,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .switch .track { width: 34px; height: 20px; border-radius: 999px; background: #d4d8de; position: relative; transition: background .15s; flex: none; }
 .switch .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); transition: transform .15s var(--ease); }
-.switch input:checked + .track { background: var(--accent); }
 .switch input:checked + .track::after { transform: translateX(14px); }
 .switch input:focus-visible + .track { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 

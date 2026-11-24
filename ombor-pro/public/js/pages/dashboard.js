@@ -1,10 +1,9 @@
 // Bosh sahifa: eng muhim ko'rsatkichlar 5 soniyada tushunarli bo'lishi uchun.
 // Barcha raqamlar /api/analytics/dashboard dan (haqiqiy yozuvlar asosida) olinadi.
 import {
-  get, put, esc, icon, num, compact, moneyFull, kpiMoney, deltaPill, pctText, dateTime, timeAgo, longDate,
+  get, put, esc, icon, num, compact, moneyFull, kpiMoney, pctText, dateTime, timeAgo, longDate,
   shortDate, weekdayShort, deltaAmount, todayStr, openModal, toast, errorToast,
-  productThumb, emptyState, resolvePeriod, periodPicker, bindPeriod, compareText, periodQuery,
-} from '../ui.js';
+  productThumb, emptyState, resolvePeriod, periodPicker, bindPeriod, compareText, periodQuery, EXPENSE_LABEL } from '../ui.js';
 import { chart, sparkline, segbar, tableView } from '../charts.js';
 
 const C = { s1: '#2563eb', s2: '#16a34a', prev: '#c3cad6', pos: '#15803d', neg: '#d92d20', warn: '#d97706', cost: '#94a3b8' };
@@ -24,23 +23,20 @@ const WIDGET_SIZE = {
 };
 const KIND = {
   sale: { label: 'Savdo', sign: 1, icon: 'cart' },
-  purchase: { label: 'Kirim', sign: -1, icon: 'truck' },
+  purchase: { label: 'Yuk keldi', sign: -1, icon: 'truck' },
   expense: { label: 'Xarajat', sign: -1, icon: 'expense' },
   payment: { label: "Qarz to'lovi", sign: 1, icon: 'debt' },
-};
-const EXPENSE_LABEL = {
-  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 
 // Yangi do'kon uchun "Qayerdan boshlash" qadamlari (faqat ruxsat berilganlari ko'rinadi)
 const ONB_STEPS = [
   {
-    perm: 'products.manage', title: "Mahsulot qo'shing", text: "Do'koningizdagi tovarni kiriting: nomi va sotuv narxi kifoya.",
-    href: '#/products/new', btn: "Mahsulot qo'shish", icon: 'box', done: (o) => o.products > 0,
+    perm: 'products.manage', title: "Tovar qo'shing", text: "Do'koningizdagi tovarni kiriting: nomi va sotuv narxi kifoya.",
+    href: '#/products/new', btn: "Tovar qo'shish", icon: 'box', done: (o) => o.products > 0,
   },
   {
-    perm: 'purchases.create', title: 'Tovar kirimini qiling', text: "Omborga qancha tovar kelganini kiriting. Qoldiq o'zi hisoblanadi.",
-    href: '#/purchases/new', btn: 'Kirim qilish', icon: 'truck', done: (o) => o.purchases > 0 || o.stocked > 0,
+    perm: 'purchases.create', title: 'Kelgan yukni kiriting', text: "Omborga qancha tovar kelganini kiriting. Qoldiq o'zi hisoblanadi.",
+    href: '#/purchases/new', btn: 'Yuk keldi', icon: 'truck', done: (o) => o.purchases > 0 || o.stocked > 0,
   },
   {
     perm: 'sales.create', title: 'Birinchi sotuvni qiling', text: "Sotuv bo'limida tovarni tanlang va sotishni yakunlang.",
@@ -76,13 +72,6 @@ function actionTiles(ctx) {
 
 let prefsCache = null;
 let charts = [];
-
-function greeting() {
-  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hour12: false }).format(new Date()));
-  if (h < 11) return 'Xayrli tong';
-  if (h < 18) return 'Xayrli kun';
-  return 'Xayrli kech';
-}
 
 const resolve = (query, prefs) => resolvePeriod(query, prefs.dashboard.range);
 const compareLabel = (r) => compareText(r);
@@ -168,17 +157,14 @@ async function load(host, range, ctx, first = false) {
   const widgets = prefsCache.dashboard.widgets.filter((w) => w.visible).map((w) => w.id);
   const wantAssistant = widgets.includes('assistant');
   const wantInv = widgets.includes('inventory') && (can('stock.view') || can('reports.view'));
-  const onbSteps = prefsCache.dashboard.onboarding_hidden ? [] : ONB_STEPS.filter((st) => can(st.perm));
   let d;
   let brief = null;
   let inv = null;
-  let onb = null;
   try {
-    [d, brief, inv, onb] = await Promise.all([
+    [d, brief, inv] = await Promise.all([
       get(`/analytics/dashboard?from=${range.from}&to=${range.to}`),
       wantAssistant ? get('/analytics/assistant').catch(() => null) : null,
       wantInv ? get('/analytics/inventory').catch(() => null) : null,
-      onbSteps.length ? get('/onboarding').catch(() => null) : null,
     ]);
   } catch (err) {
     if (dashEl) dashEl.classList.remove('is-loading');
@@ -215,17 +201,14 @@ async function load(host, range, ctx, first = false) {
     else flush();
   }
   flush();
-  const onbHtml = onb ? onboardingCard(onbSteps, onb) : '';
-  // Tahlil sahifasida «Nima qilmoqchisiz?» tugmalari takrorlanmaydi (ular Bosh sahifada)
-  const body = (onbHtml ? `<div class="w-full" data-widget="onboarding">${onbHtml}</div>` : '')
-    + rendered.map((w) => `<div class="${w.size}" data-widget="${w.id}">${w.html}</div>`).join('');
+  // Grafiklar sahifasida «Nima qilmoqchisiz?» tugmalari va yangi do'kon yo'riqnomasi takrorlanmaydi (ular Bosh sahifada)
+  const body = rendered.map((w) => `<div class="${w.size}" data-widget="${w.id}">${w.html}</div>`).join('');
 
   host.innerHTML = `
     <div class="dash-head">
       <div>
-        <div class="hello">${greeting()}, ${esc(ctx.user.full_name.split(' ')[0])}</div>
-        <h1>${esc(d.store_name)}</h1>
-        <div class="muted small" style="margin-top:2px">${longDate()} · <span title="${esc(dateTime(d.generated_at))}">yangilandi ${esc(timeAgo(d.generated_at))}</span></div>
+        <h1>Grafiklar</h1>
+        <div class="muted small" style="margin-top:2px">${esc(d.store_name)} · ${longDate()} · <span title="${esc(dateTime(d.generated_at))}">yangilandi ${esc(timeAgo(d.generated_at))}</span></div>
       </div>
       <div class="filterbar no-print">
         ${periodPicker(range)}
@@ -245,12 +228,6 @@ async function load(host, range, ctx, first = false) {
     load(host, next, ctx);
   });
   host.querySelector('#widgets').addEventListener('click', () => openWidgetSettings(() => load(host, range, ctx)));
-  host.querySelector('#onb-hide')?.addEventListener('click', () => {
-    prefsCache.dashboard.onboarding_hidden = true;
-    host.querySelector('[data-widget="onboarding"]')?.remove();
-    put('/me/preferences', { dashboard: { onboarding_hidden: true } }).catch(() => {});
-    toast("Yo'riqnoma yashirildi. Yangi narsa qo'shish uchun yuqoridagi «Qo'shish» tugmasini bosing");
-  });
 
   mountSalesChart(host, d, range);
   mountForecast(host, d);
@@ -546,7 +523,7 @@ function pnlCard(d) {
     </section>`;
 }
 
-// ---------- Mahsulotlar reytingi ----------
+// ---------- Tovarlar reytingi ----------
 
 const TOP_TABS = [
   { key: 'best', label: "Ko'p sotilgan", value: (p) => [compact(p.revenue, { unit: true }), `${num(p.qty_sold, 2)} ${p.unit} sotildi`] },
@@ -576,7 +553,7 @@ export function mountTop(host, d) {
       return `<a class="prod-row" href="#/products/${p.id}">${productThumb(p).replace('class="thumb"', 'class="thumb thumb-sm"')}
         <div style="min-width:0"><div class="pn">${esc(p.name)}</div><div class="ps">qoldiq ${num(p.stock_qty, 2)} ${esc(p.unit)}${p.category_name ? ` · ${esc(p.category_name)}` : ''}</div></div>
         <div class="pv">${esc(v)}<small>${esc(sub)}</small></div></a>`;
-    }).join('') : emptyState(key === 'zero' ? "Hamma mahsulot sotilmoqda" : "Bu davrda ma'lumot yo'q", 'box');
+    }).join('') : emptyState(key === 'zero' ? "Hamma tovar sotilmoqda" : "Bu davrda ma'lumot yo'q", 'box');
   };
   show('best');
   host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => {
@@ -648,8 +625,8 @@ function inventoryCard(inv, d) {
   const restock = inv.restock.slice(0, 4);
   return `
     <section class="card" style="height:100%">
-      <div class="card-head"><div><h2>Ombor holati</h2><div class="card-sub">${t.products} ta mahsulot, ${t.in_stock} tasi omborda</div></div>
-        <a class="link-btn" href="#/reports?tab=inventory">Tahlil ${icon('right', 'ico-xs')}</a></div>
+      <div class="card-head"><div><h2>Ombor holati</h2><div class="card-sub">${t.products} ta tovar, ${t.in_stock} tasi omborda</div></div>
+        <a class="link-btn" href="#/reports?tab=inventory">Batafsil ${icon('right', 'ico-xs')}</a></div>
       <div class="row" style="align-items:baseline;gap:6px"><div class="big-figure">${compact(t.cost_value)}<span class="cur">so'm</span></div><span class="muted small">kelish narxida${t.retail_value !== null ? ` · sotsangiz ≈ ${compact(t.retail_value)}` : ''}</span></div>
       <div style="margin-top:12px">${segbar(parts)}</div>
       <div class="health">${parts.map((x) => `<a href="${x.href}"><i style="background:${x.color}"></i>${x.label}<b>${x.value}</b></a>`).join('')}</div>

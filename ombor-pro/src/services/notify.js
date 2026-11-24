@@ -3,11 +3,11 @@
 //
 // Takrorlanishga qarshi qoidalar:
 //  - har bir bildirishnomaning noyob dedup_key kaliti bor (bazada UNIQUE) — ikki marta yaratilmaydi;
-//  - kam qolgan mahsulot haqida qayta xabar faqat "eslatish oralig'i" o'tgach yuboriladi;
+//  - kam qolgan tovar haqida qayta xabar faqat "eslatish oralig'i" o'tgach yuboriladi;
 //  - haftalik tahlillar (savdo pasayishi, xarajatlar) haftasiga ko'pi bilan bir marta;
 //  - Telegramga har bir xabar har bir chatga faqat bir marta yuboriladi (notification_deliveries UNIQUE).
 import crypto from 'node:crypto';
-import { HttpError, round2, todayLocal, addDays } from '../util.js';
+import { HttpError, round2, addDays } from '../util.js';
 import { getSettings, saveSettings } from './settings.js';
 import { mondayOf } from './analytics.js';
 import { currentSchema } from '../db.js';
@@ -19,13 +19,13 @@ export const TYPE_GROUPS = {
   daily_summary: { label: 'Kunlik xulosa', hint: "Har kuni belgilangan vaqtda: savdo, foyda, xarajat, eng ko'p sotilganlar", audience: ['reports.view'] },
   weekly_summary: { label: 'Haftalik xulosa', hint: "O'tgan hafta natijalari va oldingi hafta bilan taqqoslash", audience: ['reports.view'] },
   monthly_summary: { label: 'Oylik hisobot', hint: "O'tgan oy natijalari", audience: ['reports.view'] },
-  low_stock: { label: 'Kam qolgan va tugagan mahsulotlar', hint: 'Minimal qoldiqdan kamaygan yoki tugagan mahsulotlar', audience: ['stock.view', 'products.view', 'purchases.create'] },
+  low_stock: { label: 'Kam qolgan va tugagan tovarlar', hint: 'Minimal qoldiqdan kamaygan yoki tugagan tovarlar', audience: ['stock.view', 'products.view', 'purchases.create'] },
   debt_reminder: { label: 'Qarz eslatmalari', hint: "Muddati o'tgan va yaqinlashgan mijoz qarzlari", audience: ['customers.view', 'payments.create'] },
   supplier_due: { label: "Yetkazib beruvchiga to'lov", hint: "Yetkazib beruvchiga qarzni to'lash muddati yaqin yoki o'tgan", audience: ['suppliers.view', 'purchases.view'] },
   expense_spike: { label: "G'ayrioddiy xarajatlar", hint: "Haftalik xarajat odatdagidan sezilarli ko'p bo'lsa", audience: ['reports.view', 'expenses.view'] },
-  sales_decline: { label: "Savdo pasayishi va marja o'zgarishi", hint: 'Umumiy savdo, alohida mahsulotlar yoki foyda marjasi pasaysa', audience: ['reports.view'] },
+  sales_decline: { label: "Savdo pasayishi va marja o'zgarishi", hint: 'Umumiy savdo, alohida tovarlar yoki foyda marjasi pasaysa', audience: ['reports.view'] },
   inventory_change: { label: "Muhim ombor o'zgarishlari", hint: "Katta zarar/tuzatish, yo'qotishlar o'sishi, qoldiq nomuvofiqligi", audience: ['stock.view', 'reports.view'] },
-  business_event: { label: 'Muhim voqealar', hint: 'Smena kassasidagi farq, katta qaytarish, tasdiqlangan inventarizatsiya', audience: ['reports.view', 'cash.view'] },
+  business_event: { label: 'Muhim voqealar', hint: 'Smena kassasidagi farq, katta qaytarish, tasdiqlangan sanash', audience: ['reports.view', 'cash.view'] },
 };
 export const CHANNELS = ['app', 'telegram', 'browser'];
 
@@ -325,7 +325,7 @@ async function checkStock(db, cfg, today) {
       kind,
       type_group: 'low_stock',
       level: state === 'out' ? 'critical' : 'warning',
-      title: state === 'out' ? `${fresh.length} ta mahsulot tugadi` : `${fresh.length} ta mahsulot kam qoldi`,
+      title: state === 'out' ? `${fresh.length} ta tovar tugadi` : `${fresh.length} ta tovar kam qoldi`,
       body: `${list.join('\n')}${fresh.length > 8 ? `\n… va yana ${fresh.length - 8} ta` : ''}\nQayta buyurtma berishni rejalashtiring.`,
       link: `#/products?filter=${state}`,
       data: { product_ids: ids },
@@ -514,7 +514,7 @@ async function checkInventoryChanges(db, cfg, today) {
       type_group: 'inventory_change',
       level: 'warning',
       title: "Ombor yo'qotishlari oshmoqda",
-      body: `So'nggi 30 kunda yo'qotishlar ${money(recent)}, oldingi 30 kunda ${money(prior)} edi.\nSaqlash sharoitini va inventarizatsiya natijalarini tekshiring.`,
+      body: `So'nggi 30 kunda yo'qotishlar ${money(recent)}, oldingi 30 kunda ${money(prior)} edi.\nSaqlash sharoitini va sanash natijalarini tekshiring.`,
       link: '#/stock?tab=movements',
       data: { recent: round2(recent), prior: round2(prior) },
       dedup_key: `loss_increase:${mondayOf(today)}`,
@@ -598,7 +598,7 @@ async function checkEvents(db, cfg) {
       kind: 'count_approved',
       type_group: 'business_event',
       level: Number(c.total_loss) > Number(c.total_gain) ? 'warning' : 'info',
-      title: `Inventarizatsiya tasdiqlandi: ${c.count_no}`,
+      title: `Sanash tasdiqlandi: ${c.count_no}`,
       body: `Kamomad: ${money(c.total_loss)}, ortiqcha: ${money(c.total_gain)}.${c.full_name ? ` Tasdiqlagan: ${c.full_name}.` : ''}`,
       link: `#/stock/count/${c.id}`,
       audience: ['reports.view', 'stock.view'],
@@ -856,8 +856,4 @@ export async function deliveryLog(db) {
       ORDER BY d.id DESC LIMIT 30`,
   );
   return rows;
-}
-
-export function todayKey() {
-  return todayLocal();
 }

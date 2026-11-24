@@ -1,16 +1,15 @@
-// Hisobotlar: foyda va zarar, savdo, mahsulotlar, sekin sotiladigan, ombor, haftalik va prognoz.
+// Hisobotlar: foyda va zarar, savdo, tovarlar, sekin sotiladigan, ombor, haftalik va prognoz.
 // Kunlik, haftalik, oylik va ixtiyoriy davr; Excel va PDF eksport.
 import {
   get, put, esc, icon, num, qty, compact, moneyFull, kpiMoney, deltaPill, pctText, todayStr, addDaysStr, monthStartStr,
-  dateOnly, shortDate, weekdayShort, longDate, timeAgo, download, withBusy, errorToast, toast, emptyState, productThumb, debounce,
-} from '../ui.js';
+  dateOnly, shortDate, weekdayShort, longDate, timeAgo, download, withBusy, errorToast, toast, emptyState, productThumb, debounce, EXPENSE_LABEL, PAY_METHOD } from '../ui.js';
 import { chart, hbars, segbar } from '../charts.js';
 
 const C = { s1: '#2563eb', prev: '#c3cad6', pos: '#16a34a', neg: '#d92d20', warn: '#d97706', cost: '#94a3b8' };
 const TABS = [
   { key: 'pnl', label: 'Foyda va zarar', icon: 'coins', perms: ['reports.view'], export: 'pnl' },
   { key: 'sales', label: 'Savdo', icon: 'chart', perms: ['reports.view'], export: 'sales' },
-  { key: 'products', label: 'Mahsulotlar', icon: 'box', perms: ['reports.view'], export: 'products' },
+  { key: 'products', label: 'Tovarlar', icon: 'box', perms: ['reports.view'], export: 'products' },
   { key: 'slow', label: 'Sekin sotiladigan', icon: 'snail', perms: ['reports.view', 'stock.view'], export: 'inventory', noPeriod: true },
   { key: 'inventory', label: 'Ombor', icon: 'warehouse', perms: ['reports.view', 'stock.view'], export: 'inventory', noPeriod: true },
   { key: 'weekly', label: 'Haftalik', icon: 'calendar', perms: ['reports.view'], export: 'weekly', noPeriod: true },
@@ -23,14 +22,10 @@ const PERIODS = [
   { key: 'last_month', label: "O'tgan oy" },
   { key: 'year', label: 'Shu yil' },
 ];
-const EXPENSE_LABEL = {
-  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
-};
 const CASH_LABEL = {
   sale: 'Savdo tushumi', refund: 'Qaytarilgan pul', customer_payment: "Mijoz qarz to'lovlari", supplier_payment: "Yetkazib beruvchilarga to'lov",
   expense: 'Xarajatlar', deposit: 'Kassaga kiritilgan', withdrawal: 'Kassadan olingan',
 };
-const METHOD = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya', mixed: 'Aralash' };
 
 let prefs = null;
 
@@ -191,8 +186,8 @@ async function pnl(body, { period }) {
           ${line('Savdo foydasi', c.gross_profit, p.gross_profit, 'total')}
           ${line('− Operatsion xarajatlar', c.expenses, p.expenses, 'sub')}
           ${line('− Yaroqsiz tovar', c.damage, p.damage, 'sub')}
-          ${line('− Inventarizatsiya kamomadi', c.shrinkage, p.shrinkage, 'sub')}
-          ${line('+ Inventarizatsiya ortiqchasi', c.surplus, p.surplus, 'sub')}
+          ${line('− Sanashda chiqqan kamomad', c.shrinkage, p.shrinkage, 'sub')}
+          ${line('+ Sanashda chiqqan ortiqcha', c.surplus, p.surplus, 'sub')}
           ${line(c.net_profit >= 0 ? 'Sof foyda' : 'Zarar', c.net_profit, p.net_profit, 'grand')}
         </div>
         <div class="kv" style="margin-top:14px">
@@ -284,7 +279,7 @@ async function sales(body, { period, q, ctx, link }) {
       </section>
       <div class="stack">
         <section class="card"><div class="card-head"><div><h2>To'lov usullari</h2><div class="card-sub">Savdo summasi bo'yicha</div></div></div>
-          ${r.by_method.length ? hbars(r.by_method.map((x) => ({ label: METHOD[x.method] || x.method, sub: `${x.count} ta`, value: x.total }))) : emptyState("Ma'lumot yo'q", 'card')}
+          ${r.by_method.length ? hbars(r.by_method.map((x) => ({ label: PAY_METHOD[x.method] || x.method, sub: `${x.count} ta`, value: x.total }))) : emptyState("Ma'lumot yo'q", 'card')}
           ${t.credit_sales > 0 ? `<div class="note" style="margin-top:8px">${icon('info', 'ico-xs')}<span>Nasiya ${compact(t.credit_sales, { unit: true })} — tushumga kiradi, lekin pul hali kelmagan.</span></div>` : ''}
         </section>
         <section class="card"><div class="card-head"><div><h2>Soatlar bo'yicha</h2><div class="card-sub">Qaysi vaqtda ko'p sotiladi</div></div></div>
@@ -325,10 +320,10 @@ async function sales(body, { period, q, ctx, link }) {
   }));
 }
 
-// ---------- Mahsulotlar ----------
+// ---------- Tovarlar ----------
 
 const COLS = [
-  { key: 'name', label: 'Mahsulot' },
+  { key: 'name', label: 'Tovar' },
   { key: 'qty_sold', label: 'Sotilgan', right: true },
   { key: 'receipts', label: 'Cheklar', right: true },
   { key: 'revenue', label: 'Tushum', right: true },
@@ -346,9 +341,9 @@ async function products(body, { period, q }) {
     <div class="grid cols-3" id="tops"></div>
     <section class="card flush" style="margin-top:14px">
       <div class="card-head" style="padding:16px 18px 0;margin-bottom:12px">
-        <div><h2>Barcha mahsulotlar</h2><div class="card-sub" id="cnt"></div></div>
+        <div><h2>Barcha tovarlar</h2><div class="card-sub" id="cnt"></div></div>
         <div class="filterbar">
-          <div class="search-input" style="width:220px">${icon('search', 'ico-sm')}<input class="input input-sm" id="pq" type="search" placeholder="Mahsulot nomi"></div>
+          <div class="search-input" style="width:220px">${icon('search', 'ico-sm')}<input class="input input-sm" id="pq" type="search" placeholder="Tovar nomi"></div>
           <select class="input input-sm" id="pc" style="width:auto" aria-label="Kategoriya"><option value="">Barcha kategoriyalar</option>${cats.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
         </div>
       </div>
@@ -362,7 +357,7 @@ async function products(body, { period, q }) {
     if (st.category_id) u.set('category_id', st.category_id);
     if (st.filter) u.set('filter', st.filter);
     const r = await get(`/analytics/products?${u}`);
-    body.querySelector('#cnt').textContent = `${r.total} ta mahsulot · tushum ${compact(r.summary.revenue, { unit: true })} · foyda ${compact(r.summary.profit, { unit: true })}`;
+    body.querySelector('#cnt').textContent = `${r.total} ta tovar · tushum ${compact(r.summary.revenue, { unit: true })} · foyda ${compact(r.summary.profit, { unit: true })}`;
     const topList = (title, sub, rows, val) => `<section class="card"><div class="card-head" style="margin-bottom:6px"><div><h2>${title}</h2><div class="card-sub">${sub}</div></div></div>
       ${rows.length ? rows.map((p) => `<a class="prod-row" href="#/products/${p.id}">${productThumb(p).replace('class="thumb"', 'class="thumb thumb-sm"')}
         <div style="min-width:0"><div class="pn">${esc(p.name)}</div><div class="ps">${esc(val(p)[1])}</div></div><div class="pv">${esc(val(p)[0])}</div></a>`).join('') : emptyState("Ma'lumot yo'q", 'box')}</section>`;
@@ -377,7 +372,7 @@ async function products(body, { period, q }) {
     body.querySelector('#ptable').innerHTML = r.rows.length ? `<div class="table-wrap cards"><table>
       <thead><tr>${COLS.map((c) => `<th class="sortable ${c.right ? 'right' : ''} ${st.sort === c.key ? 'sorted' : ''}" data-sort="${c.key}" aria-sort="${st.sort === c.key ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">${c.label}${st.sort === c.key ? ` ${st.dir === 'asc' ? '↑' : '↓'}` : ''}</th>`).join('')}</tr></thead>
       <tbody>${r.rows.map((p) => `<tr class="clickable" data-id="${p.id}">
-        <td data-label="Mahsulot"><div class="row" style="gap:10px;flex-wrap:nowrap">${productThumb(p).replace('class="thumb"', 'class="thumb thumb-sm"')}<div style="min-width:0"><b>${esc(p.name)}</b><div class="small muted">${esc(p.category_name || 'Kategoriyasiz')}</div></div></div></td>
+        <td data-label="Tovar"><div class="row" style="gap:10px;flex-wrap:nowrap">${productThumb(p).replace('class="thumb"', 'class="thumb thumb-sm"')}<div style="min-width:0"><b>${esc(p.name)}</b><div class="small muted">${esc(p.category_name || 'Kategoriyasiz')}</div></div></div></td>
         <td data-label="Sotilgan" class="right num">${qty(p.qty_sold)} <span class="muted">${esc(p.unit)}</span></td>
         <td data-label="Cheklar" class="right num">${num(p.receipts, 0)}</td>
         <td data-label="Tushum" class="right num strong">${moneyFull(p.revenue)}</td>
@@ -385,7 +380,7 @@ async function products(body, { period, q }) {
         <td data-label="Foyda ulushi" class="right num">${p.revenue > 0 ? pctText(p.margin) : '—'}</td>
         <td data-label="Qoldiq" class="right num">${qty(p.stock_qty)} ${p.status === 'out' ? '<span class="badge badge-out">tugagan</span>' : p.status === 'low' ? '<span class="badge badge-low">kam</span>' : ''}</td>
         <td data-label="Qoldiq qiymati" class="right num">${moneyFull(p.stock_value)}</td></tr>`).join('')}</tbody></table></div>`
-      : emptyState('Mahsulot topilmadi', 'box');
+      : emptyState('Tovar topilmadi', 'box');
     const pages = Math.ceil(r.total / st.limit);
     const page = Math.floor(st.offset / st.limit) + 1;
     body.querySelector('#pager').innerHTML = r.total > st.limit ? `<span>${st.offset + 1}–${Math.min(st.offset + st.limit, r.total)} / ${r.total}</span>
@@ -414,11 +409,11 @@ async function products(body, { period, q }) {
 // ---------- Sekin sotiladigan ----------
 
 function recTable(rows, { extra } = {}) {
-  if (!rows.length) return emptyState("Bu toifada mahsulot yo'q", 'ok');
+  if (!rows.length) return emptyState("Bu toifada tovar yo'q", 'ok');
   return `<div class="table-wrap cards"><table>
-    <thead><tr><th>Mahsulot</th><th class="right">Qoldiq</th><th class="right">Qiymati</th><th class="right">30 kunda sotilgan</th><th class="right">${extra?.label || 'Zaxira yetadi'}</th><th>Tavsiya</th></tr></thead>
+    <thead><tr><th>Tovar</th><th class="right">Qoldiq</th><th class="right">Qiymati</th><th class="right">30 kunda sotilgan</th><th class="right">${extra?.label || 'Zaxira yetadi'}</th><th>Tavsiya</th></tr></thead>
     <tbody>${rows.map((p) => `<tr class="clickable" data-id="${p.id}">
-      <td data-label="Mahsulot"><b>${esc(p.name)}</b><div class="small muted">${esc(p.category_name || '')}</div></td>
+      <td data-label="Tovar"><b>${esc(p.name)}</b><div class="small muted">${esc(p.category_name || '')}</div></td>
       <td data-label="Qoldiq" class="right num">${qty(p.stock_qty)} ${esc(p.unit)}</td>
       <td data-label="Qiymati" class="right num">${moneyFull(p.stock_value)}</td>
       <td data-label="30 kunda sotilgan" class="right num">${qty(p.qty_30d)}</td>
@@ -437,7 +432,7 @@ async function slow(body, { ctx }) {
       ${stat('Uzoq turib qolgan', `${t.aging}<span class="cur">ta</span>`, undefined, { note: 'partiya 60 kundan eski' })}
     </div>
     ${r.notes.length ? `<div class="stack" style="margin-top:14px">${r.notes.map((n) => `<div class="alert ${{ critical: 'alert-bad', warning: 'alert-warn', success: 'alert-ok' }[n.level] || 'alert-info'}">${icon({ critical: 'critical', warning: 'warnCircle', success: 'ok' }[n.level] || 'info', 'ico-sm')}<div>${esc(n.text)}</div></div>`).join('')}</div>` : ''}
-    <div class="section-title"><h2>Sotilmayotgan mahsulotlar</h2><span class="muted small">30 kun ichida birorta ham sotilmagan</span></div>
+    <div class="section-title"><h2>Sotilmayotgan tovarlar</h2><span class="muted small">30 kun ichida birorta ham sotilmagan</span></div>
     <section class="card flush">${recTable(r.dead, { extra: { label: 'Omborda', get: (p) => (p.days_in_stock !== null ? `${p.days_in_stock} kun` : '—') } })}</section>
     <div class="section-title"><h2>Sekin sotilayotgan</h2><span class="muted small">Joriy sur'atda zaxira 45–90 kunga yetadi</span></div>
     <section class="card flush">${recTable(r.slow)}</section>
@@ -468,7 +463,7 @@ async function inventory(body, { ctx }) {
       ${stat('Ombordagi tovar qiymati', kpiMoney(t.cost_value), undefined, { note: 'kelish narxida' })}
       ${t.retail_value !== null ? stat('Sotuv narxida', kpiMoney(t.retail_value), undefined, { note: 'hammasi sotilsa' }) : ''}
       ${t.potential_profit !== null ? stat('Kutilayotgan foyda', kpiMoney(t.potential_profit), undefined, { note: 'sotuv narxi − kelish narxi' }) : ''}
-      ${stat('Mahsulotlar', `${t.products}<span class="cur">ta</span>`, undefined, { note: `${t.in_stock} tasi omborda` })}
+      ${stat('Tovarlar', `${t.products}<span class="cur">ta</span>`, undefined, { note: `${t.in_stock} tasi omborda` })}
       ${stat('Kam qolgan', `${t.low}<span class="cur">ta</span>`, undefined, { note: 'minimal qoldiqdan kam' })}
       ${stat('Tugagan', `${t.out}<span class="cur">ta</span>`, undefined, { note: 'qoldiq nol', neg: t.out > 0 })}
     </div>
@@ -482,7 +477,7 @@ async function inventory(body, { ctx }) {
       </section>
       <div class="stack">
         <section class="card">
-          <div class="card-head"><div><h2>Holat</h2><div class="card-sub">${t.products} ta faol mahsulot</div></div></div>
+          <div class="card-head"><div><h2>Holat</h2><div class="card-sub">${t.products} ta faol tovar</div></div></div>
           ${segbar(parts)}
           <div class="health">${parts.map((x) => `<a href="#/reports?tab=slow"><i style="background:${x.color}"></i>${x.label}<b>${x.value}</b></a>`).join('')}</div>
           ${t.qty_by_unit.length ? `<div class="kv" style="margin-top:14px">${t.qty_by_unit.map((u) => `<span class="k">Jami (${esc(u.unit)})</span><span class="v">${qty(u.qty)}</span>`).join('')}</div>` : ''}
@@ -498,9 +493,9 @@ async function inventory(body, { ctx }) {
     </div>
     <div class="section-title"><h2>Qayta buyurtma tavsiyasi</h2><span class="muted small">So'nggi 30 kunlik savdo va minimal qoldiq asosida (~2 haftalik zaxira)</span></div>
     <section class="card flush">${r.restock.length ? `<div class="table-wrap cards"><table>
-      <thead><tr><th>Mahsulot</th><th class="right">Qoldiq</th><th class="right">Minimal</th><th class="right">Kunlik sotuv</th><th class="right">Tavsiya etilgan miqdor</th><th>Holat</th></tr></thead>
+      <thead><tr><th>Tovar</th><th class="right">Qoldiq</th><th class="right">Minimal</th><th class="right">Kunlik sotuv</th><th class="right">Tavsiya etilgan miqdor</th><th>Holat</th></tr></thead>
       <tbody>${r.restock.map((p) => `<tr class="clickable" data-id="${p.id}">
-        <td data-label="Mahsulot"><b>${esc(p.name)}</b></td>
+        <td data-label="Tovar"><b>${esc(p.name)}</b></td>
         <td data-label="Qoldiq" class="right num">${qty(p.stock_qty)} ${esc(p.unit)}</td>
         <td data-label="Minimal" class="right num">${qty(p.min_stock)}</td>
         <td data-label="Kunlik sotuv" class="right num">${num(p.daily_30d, 2)}</td>

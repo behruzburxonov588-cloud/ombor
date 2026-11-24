@@ -8,12 +8,12 @@ const WEEKDAYS = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Sh
 const THRESHOLDS = [
   ['expense_spike_pct', "Xarajat odatdagidan necha % ko'p bo'lsa ogohlantirish", '%'],
   ['sales_decline_pct', 'Haftalik savdo necha % pasaysa ogohlantirish', '%'],
-  ['product_decline_pct', 'Mahsulot savdosi necha % pasaysa ogohlantirish', '%'],
+  ['product_decline_pct', 'Tovar savdosi necha % pasaysa ogohlantirish', '%'],
   ['margin_change_pp', "Foyda marjasi necha punktga o'zgarsa ogohlantirish", 'p.p.'],
   ['inventory_change_value', "Ombordagi zarar/tuzatish summasi (dan katta bo'lsa)", "so'm"],
   ['large_refund_value', "Katta qaytarish summasi (dan katta bo'lsa)", "so'm"],
   ['debt_reminder_days', 'Muddati o\'tgan qarz haqida necha kunda bir eslatish', 'kun'],
-  ['restock_remind_days', 'Kam qolgan mahsulot haqida qayta eslatish oralig\'i', 'kun'],
+  ['restock_remind_days', 'Kam qolgan tovar haqida qayta eslatish oralig\'i', 'kun'],
 ];
 
 const TABS = [
@@ -177,13 +177,13 @@ async function personal(body, ctx) {
           <div class="form-grid two">
             <label class="field"><span>Bosh sahifa davri</span><select class="input" id="hrange">
               ${[['today', 'Bugun'], ['yesterday', 'Kecha'], ['7d', '7 kun'], ['30d', '30 kun'], ['month', 'Shu oy']].map(([v, l]) => `<option value="${v}" ${prefs.dashboard.simple_range === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-            <label class="field"><span>Tahlil sahifasi davri</span><select class="input" id="drange">
+            <label class="field"><span>«Grafiklar» sahifasi davri</span><select class="input" id="drange">
               ${[['today', 'Bugun'], ['yesterday', 'Kecha'], ['7d', '7 kun'], ['30d', '30 kun'], ['month', 'Shu oy']].map(([v, l]) => `<option value="${v}" ${prefs.dashboard.range === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
             <label class="field"><span>Hisobotlar davri</span><select class="input" id="rperiod">
               ${[['today', 'Bugun'], ['week', 'Shu hafta'], ['month', 'Shu oy'], ['year', 'Shu yil']].map(([v, l]) => `<option value="${v}" ${prefs.reports.period === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
             <label class="field"><span>Hisobot taqsimoti</span><select class="input" id="rgrain">
               ${[['daily', 'Kunlik'], ['weekly', 'Haftalik'], ['monthly', 'Oylik']].map(([v, l]) => `<option value="${v}" ${prefs.reports.grain === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-            <div class="field"><span>Vidjetlar</span><a class="btn btn-light" href="#/analytics">${icon('sliders', 'ico-sm')} Tahlil sahifasida sozlash</a></div>
+            <div class="field"><span>Vidjetlar</span><a class="btn btn-light" href="#/analytics">${icon('sliders', 'ico-sm')} «Grafiklar» sahifasida sozlash</a></div>
           </div>
         </section>
       </div>

@@ -6,23 +6,14 @@
 //   5) Nima keldi va nima ketdi; ombor holati (qiymati, turlari, kam qolgan, tugagan)
 // Hamma raqamlar haqiqiy yozuvlardan: /api/analytics/dashboard, /overview, /daily, /monthly, /cash/summary, /notifications.
 import {
-  get, put, esc, icon, num, compact, moneyFull, longDate, errorToast, dateTime, timeAgo, emptyState,
-  periodPicker, bindPeriod, resolvePeriod, periodWord, periodQuery, monthName, shortDate, weekdayShort,
-  deltaAmount, compareText,
-} from '../ui.js';
+  get, put, esc, icon, num, compact, moneyFull, longDate, errorToast, dateTime, timeAgo, periodPicker, bindPeriod, resolvePeriod, periodWord, periodQuery, monthName, shortDate, weekdayShort,
+  deltaAmount, compareText, EXPENSE_LABEL, greeting } from '../ui.js';
 import { salesCard, mountSalesChart, topCard, mountTop, destroyCharts } from './dashboard.js';
 import { chart, tableView } from '../charts.js';
 
 const SHOW = 8;
 const qtyText = (q, unit) => `${num(q, 3)} ${unit}`;
 let homeCharts = [];
-
-function greeting() {
-  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hour12: false }).format(new Date()));
-  if (h < 11) return 'Xayrli tong';
-  if (h < 18) return 'Xayrli kun';
-  return 'Xayrli kech';
-}
 
 // opts: { prefs, query, actionTiles(ctx), onboarding: async () => html, afterMount(root) }
 export async function renderHome(root, ctx, opts) {
@@ -153,7 +144,7 @@ function stockStrip(d, ov) {
       <span class="ss-item"><span>Tovar turlari</span><b>${num(st.products, 0)}</b></span>
       <a class="ss-badge ${st.low ? 'warn' : ''}" href="#/products?filter=low">Kam qolgan: ${num(st.low, 0)}</a>
       <a class="ss-badge ${st.out ? 'bad' : ''}" href="#/products?filter=out">Tugagan: ${num(st.out, 0)}</a>
-      <a class="link-btn ss-go" href="#/stock">Ombor qoldig'i ${icon('right', 'ico-xs')}</a>
+      <a class="link-btn ss-go" href="#/stock">Qoldiq va tarix ${icon('right', 'ico-xs')}</a>
     </section>`;
 }
 
@@ -285,9 +276,6 @@ const KIND = {
   purchase: { label: 'Yuk keldi', sign: -1, icon: 'truck', tone: 'slate' },
   expense: { label: 'Xarajat', sign: -1, icon: 'expense', tone: 'warn' },
   payment: { label: "Qarz to'lovi", sign: 1, icon: 'debt', tone: 'pos' },
-};
-const EXPENSE_LABEL = {
-  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal', delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
 };
 function recentCard(d, canSell) {
   const rows = (d.recent || []).slice(0, 7);

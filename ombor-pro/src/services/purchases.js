@@ -1,4 +1,4 @@
-// Kirim (tovar qabul qilish): bir nechta mahsulot, yetkazib berish xarajati va chegirma
+// Kirim (tovar qabul qilish): bir nechta tovar, yetkazib berish xarajati va chegirma
 import { HttpError, num, round2, round4, dateStr, todayLocal } from '../util.js';
 import { lockProducts, receiveStock } from './inventory.js';
 import { resolveUnit } from './catalog.js';
@@ -55,16 +55,16 @@ export async function createPurchase(client, user, body) {
   }
 
   const items = Array.isArray(body.items) ? body.items : [];
-  if (items.length === 0) throw new HttpError(400, "Kirim uchun kamida bitta mahsulot qo'shing");
-  if (items.length > 200) throw new HttpError(400, "Bitta kirimda 200 tadan ko'p mahsulot bo'lishi mumkin emas");
+  if (items.length === 0) throw new HttpError(400, "Kirim uchun kamida bitta tovar qo'shing");
+  if (items.length > 200) throw new HttpError(400, "Bitta kirimda 200 tadan ko'p tovar bo'lishi mumkin emas");
   const purchaseDate = dateStr(body.purchase_date || todayLocal(), 'Sana');
 
   const products = await lockProducts(client, items.map((i) => i.product_id));
   const lines = [];
   for (const item of items) {
-    const pid = num(item.product_id, 'Mahsulot', { positive: true });
+    const pid = num(item.product_id, 'Tovar', { positive: true });
     const p = products.get(pid);
-    if (!p) throw new HttpError(400, 'Mahsulot topilmadi');
+    if (!p) throw new HttpError(400, 'Tovar topilmadi');
     if (p.is_archived) throw new HttpError(400, `"${p.name}" arxivlangan. Avval uni faollashtiring`);
     const qty = num(item.quantity, 'Miqdor', { positive: true });
     const price = num(item.unit_price, 'Kirim narxi', { min: 0 });

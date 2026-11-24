@@ -2,7 +2,7 @@
 // Rahbar (xodimlarni boshqarish yoki hisobot huquqi) hammani ko'radi; boshqalar faqat o'zini.
 import {
   get, esc, icon, num, compact, moneyFull, deltaPill, pctText, initials, resolvePeriod, periodPicker, bindPeriod, periodQuery, rangeLabel,
-  todayStr, dateTime, openModal, download, withBusy, errorToast, emptyState, toast, shortDate,
+  dateTime, openModal, download, withBusy, errorToast, emptyState, shortDate,
 } from '../ui.js';
 import { chart, sparkline } from '../charts.js';
 
@@ -11,8 +11,8 @@ const SERIES = ['#2563eb', '#eb6834', '#16a34a'];
 const ACTIONS = {
   'sale.create': 'Savdo', 'sale.return': 'Qaytarish', 'purchase.create': 'Kirim', 'expense.create': 'Xarajat',
   'customer.payment': "Mijoz to'lovi", 'supplier.payment': "Yetkazib beruvchiga to'lov", 'stock.damage': 'Zarar yozildi',
-  'stock.correction': 'Qoldiq tuzatildi', 'count.create': 'Inventarizatsiya boshlandi', 'count.approve': 'Inventarizatsiya tasdiqlandi',
-  'product.create': "Mahsulot qo'shildi", 'product.update': "Mahsulot o'zgardi", 'product.archive': 'Mahsulot arxivlandi',
+  'stock.correction': 'Qoldiq tuzatildi', 'count.create': 'Sanash boshlandi', 'count.approve': 'Sanash tasdiqlandi',
+  'product.create': "Tovar qo'shildi", 'product.update': "Tovar o'zgardi", 'product.archive': 'Tovar arxivlandi',
   'shift.open': 'Smena ochildi', 'shift.close': 'Smena yopildi', 'cash.deposit': 'Kassaga pul', 'cash.withdrawal': 'Kassadan pul',
   login: 'Tizimga kirdi', 'settings.update': "Sozlamalar o'zgardi", 'user.create': "Xodim qo'shildi", 'user.update': "Xodim o'zgardi",
   'customer.create': "Mijoz qo'shildi", 'supplier.create': "Yetkazib beruvchi qo'shildi", 'notifications.settings': "Bildirishnoma sozlamalari",
@@ -30,7 +30,7 @@ export async function render(root, params, ctx) {
 
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>${self ? 'Mening natijalarim' : 'Xodimlar samaradorligi'}</h1><p class="muted">${esc(rangeLabel(range.from, range.to))} · savdo, cheklar va faollik</p></div>
+      <div><h1>${self ? 'Mening natijalarim' : 'Xodimlar natijasi'}</h1><p class="muted">${esc(rangeLabel(range.from, range.to))} · savdo, cheklar va faollik</p></div>
       <div class="filterbar">
         ${periodPicker(range)}
         ${!self && ctx.can('reports.export') ? `<button class="btn btn-light btn-sm" type="button" data-export="xlsx">${icon('xlsx', 'ico-sm')} Excel</button>

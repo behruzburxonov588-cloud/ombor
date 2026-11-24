@@ -31,7 +31,7 @@ export async function getSettings(db) {
 
 export async function saveSettings(db, patch) {
   if (patch.costing_method !== undefined && !['FIFO', 'WAVG'].includes(patch.costing_method)) {
-    throw new HttpError(400, "Tannarx usuli noto'g'ri. FIFO yoki WAVG tanlang");
+    throw new HttpError(400, "Kelish narxini hisoblash usuli noto'g'ri. FIFO yoki WAVG tanlang");
   }
   for (const [key, value] of Object.entries(patch)) {
     if (!(key in SETTING_DEFAULTS)) continue;

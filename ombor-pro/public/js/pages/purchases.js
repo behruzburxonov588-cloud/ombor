@@ -2,23 +2,15 @@
 import {
   get, post, icon, esc, num, money, dateOnly, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, productPhoto, packText,
-  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, groupBySize, parseMoney, formatMoneyInput,
-} from '../ui.js';
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, groupBySize, parseMoney, formatMoneyInput, newKey, parseQty, round2, round4 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { openProductWizard } from '../productform.js';
 
-const newKey = () => `pur-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 // Miqdor: "1,5" = 1,5; probellar e'tiborsiz. Narx va summa: toMoney ("12.000" = 12 000 so'm)
-const toNum = (v) => {
-  const n = Number(String(v ?? '').replace(/\s/g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-};
 const toMoney = (v) => {
   const n = parseMoney(v);
   return Number.isFinite(n) ? n : 0;
 };
-const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
-const round4 = (n) => Math.round((n + Number.EPSILON) * 10000) / 10000;
 
 export async function render(root, params, ctx) {
   if (params.id === 'new') return renderNew(root, ctx, params.query.product ? Number(params.query.product) : null);
@@ -115,7 +107,7 @@ const isWide = () => window.matchMedia('(min-width: 720px)').matches;
 
 async function renderNew(root, ctx, preselect = null) {
   if (!ctx.can('purchases.create')) {
-    root.innerHTML = '<div class="alert alert-bad">Kirim qilish uchun ruxsatingiz yo\'q</div>';
+    root.innerHTML = '<div class="alert alert-bad">Yuk kiritish uchun ruxsatingiz yo\'q</div>';
     return;
   }
   const canNewProduct = ctx.can('products.manage');
@@ -123,7 +115,7 @@ async function renderNew(root, ctx, preselect = null) {
   const [{ suppliers: allSup }, cat] = await Promise.all([get('/suppliers'), get('/products?limit=1000')]);
   let catalog = cat.products;
   const suppliers = allSup.filter((s) => s.name !== UNKNOWN);
-  const key = newKey();
+  const key = newKey('pur');
   const lines = []; // { p, unit_id, quantity, unit_price }
   let pay = 'full'; // full | part | debt
   let method = 'cash';
@@ -224,9 +216,9 @@ async function renderNew(root, ctx, preselect = null) {
   const unitsOf = (p) => [{ unit_id: p.base_unit_id, name: p.base_unit_name, factor: 1 }, ...(p.conversions || [])];
   const unitOf = (l) => unitsOf(l.p).find((u) => u.unit_id === l.unit_id) || unitsOf(l.p)[0];
   // Rulonli qator: l.rolls — har bir rulon uzunligi (asosiy birlikda), narx — 1 asosiy birlik (metr) uchun
-  const rollSum = (l) => round4((l.rolls || []).reduce((s2, x) => s2 + (toNum(x) || 0), 0));
-  const baseQty = (l) => (l.rolls ? rollSum(l) : round4(toNum(l.quantity) * unitOf(l).factor));
-  const lineTotal = (l) => (l.rolls ? round2(rollSum(l) * toMoney(l.unit_price)) : round2(toNum(l.quantity) * toMoney(l.unit_price)));
+  const rollSum = (l) => round4((l.rolls || []).reduce((s2, x) => s2 + (parseQty(x) || 0), 0));
+  const baseQty = (l) => (l.rolls ? rollSum(l) : round4(parseQty(l.quantity) * unitOf(l).factor));
+  const lineTotal = (l) => (l.rolls ? round2(rollSum(l) * toMoney(l.unit_price)) : round2(parseQty(l.quantity) * toMoney(l.unit_price)));
   const isRollUnit = (p, unitId) => Boolean(p.is_roll) && unitsOf(p).find((u) => u.unit_id === unitId)?.name?.toLowerCase() === 'rulon';
   const inCart = (pid) => lines.find((l) => l.p.id === pid);
   const priceFor = (p, factor) => (Number(p.purchase_price) > 0 ? String(round2(Number(p.purchase_price) * factor)) : '');
@@ -282,7 +274,7 @@ async function renderNew(root, ctx, preselect = null) {
     return `
       <button type="button" class="pcard rtile st-${p.status} ${l ? 'picked' : ''}" data-pid="${p.id}" aria-label="${esc(p.name)} — qo'shish">
         ${productPhoto(p, 'rt-img')}
-        ${l ? `<span class="qty-badge">+${num(toNum(l.quantity), 3)} ${esc(unitOf(l).name)}</span>` : ''}
+        ${l ? `<span class="qty-badge">+${num(parseQty(l.quantity), 3)} ${esc(unitOf(l).name)}</span>` : ''}
         <span class="rt-text"><span class="pname">${esc(p.name)}</span>
         <span class="rt-stock">Omborda: <b>${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}</b>${p.is_roll && p.roll_count ? `<br><small>${p.roll_count} ta rulon</small>` : pk ? `<br><small>${esc(pk)}</small>` : ''}</span>
         <span class="rt-price">${Number(p.purchase_price) > 0 ? `kelish ${money(p.purchase_price)} · ` : ''}sotuv ${money(p.selling_price)}</span></span>
@@ -292,7 +284,7 @@ async function renderNew(root, ctx, preselect = null) {
   let groups = new Map();
   function modelTile(g) {
     const got = g.items.map((v) => inCart(v.id)).filter(Boolean);
-    const sum = got.reduce((s, l) => s + toNum(l.quantity), 0);
+    const sum = got.reduce((s, l) => s + parseQty(l.quantity), 0);
     return `
       <button type="button" class="pcard rtile st-${g.status} ${got.length ? 'picked' : ''}" data-model="${esc(g.model_name)}" aria-label="${esc(g.name)} — o'lchamlari bo'yicha kiritish">
         ${productPhoto(g.items[0], 'rt-img')}
@@ -321,7 +313,7 @@ async function renderNew(root, ctx, preselect = null) {
     });
     const sumEl = el.querySelector('#szsum');
     const refresh = () => {
-      const total = g.items.reduce((s, v) => s + (toNum(el.querySelector(`[data-szq="${v.id}"]`).value) || 0), 0);
+      const total = g.items.reduce((s, v) => s + (parseQty(el.querySelector(`[data-szq="${v.id}"]`).value) || 0), 0);
       const price = toMoney(el.querySelector('#szp').value) || 0;
       sumEl.innerHTML = total > 0 ? `Jami: <b>${num(round4(total), 3)} ${esc(first.base_unit_name)}</b>${price > 0 ? ` · <b>${money(round2(total * price))}</b>` : ''}` : '';
     };
@@ -330,7 +322,7 @@ async function renderNew(root, ctx, preselect = null) {
       if (!b) return;
       const id = b.dataset.szi || b.dataset.szd;
       const inp = el.querySelector(`[data-szq="${id}"]`);
-      inp.value = String(Math.max(0, round4((toNum(inp.value) || 0) + (b.dataset.szi ? 1 : -1)))) || '';
+      inp.value = String(Math.max(0, round4((parseQty(inp.value) || 0) + (b.dataset.szi ? 1 : -1)))) || '';
       if (inp.value === '0') inp.value = '';
       refresh();
     });
@@ -342,7 +334,7 @@ async function renderNew(root, ctx, preselect = null) {
       if (toMoney(price) < 0) { el.querySelector('#szerr').innerHTML = '<div class="alert alert-warn">Narx manfiy bo\'lishi mumkin emas</div>'; return; }
       let any = false;
       for (const v of g.items) {
-        const q = toNum(el.querySelector(`[data-szq="${v.id}"]`).value) || 0;
+        const q = parseQty(el.querySelector(`[data-szq="${v.id}"]`).value) || 0;
         if (q > 0) { putLine(v, { quantity: String(round4(q)), unitId: v.base_unit_id, price }); any = true; } else if (inCart(v.id)) removeLine(v.id);
       }
       if (!any && !g.items.some((v) => inCart(v.id))) { el.querySelector('#szerr').innerHTML = '<div class="alert alert-warn">Kamida bitta o\'lchamdan nechta kelganini yozing</div>'; return; }
@@ -391,8 +383,8 @@ async function renderNew(root, ctx, preselect = null) {
           ${productPhoto(l.p, 'rl-img')}
           <span class="rl-name">
             <b>${esc(l.p.name)}</b>
-            <span>${l.rolls ? `${l.rolls.length} rulon (${l.rolls.map((x) => num(toNum(x), 3)).join(' + ')} = ${num(rollSum(l), 3)} ${esc(l.p.base_unit_name)}) × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : `${money(toMoney(l.unit_price))}/${esc(l.p.base_unit_name)}`}`
-    : `${num(toNum(l.quantity), 3)} ${esc(un.name)}${baseNote} × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : money(toMoney(l.unit_price))}`}</span>
+            <span>${l.rolls ? `${l.rolls.length} rulon (${l.rolls.map((x) => num(parseQty(x), 3)).join(' + ')} = ${num(rollSum(l), 3)} ${esc(l.p.base_unit_name)}) × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : `${money(toMoney(l.unit_price))}/${esc(l.p.base_unit_name)}`}`
+    : `${num(parseQty(l.quantity), 3)} ${esc(un.name)}${baseNote} × ${noPrice ? '<em class="amber">narxi yozilmagan</em>' : money(toMoney(l.unit_price))}`}</span>
             <span class="rl-after-s">${afterText(l)}</span>
             <span class="rl-bottom"><b class="num">${money(lineTotal(l))}</b><small>${icon('edit', 'ico-xs')} o'zgartirish</small></span>
           </span>
@@ -431,7 +423,7 @@ async function renderNew(root, ctx, preselect = null) {
     let soft = '';
     const noSup = !$('#sup').value;
     if (!lines.length) warn = '';
-    else if (lines.some((l) => !(toNum(l.quantity) > 0))) warn = `«${lines.find((l) => !(toNum(l.quantity) > 0)).p.name}» — nechta kelganini yozing`;
+    else if (lines.some((l) => !(parseQty(l.quantity) > 0))) warn = `«${lines.find((l) => !(parseQty(l.quantity) > 0)).p.name}» — nechta kelganini yozing`;
     else if (lines.some((l) => toMoney(l.unit_price) < 0)) warn = "Narx manfiy bo'lishi mumkin emas";
     else if (discount > subtotal + delivery) warn = "Chegirma umumiy summadan katta bo'lishi mumkin emas";
     else if (pay === 'part' && !(paid > 0)) warn = "Qancha to'laganingizni yozing";
@@ -533,7 +525,7 @@ async function renderNew(root, ctx, preselect = null) {
     const drawRolls = () => {
       const box = el.querySelector('#pk-rolls');
       if (!rollMode()) { d.rolls = null; box.innerHTML = ''; return; }
-      const n = Math.min(100, Math.max(0, Math.floor(toNum(qIn.value) || 0)));
+      const n = Math.min(100, Math.max(0, Math.floor(parseQty(qIn.value) || 0)));
       const def = String(unitOf(d).factor);
       d.rolls = Array.from({ length: n }, (_, i) => (d.rolls && d.rolls[i] !== undefined ? d.rolls[i] : def));
       box.innerHTML = n ? `<div class="field"><span>Har bir rulon uzunligi (${esc(p.base_unit_name)}) <small>— har xil bo'lsa o'zgartiring</small></span>
@@ -554,7 +546,7 @@ async function renderNew(root, ctx, preselect = null) {
       const step = e.target.closest('[data-inc], [data-dec]');
       if (step) {
         const delta = step.matches('[data-inc]') ? 1 : -1;
-        qIn.value = String(Math.max(0, round4(toNum(qIn.value) + delta)));
+        qIn.value = String(Math.max(0, round4(parseQty(qIn.value) + delta)));
         refresh();
         return;
       }
@@ -585,14 +577,14 @@ async function renderNew(root, ctx, preselect = null) {
         el.querySelector('#pk-err').innerHTML = `<div class="alert alert-warn">${esc(msg)}</div>`;
         input.focus();
       };
-      if (!(toNum(qIn.value) > 0)) return err('Nechta kelganini yozing', qIn);
+      if (!(parseQty(qIn.value) > 0)) return err('Nechta kelganini yozing', qIn);
       if (toMoney(pIn.value) < 0) return err("Narx manfiy bo'lishi mumkin emas", pIn);
       if (rollMode()) {
-        if (!Number.isInteger(toNum(qIn.value))) return err("Rulonlar sonini butun son bilan yozing (masalan: 5)", qIn);
-        const bad = d.rolls.findIndex((x) => !(toNum(x) > 0));
+        if (!Number.isInteger(parseQty(qIn.value))) return err("Rulonlar sonini butun son bilan yozing (masalan: 5)", qIn);
+        const bad = d.rolls.findIndex((x) => !(parseQty(x) > 0));
         if (bad >= 0) return err(`${bad + 1}-rulon uzunligini yozing`, el.querySelector(`[data-roll="${bad}"]`));
       }
-      putLine(p, { quantity: String(round4(toNum(qIn.value))), unitId: d.unit_id, price: pIn.value.trim(), rolls: rollMode() ? d.rolls.map((x) => String(toNum(x))) : null });
+      putLine(p, { quantity: String(round4(parseQty(qIn.value))), unitId: d.unit_id, price: pIn.value.trim(), rolls: rollMode() ? d.rolls.map((x) => String(parseQty(x))) : null });
       close();
     });
     // Kompyuterda: darhol son yozish mumkin. Telefonda klaviatura o'zi ochilib, oynani yopib qo'ymasligi uchun fokus berilmaydi
@@ -763,8 +755,8 @@ async function renderNew(root, ctx, preselect = null) {
       purchase_date: $('#pdate').value,
       note: $('#note').value.trim() || null,
       items: lines.flatMap((l) => (l.rolls
-        ? l.rolls.map((len) => ({ product_id: l.p.id, unit_id: l.p.base_unit_id, quantity: toNum(len), unit_price: toMoney(l.unit_price) }))
-        : [{ product_id: l.p.id, unit_id: l.unit_id, quantity: toNum(l.quantity), unit_price: toMoney(l.unit_price) }])),
+        ? l.rolls.map((len) => ({ product_id: l.p.id, unit_id: l.p.base_unit_id, quantity: parseQty(len), unit_price: toMoney(l.unit_price) }))
+        : [{ product_id: l.p.id, unit_id: l.unit_id, quantity: parseQty(l.quantity), unit_price: toMoney(l.unit_price) }])),
       delivery_cost: toMoney($('#dlv').value),
       discount: toMoney($('#dsc').value),
       paid_amount: paid,
@@ -827,7 +819,7 @@ async function renderNew(root, ctx, preselect = null) {
   };
   get('/purchases/recent-items').then((r) => { recent = r.items; drawRecent(); }).catch(() => {});
   $('#pq').addEventListener('input', () => setTimeout(drawRecent, 0));
-  // Mahsulot sahifasidagi «Yuk keldi» tugmasidan kelinganda: o'sha tovar oynasi darhol ochiladi
+  // Tovar sahifasidagi «Yuk keldi» tugmasidan kelinganda: o'sha tovar oynasi darhol ochiladi
   if (preselect) {
     history.replaceState(null, '', '#/purchases/new');
     const p = catalog.find((x) => x.id === preselect);
@@ -860,9 +852,9 @@ async function renderDetail(root, id, ctx) {
 
     <div class="card" style="margin-top:14px">
       <div class="table-wrap cards"><table>
-        <thead><tr><th>Mahsulot</th><th class="right">Miqdor</th><th class="right">Narx</th><th class="right">Qator summasi</th><th class="right">1 birlik sizga tushdi</th></tr></thead>
+        <thead><tr><th>Tovar</th><th class="right">Miqdor</th><th class="right">Narx</th><th class="right">Qator summasi</th><th class="right">1 birlik sizga tushdi</th></tr></thead>
         <tbody>${p.items.map((i) => `<tr>
-          <td data-label="Mahsulot">${esc(i.product_name)}</td>
+          <td data-label="Tovar">${esc(i.product_name)}</td>
           <td data-label="Miqdor" class="right num">${num(i.quantity, 4)} ${esc(i.unit_name)}</td>
           <td data-label="Narx" class="right num">${money(i.unit_price)}</td>
           <td data-label="Qator summasi" class="right num">${money(i.line_total)}</td>
@@ -870,7 +862,7 @@ async function renderDetail(root, id, ctx) {
         </tr>`).join('')}</tbody></table></div>
 
       <div class="cart-totals" style="margin-top:14px">
-        <div class="between"><span class="muted">Mahsulotlar</span><span class="num">${money(p.subtotal)}</span></div>
+        <div class="between"><span class="muted">Tovarlar</span><span class="num">${money(p.subtotal)}</span></div>
         <div class="between"><span class="muted">Yetkazib berish</span><span class="num">${money(p.delivery_cost)}</span></div>
         <div class="between"><span class="muted">Chegirma</span><span class="num">${money(p.discount)}</span></div>
         <div class="between"><span style="font-weight:700">Jami</span><span class="big num">${money(p.total)}</span></div>

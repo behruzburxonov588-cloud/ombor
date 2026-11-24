@@ -1,5 +1,5 @@
 // Hisobot hujjatlari: bir xil ma'lumotdan Excel va PDF yaratiladi.
-// Hisobot turlari: pnl (foyda va zarar), sales (savdo), products (mahsulotlar), inventory (ombor),
+// Hisobot turlari: pnl (foyda va zarar), sales (savdo), products (tovarlar), inventory (ombor),
 // weekly (haftalik), debts (mijoz qarzlari), staff (xodimlar).
 import { HttpError, todayLocal } from '../util.js';
 import { getSettings } from './settings.js';
@@ -14,7 +14,7 @@ import { EXPENSE_LABELS } from './insights.js';
 export const REPORT_KINDS = {
   pnl: 'Foyda va zarar hisoboti',
   sales: 'Savdo hisoboti',
-  products: 'Mahsulotlar bo\'yicha hisobot',
+  products: 'Tovarlar bo\'yicha hisobot',
   inventory: 'Ombor holati hisoboti',
   weekly: 'Haftalik hisobot',
   debts: 'Mijozlar qarzi hisoboti',
@@ -80,8 +80,8 @@ async function pnlDoc(db, q) {
     line('− Operatsion xarajatlar', c.expenses, pv.expenses),
     line("− Buzilgan / yo'qolgan tovar", c.losses, pv.losses),
     line('    yaroqsiz tovar', c.damage, pv.damage),
-    line('    inventarizatsiya kamomadi', c.shrinkage, pv.shrinkage),
-    line('    inventarizatsiya ortiqchasi (+)', c.surplus, pv.surplus),
+    line('    sanashda chiqqan kamomad', c.shrinkage, pv.shrinkage),
+    line('    sanashda chiqqan ortiqcha (+)', c.surplus, pv.surplus),
     line('= Sof foyda', c.net_profit, pv.net_profit),
   ];
   return {
@@ -191,7 +191,7 @@ async function productsDoc(db, q, settings) {
   const items = (await productStats(db, range, settings.costing_method))
     .sort((a, b) => b.revenue - a.revenue || a.name.localeCompare(b.name));
   const cols = [
-    col('name', 'Mahsulot', 'text', { width: 32, pdf: 3.6 }),
+    col('name', 'Tovar', 'text', { width: 32, pdf: 3.6 }),
     col('category_name', 'Kategoriya', 'text', { width: 16, pdf: 1.6 }),
     col('qty_sold', 'Sotilgan', 'number', { pdf: 1.1 }),
     col('unit', 'Birlik', 'text', { width: 8, pdf: 0.8 }),
@@ -207,7 +207,7 @@ async function productsDoc(db, q, settings) {
   return {
     range,
     summary: [
-      { label: 'Sotilgan mahsulotlar', value: `${sold.length} xil` },
+      { label: 'Sotilgan tovarlar', value: `${sold.length} xil` },
       { label: 'Tushum', value: m(items.reduce((s, i) => s + i.revenue, 0)) },
       { label: 'Foyda', value: m(items.reduce((s, i) => s + i.profit, 0)) },
       { label: 'Sotilmagan (qoldig\'i bor)', value: `${items.filter((i) => !i.is_archived && i.stock_qty > 0 && i.qty_sold <= 0).length} ta` },
@@ -215,7 +215,7 @@ async function productsDoc(db, q, settings) {
     notes: [],
     landscape: true,
     tables: [{
-      title: 'Mahsulotlar', name: 'Mahsulotlar', columns: cols, rows: items,
+      title: 'Tovarlar', name: 'Tovarlar', columns: cols, rows: items,
       totals: { ...sumRows(items, ['revenue', 'cogs', 'profit', 'stock_value'], 'Jami', 'name'), receipts: null },
     }],
   };
@@ -227,7 +227,7 @@ async function inventoryDoc(db, q, settings, user) {
   const seen = new Set();
   const flagged = all.filter((x) => !seen.has(x.id) && seen.add(x.id));
   const cols = [
-    col('name', 'Mahsulot', 'text', { width: 32, pdf: 3 }),
+    col('name', 'Tovar', 'text', { width: 32, pdf: 3 }),
     col('stock_qty', 'Qoldiq', 'number', { pdf: 1 }),
     col('unit', 'Birlik', 'text', { width: 8, pdf: 0.7 }),
     col('min_stock', 'Minimal', 'number', { pdf: 0.9 }),
@@ -243,7 +243,7 @@ async function inventoryDoc(db, q, settings, user) {
     summary: [
       { label: 'Ombordagi tovar qiymati (kelish narxida)', value: m(inv.totals.cost_value) },
       ...(inv.totals.retail_value !== null ? [{ label: 'Sotuv narxida', value: m(inv.totals.retail_value) }] : []),
-      { label: 'Mahsulotlar', value: `${inv.totals.products} ta (${inv.totals.in_stock} tasi bor)` },
+      { label: 'Tovarlar', value: `${inv.totals.products} ta (${inv.totals.in_stock} tasi bor)` },
       { label: 'Tugagan', value: `${inv.totals.out} ta`, tone: inv.totals.out ? 'bad' : undefined },
       { label: 'Kam qolgan', value: `${inv.totals.low} ta`, tone: inv.totals.low ? 'warn' : undefined },
       { label: 'Sotilmayotgan (30 kun)', value: `${inv.totals.dead} ta · ${m(inv.totals.dead_value)}` },
@@ -255,7 +255,7 @@ async function inventoryDoc(db, q, settings, user) {
       {
         title: 'Qayta buyurtma kerak', name: 'Buyurtma',
         columns: [
-          col('name', 'Mahsulot', 'text', { width: 32, pdf: 3 }),
+          col('name', 'Tovar', 'text', { width: 32, pdf: 3 }),
           col('stock_qty', 'Qoldiq', 'number'), col('unit', 'Birlik', 'text', { width: 8, pdf: 0.8 }),
           col('min_stock', 'Minimal', 'number'), col('qty_30d', '30 kunda sotilgan', 'number'),
           col('suggested_qty', 'Tavsiya: buyurtma', 'number', { pdf: 1.3 }),
@@ -264,7 +264,7 @@ async function inventoryDoc(db, q, settings, user) {
         rows: inv.restock.map(label),
         empty: "Hozircha qayta buyurtma kerak emas",
       },
-      { title: "E'tibor talab qiladigan mahsulotlar", name: 'Tahlil', columns: cols, rows: flagged.map(label), empty: "Muammoli mahsulot yo'q" },
+      { title: "E'tibor talab qiladigan tovarlar", name: 'Tahlil', columns: cols, rows: flagged.map(label), empty: "Muammoli tovar yo'q" },
     ],
   };
 }

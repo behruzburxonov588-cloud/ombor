@@ -431,7 +431,7 @@ export async function compressImage(file, { max = 1024, quality = 0.8 } = {}) {
   return new File([blob], 'rasm.jpg', { type: 'image/jpeg' });
 }
 
-// Mahsulot rasmini yuklash (kichraytirib)
+// Tovar rasmini yuklash (kichraytirib)
 // Do'kon logotipi (kichraytirib yuboriladi)
 export async function uploadLogo(file) {
   const small = await compressImage(file);
@@ -492,6 +492,30 @@ export function packText(qtyVal, unitName, pack) {
   const whole = Math.floor((q + 1e-9) / f);
   const rest = Math.round((q - whole * f) * 1000) / 1000;
   return `${num(whole, 0)} ${pack.name}${rest > 0 ? ` ${num(rest, 3)} ${unitName}` : ''}`;
+}
+
+// Miqdor (dona, metr, kg): «1 500» → 1500, «1,5» → 1.5. Noto'g'ri bo'lsa — fallback (odatda 0).
+// Pul summasi uchun parseMoney ishlatiladi («12.000» = 12 000 so'm)
+export function parseQty(v, fallback = 0) {
+  const n = Number(String(v ?? '').replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : fallback;
+}
+export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+export const round4 = (n) => Math.round((Number(n) + Number.EPSILON) * 10000) / 10000;
+
+// Hamma sahifada bir xil nomlar: to'lov turi va xarajat turi
+export const PAY_METHOD = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya', mixed: 'Aralash' };
+export const EXPENSE_LABEL = {
+  food: 'Ovqat (obed)', household: 'Suv, choy, mayda', rent: 'Ijara', salaries: 'Maosh', utilities: 'Kommunal',
+  delivery: 'Yetkazib berish', transport: 'Transport', repairs: "Ta'mirlash", other: 'Boshqa',
+};
+
+// Toshkent vaqti bo'yicha salomlashish
+export function greeting() {
+  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hour12: false }).format(new Date()));
+  if (h < 11) return 'Xayrli tong';
+  if (h < 18) return 'Xayrli kun';
+  return 'Xayrli kech';
 }
 
 // Takroriy yuborishdan himoya uchun noyob kalit (server bir xil kalitni ikkinchi marta yozmaydi)

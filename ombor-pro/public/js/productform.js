@@ -5,8 +5,8 @@
 //     - "Har xil hajmi bor" (Pepsi 0,5 L, 1 L, 1,5 L) — har biri alohida tovar bo'lib saqlanadi
 //     - "Shtrix-kod, kategoriya, yetkazib beruvchi"
 // Rasm yuborishdan oldin telefonda kichraytiriladi (har qanday telefon rasmi yuklanadi).
-// Sahifada (Mahsulotlar → Yangi tovar) va oynada (Yuk keldi → topilmasa) ishlaydi.
-import { get, post, esc, icon, money, num, toast, openModal, withBusy, uploadProductImage, parseMoney, storeTypes } from './ui.js';
+// Sahifada (Tovarlar → Yangi tovar) va oynada (Yuk keldi → topilmasa) ishlaydi.
+import { get, post, esc, icon, money, num, toast, openModal, withBusy, uploadProductImage, parseMoney, storeTypes, parseQty, round2, round4 } from './ui.js';
 import { openBarcodeScanner, cameraScanSupported } from './scanner.js';
 
 const MAIN_UNITS = ['piece', 'kg', 'l', 'm'];
@@ -27,14 +27,9 @@ const UNIT_HINT = {
   m3: 'kub metrlab',
 };
 
-const toNum = (v) => {
-  const n = Number(String(v ?? '').replace(/\s/g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : NaN;
-};
+const toNum = (v) => parseQty(v, NaN);
 // Narxlar: "12.000" ham, "12 000" ham 12 000 so'm (ui.js → parseMoney)
 const toMoney = (v) => parseMoney(v);
-const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
-const round4 = (n) => Math.round((n + Number.EPSILON) * 10000) / 10000;
 const blankRow = () => ({ label: '', sell: '', cost: '', qty: '' });
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -808,11 +803,11 @@ async function mountWizard(host, opts) {
   render();
 }
 
-// Sahifa ko'rinishi (Mahsulotlar → Yangi tovar)
+// Sahifa ko'rinishi (Tovarlar → Yangi tovar)
 export async function renderProductWizard(root, { name = '', prefill = null, onSaved, onCancel } = {}) {
   root.innerHTML = `
     <div class="page-head">
-      <div><a class="link-btn" href="#/products">${icon('back', 'ico-xs')} Mahsulotlar</a><h1>Yangi tovar</h1><p class="muted">Faqat <b>nomi</b> va <b>sotuv narxi</b> majburiy (<span class="req">*</span>). Qolganini keyin ham qo'shish mumkin</p></div>
+      <div><a class="link-btn" href="#/products">${icon('back', 'ico-xs')} Tovarlar</a><h1>Yangi tovar</h1><p class="muted">Faqat <b>nomi</b> va <b>sotuv narxi</b> majburiy (<span class="req">*</span>). Qolganini keyin ham qo'shish mumkin</p></div>
     </div>
     <div class="pform-page" id="wizhost"><div class="card"><div class="empty">Yuklanmoqda…</div></div></div>`;
   await mountWizard(root.querySelector('#wizhost'), { name, prefill, onSaved, onCancel });
