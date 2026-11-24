@@ -1,7 +1,7 @@
 // OMBOR PRO - asosiy ilova: kirish, tuzilma (yon panel, yuqori panel), marshrutlar, bildirishnomalar
 import {
   icon, esc, get, post, onUnauthorized, openModal, closeModal, toast, errorToast, num, money,
-  openPopover, closePopover, initials, timeAgo, confirmBox, skeletonPage, logoSvg,
+  openPopover, closePopover, initials, timeAgo, confirmBox, skeletonPage, logoSvg, greeting,
 } from './ui.js';
 
 // Marshrut -> sahifa moduli
@@ -31,14 +31,14 @@ const ROUTES = {
 // Menyu: 11 ta bo'lim — har biri bitta ish. Kam ishlatiladiganlari bo'lim ichida yorliq bo'lib turadi.
 //   short — telefondagi pastki menyu uchun qisqa nom; tip — sichqoncha ustiga kelganda tushuntirish;
 //   tabs — bo'lim ichidagi yorliqlar (sahifa tepasida ko'rinadi), solo — 1 kishilik do'konda yashiriladi,
-//   onlyActive — menyuda ko'rinmaydi, faqat o'sha sahifa ochilganda yorliq bo'lib chiqadi; sep — oldidan chiziq.
+//   onlyActive — menyuda ko'rinmaydi, faqat o'sha sahifa ochilganda yorliq bo'lib chiqadi; group — oldidan kichik sarlavha.
 const SECTIONS = [
   {
     id: 'dashboard', label: 'Bosh sahifa', short: 'Bosh', icon: 'dashboard', tip: "Bugun qancha sotildi, qancha foyda va nima qilish kerak",
     tabs: [{ label: 'Bosh sahifa', href: '#/dashboard', route: 'dashboard', match: (p) => p.key === 'dashboard' }],
   },
   {
-    id: 'sale', label: 'Sotuv', short: 'Sotuv', icon: 'cart', tip: 'Xaridorga sotish',
+    id: 'sale', label: 'Sotuv', short: 'Sotuv', icon: 'cart', tip: 'Xaridorga sotish', group: 'Savdo',
     tabs: [{ label: 'Sotuv', href: '#/sales', route: 'sales', perms: ['sales.create'], match: (p) => p.key === 'sales' && p.id !== 'history' }],
   },
   {
@@ -46,10 +46,9 @@ const SECTIONS = [
     tabs: [{ label: 'Sotuvlar tarixi', href: '#/sales/history', route: 'sales', perms: ['sales.view', 'sales.create'], match: (p) => p.key === 'sales' && p.id === 'history' }],
   },
   {
-    id: 'stockin', label: 'Tovar kiritish', short: 'Kiritish', icon: 'truck', tip: "Kelgan tovarni omborga kiritish — har biri 10 soniya", sep: true,
+    id: 'stockin', label: 'Tovar kiritish', short: 'Kiritish', icon: 'truck', tip: "Kelgan tovarni omborga kiritish — har biri 10 soniya", group: 'Tovar',
     tabs: [
-      { label: 'Tez kiritish', href: '#/stockin', route: 'stockin', match: (p) => p.key === 'stockin' },
-      { label: "Ko'p tovar bitta yuk", href: '#/purchases/new', route: 'purchases', perms: ['purchases.create'], match: (p) => p.key === 'purchases' && p.id === 'new' },
+      { label: 'Kiritish', href: '#/stockin', route: 'stockin', match: (p) => p.key === 'stockin' || (p.key === 'purchases' && p.id === 'new') },
       { label: 'Kelgan yuklar', href: '#/purchases', route: 'purchases', perms: ['purchases.view'], match: (p) => p.key === 'purchases' && p.id !== 'new' },
     ],
   },
@@ -65,7 +64,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'expenses', label: 'Xarajatlar', short: 'Xarajat', icon: 'expense', tip: "Ijara, obed, yo'l kabi xarajatlar va kassadagi pul", sep: true,
+    id: 'expenses', label: 'Xarajatlar', short: 'Xarajat', icon: 'expense', tip: "Ijara, obed, yo'l kabi xarajatlar va kassadagi pul", group: 'Pul',
     tabs: [
       { label: 'Xarajatlar', href: '#/cash?tab=expenses', route: 'cash', perms: ['expenses.view', 'reports.view'], match: (p) => p.key === 'cash' && p.query.tab === 'expenses' },
       { label: 'Kassadagi pul', href: '#/cash?tab=cash', route: 'cash', perms: ['cash.view', 'cash.shift'], match: (p) => p.key === 'cash' && p.query.tab !== 'expenses' },
@@ -83,7 +82,7 @@ const SECTIONS = [
     tabs: [{ label: 'Yetkazib beruvchilar', href: '#/suppliers', route: 'suppliers', match: (p) => p.key === 'suppliers' }],
   },
   {
-    id: 'reports', label: 'Hisobotlar', short: 'Hisobot', icon: 'table', tip: "Foyda, savdo, grafiklar va maslahatlar. Excel va PDF", sep: true,
+    id: 'reports', label: 'Hisobotlar', short: 'Hisobot', icon: 'table', tip: "Foyda, savdo, grafiklar va maslahatlar. Excel va PDF", group: 'Boshqaruv',
     tabs: [
       { label: 'Hisobotlar', href: '#/reports', route: 'reports', match: (p) => p.key === 'reports' },
       { label: 'Grafiklar', href: '#/analytics', route: 'analytics', match: (p) => p.key === 'analytics' },
@@ -106,20 +105,8 @@ const SECTIONS = [
 // Faqat yuqori paneldagi qo'ng'iroqcha orqali ochiladigan sahifalar (sarlavha uchun)
 const EXTRA_TITLES = { notifications: 'Bildirishnomalar', setup: "Do'konni sozlash" };
 
-// Telefondagi pastki menyu: Bosh, Sotuv, Kiritish, Mahsulot, Menyu («+ Qo'shish» — yuqori panelda)
+// Telefondagi pastki menyu: Bosh, Sotuv, Kiritish, Mahsulot, Menyu
 const MOBILE = ['dashboard', 'sale', 'stockin', 'products'];
-
-// "+ Qo'shish" menyusi: har sahifadan bir bosishda yangi yozuv (faqat ruxsat berilganlari ko'rinadi)
-const QUICK = [
-  { label: 'Sotuv', hint: 'Xaridorga tovar sotish', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
-  { label: 'Tovar kiritish', hint: 'Kelgan tovarni omborga', icon: 'truck', href: '#/stockin', perms: ['purchases.create'] },
-  { label: 'Yangi mahsulot', hint: 'Nomi, narxi, rasmi', icon: 'box', href: '#/products/new', perms: ['products.manage'] },
-  { label: 'Qarz yozish', hint: 'Daftardagi eski qarz', icon: 'debt', href: '#/debts?new=1', perms: ['customers.manage'], route: 'debts' },
-  { label: 'Xarajat', hint: 'Ijara, maosh, kommunal', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'], route: 'cash' },
-  { label: 'Mijoz', hint: 'Xaridor (nasiya uchun)', icon: 'users', href: '#/customers?new=1', perms: ['customers.manage'] },
-  { label: 'Xodim', hint: 'Sotuvchi uchun login', icon: 'userCog', href: '#/employees?new=1', perms: ['employees.manage'] },
-];
-const quickActions = () => QUICK.filter((a) => ctx.canAny(a.perms) && routeAllowed(a.route || a.href.slice(2).split(/[/?]/)[0]));
 
 const ROLE_LABELS = { owner: 'Egasi', administrator: 'Administrator', cashier: 'Kassir', warehouse: 'Ombor xodimi', accountant: 'Buxgalter' };
 
@@ -310,7 +297,6 @@ function buildShell() {
         <button class="icon-btn" id="btn-menu" type="button" aria-label="Menyuni ochish">${icon('menu')}</button>
         <div class="title" id="page-title"></div>
         <div class="spacer"></div>
-        <button class="btn btn-sm quick-add" id="btn-add" type="button" aria-haspopup="menu" aria-label="Yangi qo'shish" hidden>${icon('plus', 'ico-sm')}<span>Qo'shish</span></button>
         <button class="searchbox" id="searchbox" type="button" aria-label="Qidiruv">${icon('search', 'ico-sm')}<span>Qidirish…</span><span class="kbd">Ctrl K</span></button>
         <button class="icon-btn" id="btn-search" type="button" aria-label="Qidiruv">${icon('search')}</button>
         <button class="ai-btn" id="btn-ai" type="button" aria-label="AI yordamchi: savol bering">${icon('sparkles', 'ico-sm')}<span>Savol bering</span></button>
@@ -322,7 +308,6 @@ function buildShell() {
     <main class="content"><nav class="subnav no-print" id="subnav" aria-label="Bo'lim ichida" hidden></nav><div id="page"></div></main>
     <nav class="bottomnav" id="bottomnav" aria-label="Pastki menyu"></nav>`;
   $('#btn-menu').addEventListener('click', () => toggleDrawer(true));
-  $('#btn-add').addEventListener('click', (e) => openQuickAdd(e.currentTarget));
   const showHelp = async () => {
     const { openHelp, helpKeyFor } = await import('./help.js');
     openHelp(helpKeyFor(parseHash()), SECTIONS.filter(navAllowed).map((sec) => ({ ...sec, href: sectionHref(sec) })));
@@ -365,17 +350,6 @@ function toggleDrawer(open) {
   }
 }
 
-// Yon menyudagi ikki katta tugma: eng ko'p qilinadigan ikki ish
-function sbCtas() {
-  const sale = ctx.can('sales.create');
-  const buy = ctx.can('purchases.create');
-  if (!sale && !buy) return '';
-  return `<div class="sb-ctas${sale && buy ? '' : ' one'}">
-      ${sale ? `<a class="sb-cta" href="#/sales">${icon('cart', 'ico-sm')}<span>Sotuv</span></a>` : ''}
-      ${buy ? `<a class="sb-cta sb-cta-soft" href="#/stockin">${icon('plus', 'ico-sm')}<span>Tovar kiritish</span></a>` : ''}
-    </div>`;
-}
-
 // Do'kon logotipi bo'lsa — o'sha, bo'lmasa OMBOR PRO belgisi
 function brandMark() {
   const logo = state.settings.logo_path;
@@ -390,12 +364,10 @@ function renderNav(p) {
       ${brandMark()}
       <div class="names"><div class="product">OMBOR PRO</div><div class="store">${esc(state.settings.store_name || '')}</div></div>
     </div>
-    ${sbCtas()}
     <nav class="sb-nav sb-flat">
-      ${SECTIONS.filter(navAllowed).map((sec, i) => `${sec.sep && i ? '<div class="sb-sep" role="separator"></div>' : ''}<a class="nav-item${active?.id === sec.id ? ' active' : ''}" href="${sectionHref(sec)}" title="${esc(sec.tip || '')}" ${active?.id === sec.id ? 'aria-current="page"' : ''}>
+      ${SECTIONS.filter(navAllowed).map((sec) => `${sec.group ? `<div class="sb-group">${esc(sec.group)}</div>` : ''}<a class="nav-item${active?.id === sec.id ? ' active' : ''}" href="${sectionHref(sec)}" title="${esc(sec.tip || '')}" ${active?.id === sec.id ? 'aria-current="page"' : ''}>
         ${icon(sec.icon, 'ico-sm')}<span>${esc(sec.label)}</span></a>`).join('')}
     </nav>
-    <button type="button" class="nav-item sb-help" id="sb-help">${icon('help', 'ico-sm')}<span>Yordam</span></button>
     <div class="sb-foot">
       <button class="user-chip" type="button" id="sb-user">
         <span class="avatar">${esc(initials(u.full_name))}</span>
@@ -403,11 +375,9 @@ function renderNav(p) {
         ${icon('more', 'ico-sm')}
       </button>
     </div>`;
-  $('#sidebar').querySelectorAll('.nav-item, .sb-cta').forEach((a) => a.addEventListener('click', () => toggleDrawer(false)));
-  $('#sb-help').addEventListener('click', () => $('#btn-help').click());
+  $('#sidebar').querySelectorAll('.nav-item').forEach((a) => a.addEventListener('click', () => toggleDrawer(false)));
   $('#sb-user').addEventListener('click', (e) => openUserMenu(e.currentTarget, 'left'));
   $('#btn-user .avatar').textContent = initials(u.full_name);
-  $('#btn-add').hidden = quickActions().length === 0;
 
   const mobile = MOBILE.map((id) => SECTIONS.find((sec) => sec.id === id)).filter((sec) => sec && navAllowed(sec));
   $('#bottomnav').innerHTML = `
@@ -416,28 +386,6 @@ function renderNav(p) {
   $('#bottomnav').querySelectorAll('[data-href]').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.href; }));
   $('#bottomnav [data-menu]').addEventListener('click', () => toggleDrawer(true));
   return active;
-}
-
-function openQuickAdd(anchor) {
-  const items = quickActions();
-  openPopover(anchor, `
-    <div class="qa-menu" role="menu" aria-label="Yangi qo'shish">
-      <div class="qa-title">Nimani qo'shmoqchisiz?</div>
-      <div class="qa-grid">
-        ${items.map((a) => `<a class="qa-item" role="menuitem" href="${a.href}">
-          <span class="qa-ico">${icon(a.icon, 'ico-sm')}</span>
-          <span class="qa-text"><b>${esc(a.label)}</b><span>${esc(a.hint)}</span></span></a>`).join('')}
-      </div>
-    </div>`, {
-    onMount: (el, close) => {
-      el.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => {
-        close();
-        // Shu sahifaning o'zida bo'lsa ham oyna ochilsin
-        if (location.hash === a.getAttribute('href')) setTimeout(route, 0);
-      }));
-      el.querySelector('a')?.focus();
-    },
-  });
 }
 
 function openUserMenu(anchor, align = 'right') {
@@ -674,12 +622,48 @@ function renderSubnav(active, p) {
   }).join('');
 }
 
+// ---------- Xush kelibsiz (saytga kirganda, shu oynada bir marta) ----------
+// Qutilar ustma-ust tushadi, salom va do'kon nomi chiqadi; ma'lumot yuklangach parda ko'tarilib,
+// menyu va bosh sahifa kartalari tartib bilan birin-ketin paydo bo'ladi. «Harakatni kamaytirish»da — ko'rsatilmaydi.
+function showWelcome(user) {
+  let seen = false;
+  try { seen = sessionStorage.getItem('ombor.hello') === '1'; sessionStorage.setItem('ombor.hello', '1'); } catch { /* xotira yopiq */ }
+  if (seen || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+  const first = String(user.full_name || '').trim().split(/\s+/)[0] || '';
+  const el = document.createElement('div');
+  el.className = 'hello';
+  el.setAttribute('role', 'status');
+  el.innerHTML = `<div class="hello-in">
+      <span class="hello-logo">${logoSvg('logo-svg hello-svg')}</span>
+      <b class="hello-hi">${esc(greeting())}${first ? `, ${esc(first)}` : ''}</b>
+      <span class="hello-store" data-store></span>
+      <span class="hello-bar" aria-hidden="true"><i></i></span>
+    </div>`;
+  document.body.appendChild(el);
+  const t0 = performance.now();
+  return {
+    store(name) { const n = el.querySelector('[data-store]'); if (n && name) n.textContent = `${name} — ochilmoqda`; },
+    done() {
+      // Qutilar tushib bo'lguncha kamida ~1,3 soniya; keyin parda ketadi va sahifa tartib bilan chiqadi
+      const wait = Math.max(0, 1300 - (performance.now() - t0));
+      setTimeout(() => {
+        document.body.classList.add('hello-reveal');
+        el.classList.add('out');
+        setTimeout(() => el.remove(), 500);
+        setTimeout(() => document.body.classList.remove('hello-reveal'), 1600);
+      }, wait);
+    },
+  };
+}
+
 // ---------- Boshlash ----------
 
 async function bootShell() {
   hideAuth();
+  const hello = showWelcome(state.user);
   $('#boot').hidden = true;
   state.settings = await get('/settings').then((r) => r.settings).catch(() => ({}));
+  hello?.store(state.settings.store_name);
   // Platforma egasi bo'lsa — Sozlamalarda «AI tariflari» yorlig'i ko'rinadi
   state.platformAdmin = Boolean((await get('/ai/status').catch(() => null))?.is_platform_admin);
   buildShell();
@@ -693,8 +677,14 @@ async function bootShell() {
     setupFirst = Boolean(o && !o.products && !o.sales);
   }
   if (setupFirst) ctx.go('#/setup');
-  else if (parseHash().key) route();
+  else if (parseHash().key) await route();
   else ctx.go(firstAllowed());
+  // Birinchi sahifa chizilgach (yoki 2,5 soniyadan keyin) parda ketadi
+  if (hello) {
+    const until = Date.now() + 2500;
+    const wait = () => (document.querySelector('#page > :not(.skel-page)') || Date.now() > until ? hello.done() : setTimeout(wait, 80));
+    wait();
+  }
   let welcome = false;
   try {
     welcome = sessionStorage.getItem('ombor.welcome') === '1';

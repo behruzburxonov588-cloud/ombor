@@ -439,7 +439,7 @@ Dastur bo'limlari (yo'l ko'rsatish uchun):
 - Yetkazib beruvchilar — tovar kimdan keladi, ularga qarz.
 - Hisobotlar — foyda va zarar (Excel/PDF), «Grafiklar», «Maslahatlar», «Xodimlar natijasi».
 - Sozlamalar — «Do'kon», «Xodimlar» (sotuvchiga login berish), «Amallar tarixi», «Bildirishnomalar».
-- Har sahifada yuqorida «+» tugmasi bor: tez qo'shish (sotuv, tovar kiritish, yangi mahsulot, xarajat, qarz yozish, mijoz).
+- Har sahifada yuqorida «Yordam» tugmasi bor: shu sahifa nima uchun va qanday ishlatiladi.
 
 Foyda qanday hisoblanadi: sotuvdan foyda = sotuv − sotilgan tovarlarning xarid narxi; sof foyda = sotuvdan foyda − xarajatlar − buzilgan tovar. Kassir (sotuvchi) xarid narxi va foydani ko'rmaydi.`;
 

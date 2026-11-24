@@ -74,21 +74,18 @@ export async function render(root, params, ctx) {
   let cur = null; // tanlangan tovar va forma qiymatlari
   let pay = 'paid'; // paid | debt
   let method = 'cash';
+  let supId = ''; // kimdan keldi (qarzga olinsa — majburiy)
   let flashId = null;
 
   root.innerHTML = `
     <div class="page-head si-head">
-      <div><h1>Tovar kiritish</h1><p class="muted">Kelgan tovarni toping, sonini yozing, <b>Enter</b>. Keyingisiga darhol o'tasiz</p></div>
-      <div class="seg si-mode" role="tablist" aria-label="Kiritish usuli">
-        <button type="button" role="tab" data-mode="quick">Tez</button>
-        <button type="button" role="tab" data-mode="more">Batafsil</button>
-      </div>
+      <div><h1>Tovar kiritish</h1><p class="muted">Tovarni toping, sonini yozing, <b>Enter</b> — omborga tushadi</p></div>
     </div>
     <div class="si">
       <div class="si-main">
         <div class="si-search">
           ${icon('search')}
-          <input id="si-q" type="search" placeholder="Mahsulot nomi yoki shtrix-kod — yozishingiz bilan topiladi" autocomplete="off" aria-label="Mahsulotni qidirish" enterkeyhint="search">
+          <input id="si-q" type="search" placeholder="Mahsulot nomi yoki shtrix-kod" autocomplete="off" aria-label="Mahsulotni qidirish" enterkeyhint="search">
           ${cameraScanSupported() ? `<button type="button" class="si-cam" id="si-cam" aria-label="Kamera bilan shtrix-kod o'qish" title="Shtrix-kodni kamera bilan o'qish">${icon('scan')}</button>` : ''}
         </div>
         <div id="si-results"></div>
@@ -98,28 +95,8 @@ export async function render(root, params, ctx) {
       <aside class="card si-side" aria-label="Bugun kiritilganlar">
         <div class="si-side-head"><h2>Bugun kiritilganlar</h2><span class="muted" id="si-count"></span></div>
         <div id="si-list" class="si-list"></div>
-        <div class="si-side-foot">
+        <div class="si-side-foot" id="si-foot" hidden>
           <div class="between"><span class="muted">Jami xarid</span><b class="num" id="si-total">0 so'm</b></div>
-          <label class="field"><span>Kimdan keldi? <small class="muted">(ixtiyoriy)</small></span>
-            <select class="input" id="si-sup">
-              <option value="">— ko'rsatmayman —</option>
-              ${suppliers.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
-            </select></label>
-          <div class="field"><span>Pulini to'ladingizmi?</span>
-            <div class="seg block" id="si-pay" role="radiogroup" aria-label="To'lov">
-              <button type="button" role="radio" data-pay="paid">To'ladim</button>
-              <button type="button" role="radio" data-pay="debt">Qarzga oldim</button>
-            </div></div>
-          <div class="chips" id="si-method">
-            <button type="button" class="chip" data-m="cash">Naqd</button>
-            <button type="button" class="chip" data-m="card">Karta</button>
-            <button type="button" class="chip" data-m="transfer">O'tkazma</button>
-          </div>
-          <p class="small muted si-note">Har bir kiritish o'z xarid narxi bilan saqlanadi. Foyda shu narxdan o'zi hisoblanadi</p>
-          <div class="si-links">
-            <a href="#/purchases/new">${icon('boxes', 'ico-xs')} Ko'p tovarni bitta yuk qilib kiritish</a>
-            <a href="#/purchases">${icon('history', 'ico-xs')} Kelgan yuklar ro'yxati</a>
-          </div>
         </div>
       </aside>
     </div>`;
@@ -284,6 +261,39 @@ export async function render(root, params, ctx) {
       </div>`;
   }
 
+  function supSelect(empty) {
+    return `<select class="input" id="si-sup" aria-label="Yetkazib beruvchi">
+      <option value="">${esc(empty)}</option>
+      ${suppliers.map((s2) => `<option value="${s2.id}" ${String(s2.id) === String(supId) ? 'selected' : ''}>${esc(s2.name)}</option>`).join('')}
+      ${ctx.can('suppliers.manage') ? '<option value="__new">+ Yangi yetkazib beruvchi…</option>' : ''}
+    </select>`;
+  }
+
+  async function newSupplier() {
+    const name = await new Promise((resolve) => {
+      const { close, el } = openModal({
+        title: 'Yangi yetkazib beruvchi',
+        body: `<form id="nsf" class="form-grid" novalidate><label class="field"><span>Nomi</span><input class="input" name="name" maxlength="150" placeholder="Masalan: Anvar opt yoki Bozor"></label><div id="nserr"></div></form>`,
+        foot: `<button class="btn btn-outline" type="button" data-close>Bekor</button><button class="btn" type="submit" form="nsf">${icon('check', 'ico-sm')} Qo'shish</button>`,
+        onClose: () => resolve(null),
+      });
+      const inp = el.querySelector('[name=name]');
+      inp.focus();
+      el.querySelector('#nsf').addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!inp.value.trim()) { el.querySelector('#nserr').innerHTML = '<div class="alert alert-warn">Nomini yozing</div>'; return; }
+        resolve(inp.value.trim());
+        close();
+      });
+    });
+    if (!name) { drawForm(); return; }
+    const r = await post('/suppliers', { name });
+    suppliers.push(r.supplier);
+    supId = String(r.supplier.id);
+    toast(`«${r.supplier.name}» qo'shildi`, 'ok');
+    drawForm();
+  }
+
   function drawForm() {
     const form = $('#si-form');
     if (!cur) {
@@ -308,10 +318,23 @@ export async function render(root, params, ctx) {
         <button type="button" class="icon-btn icon-btn-light" data-clear aria-label="Boshqa tovar tanlash" title="Boshqa tovar tanlash">${icon('x', 'ico-sm')}</button>
       </div>
       ${fieldsHtml(c)}
+      <div class="si-pay">
+        <span class="si-pay-q">Pulini to'ladingizmi?</span>
+        <div class="seg" role="radiogroup" aria-label="To'lov">
+          <button type="button" role="radio" data-pay="paid" class="${pay === 'paid' ? 'active' : ''}" aria-checked="${pay === 'paid'}">To'ladim</button>
+          <button type="button" role="radio" data-pay="debt" class="${pay === 'debt' ? 'active' : ''}" aria-checked="${pay === 'debt'}">Qarzga oldim</button>
+        </div>
+      </div>
+      ${pay === 'debt' ? `<label class="field si-debt"><span>Kimdan oldingiz? <small class="muted">qarz shu odamga yoziladi</small></span>${supSelect('— tanlang —')}</label>` : ''}
       ${more ? `<div class="si-more">
           <label class="field"><span>Sana</span><input class="input" type="date" id="si-date" value="${esc(c.date)}" max="${todayStr()}"></label>
           <label class="field"><span>Izoh <small class="muted">(ixtiyoriy)</small></span><input class="input" id="si-note" maxlength="500" value="${esc(c.note)}" placeholder="Masalan: Hasan aka olib keldi"></label>
-        </div>` : `<button type="button" class="si-more-btn" data-more>${icon('plus', 'ico-xs')} Sana va izoh</button>`}
+          ${pay === 'paid' ? `<label class="field"><span>Kimdan keldi? <small class="muted">(ixtiyoriy)</small></span>${supSelect("— ko'rsatmayman —")}</label>
+          <div class="field"><span>Qanday to'ladingiz?</span><div class="seg" role="radiogroup" aria-label="To'lov turi">
+            ${[['cash', 'Naqd'], ['card', 'Karta'], ['transfer', "O'tkazma"]].map(([k, t]) => `<button type="button" role="radio" data-m="${k}" class="${method === k ? 'active' : ''}" aria-checked="${method === k}">${t}</button>`).join('')}
+          </div></div>` : ''}
+          <p class="small muted si-more-note">Yo'l kira yoki chegirma bo'lsa — <a href="#/purchases/new">ko'p tovarni bitta yuk qilib kiriting</a></p>
+        </div>` : `<button type="button" class="si-more-btn" data-more>${icon('plus', 'ico-xs')} Boshqa: sana, izoh, to'lov turi</button>`}
       <div id="si-err"></div>
       <div class="si-save-row">
         <button type="submit" class="btn btn-lg si-save">${icon('check')} Saqlash va keyingisi <span class="kbd">Enter</span></button>
@@ -351,7 +374,7 @@ export async function render(root, params, ctx) {
       if (bad >= 0) return { msg: `${bad + 1}-rulon uzunligini yozing`, el: $(`[data-roll="${bad}"]`) };
     } else if (!(parseQty(c.qty) > 0)) return { msg: 'Nechta kelganini yozing', el: $('#si-qty') };
     if (toMoney(c.price) < 0) return { msg: "Narx manfiy bo'lishi mumkin emas", el: $('#si-price') };
-    if (pay === 'debt' && !$('#si-sup').value) return { msg: `Qarzga olgan bo'lsangiz, ${isWide() ? "o'ngda" : 'pastda'} «Kimdan keldi?»ni tanlang`, el: $('#si-sup') };
+    if (pay === 'debt' && !supId) return { msg: "Qarzga olgan bo'lsangiz, kimdan olganingizni tanlang", el: $('#si-sup') };
     return null;
   }
 
@@ -389,7 +412,7 @@ export async function render(root, params, ctx) {
     const items = itemsOf(c);
     const total = round2(items.reduce((s, it) => s + it.quantity * it.unit_price, 0));
     const body = {
-      supplier_id: $('#si-sup').value ? Number($('#si-sup').value) : null,
+      supplier_id: supId ? Number(supId) : null,
       purchase_date: more && c.date ? c.date : todayStr(),
       note: more && c.note ? c.note : null,
       items,
@@ -442,6 +465,7 @@ export async function render(root, params, ctx) {
   function drawList() {
     $('#si-count').textContent = session.length ? `${session.length} ta` : '';
     $('#si-total').textContent = money(round2(session.reduce((s, e) => s + Number(e.total || 0), 0)));
+    $('#si-foot').hidden = !session.length;
     $('#si-list').innerHTML = session.length ? session.map((e) => `
       <div class="si-row${e.id === flashId ? ' flash' : ''}" data-id="${e.id}">
         <span class="si-ok" aria-hidden="true">${icon('check', 'ico-xs')}</span>
@@ -546,20 +570,11 @@ export async function render(root, params, ctx) {
   }
 
   // ---------- hodisalar ----------
-  const setMode = (m) => {
-    more = m === 'more';
+  const setMore = (on) => {
+    more = on;
     try { localStorage.setItem('ombor.stockin.more', more ? '1' : '0'); } catch { /* xotira yopiq */ }
-    root.querySelectorAll('[data-mode]').forEach((b) => {
-      const on = (b.dataset.mode === 'more') === more;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-selected', String(on));
-    });
     drawForm();
   };
-  root.querySelector('.si-mode').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-mode]');
-    if (b) setMode(b.dataset.mode);
-  });
 
   let timer = null;
   searchIn.addEventListener('input', () => {
@@ -606,7 +621,16 @@ export async function render(root, params, ctx) {
   });
   form.addEventListener('click', (e) => {
     if (e.target.closest('[data-clear]')) { cur = null; drawForm(); drawRecent(); searchIn.focus(); return; }
-    if (e.target.closest('[data-more]')) { setMode('more'); return; }
+    if (e.target.closest('[data-more]')) { setMore(true); return; }
+    const pb = e.target.closest('[data-pay]');
+    if (pb) {
+      pay = pb.dataset.pay;
+      drawForm();
+      if (pay === 'debt' && !supId) $('#si-sup')?.focus();
+      return;
+    }
+    const mb = e.target.closest('[data-m]');
+    if (mb) { method = mb.dataset.m; drawForm(); return; }
     const ub = e.target.closest('[data-u]');
     if (ub && cur?.kind === 'one') {
       // Birlik almashsa narx shunga qarab qayta hisoblanadi (rulon rejimida narx 1 metr uchun)
@@ -635,38 +659,23 @@ export async function render(root, params, ctx) {
     else if (t.dataset.size) cur.sizes[t.dataset.size] = t.value;
     else if (t.id === 'si-date') cur.date = t.value;
     else if (t.id === 'si-note') cur.note = t.value;
+    if (!$('#si-err')) return;
     $('#si-err').innerHTML = '';
     refreshAfter();
+  });
+
+  form.addEventListener('change', (e) => {
+    if (e.target.id !== 'si-sup') return;
+    if (e.target.value === '__new') { newSupplier().catch(errorToast); return; }
+    supId = e.target.value;
+    $('#si-err').innerHTML = '';
   });
 
   $('#si-list').addEventListener('click', (e) => {
     const b = e.target.closest('[data-undo]');
     if (b) undo(Number(b.dataset.undo), b).catch(errorToast);
   });
-  const drawPay = () => {
-    root.querySelectorAll('#si-pay [data-pay]').forEach((b) => {
-      b.classList.toggle('active', b.dataset.pay === pay);
-      b.setAttribute('aria-checked', String(b.dataset.pay === pay));
-    });
-    $('#si-method').hidden = pay !== 'paid';
-    root.querySelectorAll('#si-method [data-m]').forEach((b) => b.classList.toggle('active', b.dataset.m === method));
-  };
-  $('#si-pay').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-pay]');
-    if (!b) return;
-    pay = b.dataset.pay;
-    drawPay();
-    if (pay === 'debt' && !$('#si-sup').value) $('#si-sup').focus();
-  });
-  $('#si-method').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-m]');
-    if (!b) return;
-    method = b.dataset.m;
-    drawPay();
-  });
-
-  setMode(more ? 'more' : 'quick');
-  drawPay();
+  drawForm();
   drawResults();
   drawRecent();
   drawList();

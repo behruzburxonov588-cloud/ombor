@@ -38,7 +38,7 @@ export async function render(root, params, ctx) {
   const body = root.querySelector('#tabbody');
   if (tab.key === 'cash') await tabCash(body, params.query, ctx, refresh);
   else await tabExpenses(body, params.query, ctx, refresh);
-  // "+ Qo'shish" menyusidan kelinganda: yangi xarajat oynasi darhol ochiladi
+  // Bosh sahifadagi «Xarajat» tugmasidan kelinganda: yangi xarajat oynasi darhol ochiladi
   if (tab.key === 'expenses' && takeNewFlag(params)) root.querySelector('#exp-new')?.click();
 }
 

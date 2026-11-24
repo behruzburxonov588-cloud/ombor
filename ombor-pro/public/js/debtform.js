@@ -1,5 +1,5 @@
 // Qo'lda qarz yozish va qarz to'lovini qabul qilish oynalari
-// (Qarzdor mijozlar, mijoz va yetkazib beruvchi sahifalari, "+ Qo'shish" menyusidan ochiladi)
+// (Qarzdor mijozlar, mijoz va yetkazib beruvchi sahifalari, bosh sahifadagi «Qarz» tugmasidan ochiladi)
 import { get, post, esc, icon, money, openModal, toast, withBusy, todayStr, newKey, parseMoney } from './ui.js';
 
 const toNum = (v) => {

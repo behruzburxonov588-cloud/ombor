@@ -535,7 +535,7 @@ export function newKey(prefix = 'op') {
   return `${prefix}-${rand}`;
 }
 
-// "+ Qo'shish" menyusidan kelgan ?new=1 belgisini bir marta o'qiydi va manzildan olib tashlaydi
+// Bosh sahifa tugmalaridan kelgan ?new=1 belgisini bir marta o'qiydi va manzildan olib tashlaydi
 // (sahifa yangilansa, oyna qayta ochilmasligi uchun)
 export function takeNewFlag(params) {
   if (params?.query?.new !== '1') return false;

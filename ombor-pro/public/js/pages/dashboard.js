@@ -106,7 +106,7 @@ function bindOnboardingHide(host) {
     prefsCache.dashboard.onboarding_hidden = true;
     host.querySelector('#onb-hide').closest('section')?.remove();
     put('/me/preferences', { dashboard: { onboarding_hidden: true } }).catch(() => {});
-    toast("Yo'riqnoma yashirildi. Yangi narsa qo'shish uchun yuqoridagi «Qo'shish» tugmasini bosing");
+    toast("Yo'riqnoma yashirildi. Kerak bo'lsa, «Yordam» tugmasini bosing");
   });
 }
 
