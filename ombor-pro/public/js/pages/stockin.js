@@ -3,7 +3,7 @@
 // Ko'p tovarni bitta yuk qilib (yo'l kira, chegirma bilan) kiritish — eski «Batafsil» forma (#/purchases/new).
 import {
   get, post, icon, esc, num, money, toast, errorToast, openModal, confirmBox, withBusy,
-  productPhoto, todayStr, groupBySize, parseMoney, formatMoneyInput, newKey, parseQty, round2, round4,
+  productPhoto, todayStr, groupBySize, parseMoney, formatMoneyInput, newKey, parseQty, round2, round4, storeTypes,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { openProductWizard } from '../productform.js';
@@ -104,6 +104,22 @@ export async function render(root, params, ctx) {
   const $ = (s) => root.querySelector(s);
   const searchIn = $('#si-q');
 
+  // ---------- yangi mahsulot shu yerning o'zida: o'lchovlar do'kon turiga qarab ----------
+  const PACK_CODES = ['box', 'pack', 'roll', 'set', 'bag', 'block', 'crate', 'bottle', 'can', 'barrel'];
+  let quickUnits = null; // [{id, code, name}]
+  let hasVariants = false; // kiyim/poyabzal: o'lcham va rang — to'liq formada
+  async function loadQuickUnits() {
+    if (quickUnits) return;
+    const [{ units }, { types }] = await Promise.all([get('/units'), storeTypes()]);
+    const picked = types.filter((t) => (ctx.settings.store_types || []).includes(t.key));
+    hasVariants = picked.some((t) => t.variants || t.colors);
+    const codes = [...new Set(picked.flatMap((t) => t.units || []))].filter((c) => !PACK_CODES.includes(c));
+    for (const c of ['piece', 'kg', 'm', 'l']) if (!codes.includes(c)) codes.push(c);
+    quickUnits = codes.map((c) => units.find((u) => u.code === c)).filter(Boolean).slice(0, 5)
+      .map((u) => ({ id: u.id, code: u.code, name: u.name }));
+  }
+  const capital = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+
   // ---------- hisob-kitob ----------
   const unitsOf = (p) => [{ unit_id: p.base_unit_id, name: p.base_unit_name, factor: 1 }, ...(p.conversions || [])];
   const unitOf = (p, id) => unitsOf(p).find((u) => u.unit_id === id) || unitsOf(p)[0];
@@ -111,18 +127,20 @@ export async function render(root, params, ctx) {
   const knownPrice = (p) => Number(p.purchase_price) > 0;
 
   function baseAdd(c) {
+    if (c.kind === 'new') return round4(parseQty(c.qty) || 0);
     if (c.kind === 'sizes') return round4(c.g.items.reduce((s, v) => s + (parseQty(c.sizes[v.id]) || 0), 0));
     if (isRollUnit(c.p, c.unit_id)) return round4(c.rolls.reduce((s, x) => s + (parseQty(x) || 0), 0));
     return round4((parseQty(c.qty) || 0) * unitOf(c.p, c.unit_id).factor);
   }
   function lineSum(c) {
+    if (c.kind === 'new') return round2((parseQty(c.qty) || 0) * toMoney(c.cost));
     const price = toMoney(c.price);
     if (c.kind === 'sizes') return round2(baseAdd(c) * price);
     if (isRollUnit(c.p, c.unit_id)) return round2(baseAdd(c) * price);
     return round2((parseQty(c.qty) || 0) * price);
   }
-  const stockNow = (c) => (c.kind === 'sizes' ? c.g.items.reduce((s, v) => s + Number(v.stock_qty), 0) : Number(c.p.stock_qty));
-  const baseName = (c) => (c.kind === 'sizes' ? c.g.base_unit_name : c.p.base_unit_name);
+  const stockNow = (c) => (c.kind === 'new' ? 0 : c.kind === 'sizes' ? c.g.items.reduce((s, v) => s + Number(v.stock_qty), 0) : Number(c.p.stock_qty));
+  const baseName = (c) => (c.kind === 'new' ? (quickUnits.find((u) => u.id === c.unitId)?.name || '') : c.kind === 'sizes' ? c.g.base_unit_name : c.p.base_unit_name);
 
   // ---------- qidiruv natijalari ----------
   function matches() {
@@ -169,7 +187,7 @@ export async function render(root, params, ctx) {
     }
     if (!chips.length || q) { box.innerHTML = ''; box.hidden = true; return; }
     box.hidden = false;
-    const curKey = cur ? (cur.kind === 'sizes' ? `m:${cur.g.model_name.toLowerCase()}` : `p:${cur.p.id}`) : '';
+    const curKey = !cur || cur.kind === 'new' ? '' : cur.kind === 'sizes' ? `m:${cur.g.model_name.toLowerCase()}` : `p:${cur.p.id}`;
     box.innerHTML = `<span class="si-label">Oxirgi kiritilganlar — bir bosishda tanlanadi</span>
       <div class="si-chips">${chips.map(({ r, p, key }) => `
         <button type="button" class="si-chip${key === curKey ? ' on' : ''}" data-recent="${r.product_id}" aria-pressed="${key === curKey}">
@@ -221,7 +239,36 @@ export async function render(root, params, ctx) {
   }
 
   // ---------- forma ----------
+  // Sotish narxi taklifi: xarid narxi + 20% (yuzlikka yaxlitlab); bosilsa — qo'yiladi
+  function sugHtml(c) {
+    const cost = toMoney(c.cost);
+    const suggest = cost > 0 ? Math.ceil((cost * 1.2) / 100) * 100 : 0;
+    return suggest && !(toMoney(c.sell) > 0)
+      ? `<button type="button" class="chip sn-suggest" data-suggest="${suggest}">${icon('plus', 'ico-xs')} ${num(suggest)} so'm qo'yish</button>`
+      : '<small class="muted">Xaridorga shu narxda sotasiz</small>';
+  }
+
+  function newFieldsHtml(c) {
+    const u = quickUnits.find((x) => x.id === c.unitId) || quickUnits[0];
+    return `
+      <label class="field"><span>Mahsulot nomi</span>
+        <input class="input input-lg" id="sn-name" maxlength="150" value="${esc(c.name)}" autocomplete="off"></label>
+      <div class="field"><span>Qanday sotasiz?</span>
+        <div class="seg si-units" role="radiogroup" aria-label="Qanday sotasiz">${quickUnits.map((x) => `<button type="button" role="radio" data-nu="${x.id}" class="${x.id === u.id ? 'active' : ''}" aria-checked="${x.id === u.id}">${esc(capital(x.name))}</button>`).join('')}</div></div>
+      <div class="si-grid si-grid3">
+        <label class="field"><span>${esc(askQty(u.name))}</span>
+          <span class="si-big focus"><input id="sn-qty" data-first inputmode="decimal" value="${esc(c.qty)}" placeholder="0"><em>${esc(u.name)}</em></span></label>
+        <label class="field"><span>Xarid narxi, 1 ${esc(u.name)}</span>
+          <span class="si-big"><input id="sn-cost" data-money inputmode="decimal" value="${esc(formatMoneyInput(c.cost))}" placeholder="0"><em>so'm</em></span></label>
+        <label class="field"><span>Sotish narxi, 1 ${esc(u.name)}</span>
+          <span class="si-big"><input id="sn-sell" data-money inputmode="decimal" value="${esc(formatMoneyInput(c.sell))}" placeholder="0"><em>so'm</em></span>
+          <span id="sn-sug">${sugHtml(c)}</span></label>
+      </div>
+      <p class="small muted sn-full">${hasVariants ? "O'lchami yoki rangi bormi (S, M, L…)?" : 'Qutida keladi, rasmi yoki shtrix-kodi bormi?'} <button type="button" class="link-btn" data-fullform>To'liq formada qo'shish</button></p>`;
+  }
+
   function fieldsHtml(c) {
+    if (c.kind === 'new') return newFieldsHtml(c);
     if (c.kind === 'sizes') {
       const unit = esc(c.g.base_unit_name);
       return `
@@ -305,15 +352,15 @@ export async function render(root, params, ctx) {
       return;
     }
     const c = cur;
-    const head = c.kind === 'sizes' ? c.g : c.p;
-    const unitTag = c.kind === 'sizes' ? "O'lchamlar bo'yicha" : c.p.is_roll ? 'Rulonda keladi'
+    const head = c.kind === 'new' ? { name: c.name || 'Yangi mahsulot' } : c.kind === 'sizes' ? c.g : c.p;
+    const unitTag = c.kind === 'new' ? "Yangi — ro'yxatga ham qo'shiladi" : c.kind === 'sizes' ? "O'lchamlar bo'yicha" : c.p.is_roll ? 'Rulonda keladi'
       : c.p.pack && Number(c.p.pack.factor) > 1 ? `1 ${esc(c.p.pack.name)} = ${num(c.p.pack.factor, 3)} ${esc(c.p.base_unit_name)}` : '';
     const lastPrice = c.kind === 'one' && knownPrice(c.p) ? `. Oxirgi xarid narxi ${money(c.p.purchase_price)}` : '';
     form.innerHTML = `
       <div class="si-prod">
         ${productPhoto(head, 'si-prod-img')}
         <div class="si-prod-text"><b>${esc(head.name)}</b>
-          <span class="muted">Omborda hozir <b class="num">${num(stockNow(c), 3)} ${esc(baseName(c))}</b>${lastPrice}</span>
+          <span class="muted">${c.kind === 'new' ? "Hali ro'yxatda yo'q. Nomi, soni va narxini yozing" : `Omborda hozir <b class="num">${num(stockNow(c), 3)} ${esc(baseName(c))}</b>${lastPrice}`}</span>
           ${unitTag ? `<span class="si-tag">${unitTag}</span>` : ''}</div>
         <button type="button" class="icon-btn icon-btn-light" data-clear aria-label="Boshqa tovar tanlash" title="Boshqa tovar tanlash">${icon('x', 'ico-sm')}</button>
       </div>
@@ -366,6 +413,14 @@ export async function render(root, params, ctx) {
   function validate() {
     const c = cur;
     if (!c) return { msg: 'Avval tovarni tanlang', el: searchIn };
+    if (c.kind === 'new') {
+      if (!c.name.trim()) return { msg: 'Mahsulot nomini yozing', el: $('#sn-name') };
+      if (!(parseQty(c.qty) > 0)) return { msg: 'Nechta kelganini yozing', el: $('#sn-qty') };
+      if (toMoney(c.cost) < 0) return { msg: "Narx manfiy bo'lishi mumkin emas", el: $('#sn-cost') };
+      if (!(toMoney(c.sell) > 0)) return { msg: 'Sotish narxini yozing — xaridorga necha pulga sotasiz', el: $('#sn-sell') };
+      if (pay === 'debt' && !supId) return { msg: "Qarzga olgan bo'lsangiz, kimdan olganingizni tanlang", el: $('#si-sup') };
+      return null;
+    }
     if (c.kind === 'sizes') {
       if (!(baseAdd(c) > 0)) return { msg: "Kamida bitta o'lchamdan nechta kelganini yozing", el: $('#si-form [data-size]') };
     } else if (isRollUnit(c.p, c.unit_id)) {
@@ -407,6 +462,25 @@ export async function render(root, params, ctx) {
       bad.el?.focus();
       if (!isWide()) bad.el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
+    }
+    if (cur.kind === 'new') {
+      const n = cur;
+      const u = quickUnits.find((x) => x.id === n.unitId) || quickUnits[0];
+      try {
+        const r = await post('/products', {
+          name: n.name.trim(), base_unit_id: u.id, selling_price: toMoney(n.sell), purchase_price: toMoney(n.cost) || 0, opening_qty: 0,
+        });
+        const p = {
+          id: r.id, name: n.name.trim(), base_unit_id: u.id, base_unit_name: u.name, stock_qty: 0,
+          purchase_price: toMoney(n.cost) || 0, selling_price: toMoney(n.sell), conversions: [], image_path: null, status: 'out',
+        };
+        catalog.push(p);
+        // Endi oddiy kiritish: shu mahsulot, shu son va xarid narxi (xato bo'lsa — mahsulot ro'yxatda qoladi, qayta saqlash mumkin)
+        cur = { kind: 'one', p, unit_id: u.id, qty: n.qty, price: n.cost, rolls: [], date: n.date, note: n.note };
+      } catch (err) {
+        $('#si-err').innerHTML = `<div class="alert alert-bad">${esc(err.message)}</div>`;
+        return;
+      }
     }
     const c = cur;
     const items = itemsOf(c);
@@ -530,6 +604,19 @@ export async function render(root, params, ctx) {
       if (pick === null) return;
       if (pick !== 'new') { selectId(pick); return; }
     }
+    await loadQuickUnits();
+    cur = { kind: 'new', name: name || '', unitId: quickUnits[0]?.id, qty: '', cost: '', sell: '', date: todayStr(), note: '' };
+    q = '';
+    searchIn.value = '';
+    drawResults();
+    drawRecent();
+    drawForm();
+    const first = $(name ? '#sn-qty' : '#sn-name');
+    if (isWide()) first?.focus(); else $('#si-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // To'liq forma: o'lcham, rang, qadoq, rasm, shtrix-kod — kerak bo'lganda
+  async function fullForm(name) {
     const created = await openProductWizard({ name, arrival: true });
     if (!created.length) return;
     catalog = (await get('/products?limit=1000')).products;
@@ -594,6 +681,7 @@ export async function render(root, params, ctx) {
       const rows = matches();
       if (rows.length) return rows[0].group ? selectModel(rows[0].model_name) : selectId(rows[0].id);
       if (/^\d{6,}$/.test(text)) return await byCode(text);
+      if (canNewProduct) return await newProduct(text);
       drawResults();
     } catch (err) { errorToast(err); }
   });
@@ -622,6 +710,11 @@ export async function render(root, params, ctx) {
   form.addEventListener('click', (e) => {
     if (e.target.closest('[data-clear]')) { cur = null; drawForm(); drawRecent(); searchIn.focus(); return; }
     if (e.target.closest('[data-more]')) { setMore(true); return; }
+    if (e.target.closest('[data-fullform]') && cur?.kind === 'new') { const nm = cur.name; cur = null; drawForm(); fullForm(nm).catch(errorToast); return; }
+    const nu = e.target.closest('[data-nu]');
+    if (nu && cur?.kind === 'new') { cur.unitId = Number(nu.dataset.nu); drawForm(); form.querySelector('#sn-qty')?.focus(); return; }
+    const sg = e.target.closest('[data-suggest]');
+    if (sg && cur?.kind === 'new') { cur.sell = sg.dataset.suggest; drawForm(); return; }
     const pb = e.target.closest('[data-pay]');
     if (pb) {
       pay = pb.dataset.pay;
@@ -651,7 +744,14 @@ export async function render(root, params, ctx) {
   form.addEventListener('input', (e) => {
     if (!cur) return;
     const t = e.target;
-    if (t.id === 'si-price') cur.price = t.value;
+    if (t.id === 'sn-name') cur.name = t.value;
+    else if (t.id === 'sn-qty') cur.qty = t.value;
+    else if (t.id === 'sn-cost' || t.id === 'sn-sell') {
+      cur[t.id === 'sn-cost' ? 'cost' : 'sell'] = t.value;
+      const box = $('#sn-sug');
+      if (box) box.innerHTML = sugHtml(cur);
+    }
+    else if (t.id === 'si-price') cur.price = t.value;
     else if (t.id === 'si-qty') {
       if (cur.kind === 'one' && isRollUnit(cur.p, cur.unit_id)) setRollCount(Math.floor(parseQty(t.value) || 0));
       else cur.qty = t.value;

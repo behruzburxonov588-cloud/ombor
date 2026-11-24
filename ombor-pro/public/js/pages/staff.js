@@ -39,24 +39,24 @@ export async function render(root, params, ctx) {
     </div>
 
     <div class="stats four">
-      <div class="stat" style="cursor:default"><div class="stat-label">Sof tushum</div><div class="stat-value">${compact(d.total_net_revenue)}<span class="cur">so'm</span></div><div class="stat-note">qaytarishlar ayirilgan</div></div>
+      <div class="stat" style="cursor:default"><div class="stat-label">Sotuv (qaytarishsiz)</div><div class="stat-value">${compact(d.total_net_revenue)}<span class="cur">so'm</span></div><div class="stat-note">qaytarishlar ayirilgan</div></div>
       <div class="stat" style="cursor:default"><div class="stat-label">Cheklar</div><div class="stat-value">${num(totalSales, 0)}<span class="cur">ta</span></div><div class="stat-note">yakunlangan savdolar</div></div>
       <div class="stat" style="cursor:default"><div class="stat-label">O'rtacha chek</div><div class="stat-value">${compact(totalSales ? staff.reduce((s, x) => s + x.avg_order * x.sales_count, 0) / totalSales : 0)}<span class="cur">so'm</span></div><div class="stat-note">barcha xodimlar</div></div>
       <div class="stat" style="cursor:default"><div class="stat-label">${self ? 'Ulushim' : 'Faol xodimlar'}</div><div class="stat-value">${self ? pctText(staff[0]?.share || 0, 0) : `${staff.filter((s) => s.sales_count > 0).length}<span class="cur">ta</span>`}</div><div class="stat-note">${self ? 'umumiy savdodagi' : 'savdo qilgan'}</div></div>
     </div>
 
     ${top.length && d.days.length > 1 ? `<section class="card" style="margin-top:14px">
-      <div class="card-head"><div><h2>Kunlik savdo</h2><div class="card-sub">${self ? 'Mening kunlik tushumim' : 'Eng faol xodimlar bo\'yicha'}</div></div>
+      <div class="card-head"><div><h2>Kunlik savdo</h2><div class="card-sub">${self ? 'Mening kunlik sotuvim' : 'Eng faol xodimlar bo\'yicha'}</div></div>
         <div class="legend">${top.map((s, i) => `<span><i style="background:${SERIES[i]}"></i>${esc(s.full_name)}</span>`).join('')}</div></div>
       <div data-chart></div></section>` : ''}
 
     <section class="card flush" style="margin-top:14px">
       ${staff.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Xodim</th><th class="right">Cheklar</th><th class="right">Tushum</th>${fin ? '<th class="right">Sotuvdan foyda</th>' : ''}<th class="right">O'rtacha chek</th><th class="right">Chegirmalar</th><th class="right">Qaytarishlar</th><th>Ulushi</th><th>Tendensiya</th></tr></thead>
+        <thead><tr><th>Xodim</th><th class="right">Cheklar</th><th class="right">Sotuv</th>${fin ? '<th class="right">Sotuvdan foyda</th>' : ''}<th class="right">O'rtacha chek</th><th class="right">Chegirmalar</th><th class="right">Qaytarishlar</th><th>Ulushi</th><th>Tendensiya</th></tr></thead>
         <tbody>${staff.map((s) => `<tr class="${ctx.can('history.view') ? 'clickable' : ''}" data-id="${s.id}">
           <td data-label="Xodim"><div class="row" style="gap:10px;flex-wrap:nowrap"><span class="avatar">${esc(initials(s.full_name))}</span><div><b>${esc(s.full_name)}</b><div class="small muted">${esc(ROLE[s.role] || s.role)}${s.is_active ? '' : ' · faol emas'}</div></div></div></td>
           <td data-label="Cheklar" class="right num">${num(s.sales_count, 0)}</td>
-          <td data-label="Tushum" class="right num"><b>${moneyFull(s.net_revenue)}</b><div>${deltaPill(s.change, { title: 'oldingi davrga nisbatan' })}</div></td>
+          <td data-label="Sotuv" class="right num"><b>${moneyFull(s.net_revenue)}</b><div>${deltaPill(s.change, { title: 'oldingi davrga nisbatan' })}</div></td>
           ${fin ? `<td data-label="Sotuvdan foyda" class="right num ${s.gross_profit < 0 ? 'neg' : ''}">${moneyFull(s.gross_profit)}</td>` : ''}
           <td data-label="O'rtacha chek" class="right num">${moneyFull(s.avg_order)}</td>
           <td data-label="Chegirmalar" class="right num">${s.discounts > 0 ? `${moneyFull(s.discounts)}<div class="small muted">${s.discounted_sales} chekda</div>` : '<span class="muted">—</span>'}</td>

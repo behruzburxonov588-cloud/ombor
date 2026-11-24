@@ -31,20 +31,16 @@ const KIND = {
 // Yangi do'kon uchun "Qayerdan boshlash" qadamlari (faqat ruxsat berilganlari ko'rinadi)
 const ONB_STEPS = [
   {
-    perm: 'products.manage', title: "Birinchi mahsulotni qo'shing", text: "Nomi va sotuv narxi kifoya. Rasmini telefonda olsangiz bo'ladi.",
-    href: '#/products/new', btn: "Mahsulot qo'shish", icon: 'box', done: (o) => o.products > 0,
-  },
-  {
-    perm: 'purchases.create', title: 'Kelgan tovarni kiriting', text: "Nomini toping, nechta kelganini yozing, Enter. Qolgan mahsulot o'zi hisoblanadi.",
+    perm: 'purchases.create', title: 'Mahsulotlaringizni kiriting', text: "Nomini yozing, nechta borligini va narxini — mahsulot ro'yxatga qo'shiladi va omborga tushadi.",
     href: '#/stockin', btn: 'Tovar kiritish', icon: 'truck', done: (o) => o.purchases > 0 || o.stocked > 0,
   },
   {
-    perm: 'sales.create', title: 'Birinchi sotuvni qiling', text: "Tovarni bosing, sonini yozing, «Sotish». Kechqurun bosh sahifada foydani ko'rasiz.",
+    perm: 'sales.create', title: 'Birinchi sotuvni qiling', text: "Tovarni bosing, «Sotish». Kechqurun bosh sahifada foydani ko'rasiz.",
     href: '#/sales', btn: "Sotuvga o'tish", icon: 'cart', done: (o) => o.sales > 0,
   },
   {
-    perm: 'employees.manage', title: "Xodim qo'shing (ixtiyoriy)", text: "Sotuvchiga alohida login bering: kim nima sotganini ko'rasiz.",
-    href: '#/employees?new=1', btn: "Xodim qo'shish", icon: 'userCog', done: (o) => o.users > 1,
+    perm: 'employees.manage', title: "Sotuvchi bo'lsa — unga login bering (ixtiyoriy)", text: "Kim nima sotganini ko'rasiz. Yolg'iz ishlasangiz — kerak emas.",
+    href: '#/employees?new=1', btn: "Xodim qo'shish", icon: 'userCog', done: (o) => o.users > 1, optional: true,
   },
 ];
 
@@ -95,7 +91,7 @@ export function destroyCharts() {
 
 // Yo'riqnoma (yangi do'kon) HTML — oddiy bosh sahifa uchun
 async function onboardingHtml(ctx) {
-  const steps = prefsCache.dashboard.onboarding_hidden ? [] : ONB_STEPS.filter((st) => ctx.can(st.perm));
+  const steps = prefsCache.dashboard.onboarding_hidden ? [] : ONB_STEPS.filter((st) => ctx.can(st.perm) && !(st.optional && ctx.settings.employee_count === '1'));
   if (!steps.length) return '';
   const o = await get('/onboarding');
   return onboardingCard(steps, o);
@@ -239,7 +235,8 @@ async function load(host, range, ctx, first = false) {
 function onboardingCard(steps, o) {
   const list = steps.map((st) => ({ ...st, isDone: st.done(o) }));
   const doneCount = list.filter((st) => st.isDone).length;
-  if (doneCount === list.length) return '';
+  // Majburiy qadamlar bajarilsa — yo'riqnoma yo'qoladi (ixtiyoriy qadam kutilmaydi)
+  if (list.filter((st) => !st.optional).every((st) => st.isDone)) return '';
   const nextIdx = list.findIndex((st) => !st.isDone);
   const pct = Math.round((doneCount / list.length) * 100);
   return `
@@ -317,7 +314,7 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
     const sc = k.sales_count.value;
     return `<div class="stats four">${[
       card({
-        label: today ? 'Bugun sotildi' : 'Savdo (tushum)', kpi: k.revenue, href: `#/reports?tab=sales&${q}`, i: 'cart',
+        label: today ? 'Bugun sotildi' : 'Sotuv', kpi: k.revenue, href: `#/reports?tab=sales&${q}`, i: 'cart',
         note: sc ? `${num(sc, 0)} ta chek · o'rtacha ${compact(k.sales_count.avg_order)}` : '',
         hint: "Sotuvdan tushgan pul (chegirma va qaytarilgan tovar ayirilgan). Qarz to'lovlari kirmaydi.",
       }),
@@ -338,14 +335,14 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
   }
   const cards = [];
   cards.push(card({
-    label: today ? 'Bugun sotildi' : 'Sotuvdan tushum', kpi: k.revenue, href: `#/reports?tab=sales&${q}`, i: 'cart',
+    label: today ? 'Bugun sotildi' : 'Sotuv', kpi: k.revenue, href: `#/reports?tab=sales&${q}`, i: 'cart',
     hint: "Sotuvdan tushgan pul (chegirma va qaytarilgan tovar ayirilgan). Qarz to'lovlari kirmaydi.",
   }));
   if (k.net_profit) {
     cards.push(card({
       label: today ? 'Bugungi sof foyda' : 'Sof foyda', kpi: k.net_profit, href: `#/reports?tab=pnl&${q}`, i: 'trendUp', tone: k.net_profit.value < 0 ? 'neg' : 'pos',
       color: k.net_profit.value >= 0 ? C.s2 : C.neg,
-      hint: "Qo'lingizda qoladigan pul: tushum − tovarlarning xarid narxi − xarajatlar − buzilgan tovar",
+      hint: "Qo'lingizda qoladigan pul: sotuv − tovarlarning xarid narxi − xarajatlar − buzilgan tovar",
     }));
   }
   if (k.expenses) {
@@ -401,7 +398,7 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
 // ---------- Savdo grafigi ----------
 
 const METRICS = [
-  { key: 'net_revenue', label: 'Tushum', money: true },
+  { key: 'net_revenue', label: 'Sotuv', money: true },
   { key: 'gross_profit', label: 'Sotuvdan foyda', money: true, financial: true },
   { key: 'sales_count', label: 'Cheklar soni', money: false },
   { key: 'avg_order', label: "O'rtacha chek", money: true },
@@ -507,15 +504,15 @@ function pnlCard(d) {
         ${row('Jami sotuv', c.gross_revenue, p.gross_revenue, '', true, 'Chegirma va qaytarishdan oldingi summa')}
         ${row('− Chegirmalar', c.discounts, p.discounts, 'sub')}
         ${row('− Qaytarilgan tovar', c.returns, p.returns, 'sub')}
-        ${row('Tushum', c.net_revenue, p.net_revenue, 'total', true, 'Haqiqatda tushgan pul')}
+        ${row('Sotuv', c.net_revenue, p.net_revenue, 'total', true, 'Haqiqatda tushgan pul')}
         ${row('− Tovarlarning xarid narxi', c.cogs, p.cogs, 'sub', true, "Sotilgan tovarlarni o'zingiz necha so'mga olgansiz")}
-        ${row('Sotuvdan foyda', c.gross_profit, p.gross_profit, 'total', true, 'Tushum minus tovarlarning xarid narxi')}
+        ${row('Sotuvdan foyda', c.gross_profit, p.gross_profit, 'total', true, 'Sotuv minus tovarlarning xarid narxi')}
         ${row('− Xarajatlar', c.expenses, p.expenses, 'sub', false)}
         ${row("− Buzilgan / yo'qolgan tovar", c.losses, p.losses, 'sub', false)}
         ${row(c.net_profit >= 0 ? "Sof foyda (qo'lga qoladi)" : 'Zarar', c.net_profit, p.net_profit, 'grand')}
       </div>
       <div style="margin-top:14px">
-        <div class="between small" style="margin-bottom:6px"><span class="muted">Tushum qayerga ketdi</span>${per100 ? `<span class="muted">har 100 so'mdan <b style="color:var(--text)">${per100} so'm</b> foyda</span>` : ''}</div>
+        <div class="between small" style="margin-bottom:6px"><span class="muted">Sotuv puli qayerga ketdi</span>${per100 ? `<span class="muted">har 100 so'mdan <b style="color:var(--text)">${per100} so'm</b> foyda</span>` : ''}</div>
         ${segbar(parts)}
         <div class="legend" style="margin-top:8px">${parts.map((x) => `<span><i class="box" style="background:${x.color}"></i>${x.label}</span>`).join('')}</div>
         ${c.net_profit < 0 ? `<div class="note" style="margin-top:10px">${icon('info', 'ico-xs')}<span>Bu davrda xarajatlar sotuvdan foydadan ${compact(Math.abs(c.net_profit), { unit: true })} ko'p bo'ldi.</span></div>` : ''}
@@ -567,7 +564,7 @@ export function mountTop(host, d) {
 function forecastCard(f) {
   if (!f.sufficient) {
     return `<section class="card" style="height:100%">
-      <div class="card-head"><div><h2>Keyingi 7 kun</h2><div class="card-sub">Taxminiy tushum va foyda</div></div><span class="badge badge-est">Taxmin</span></div>
+      <div class="card-head"><div><h2>Keyingi 7 kun</h2><div class="card-sub">Taxminiy sotuv va foyda</div></div><span class="badge badge-est">Taxmin</span></div>
       ${emptyState("Prognoz uchun kamida 7 kunlik savdo tarixi kerak. Savdo davom etgan sari prognoz paydo bo'ladi.", 'chart')}</section>`;
   }
   const conf = { low: 'past', medium: "o'rtacha", high: 'yuqori' }[f.confidence];
@@ -601,13 +598,13 @@ function mountForecast(host, d) {
     tickLabel: (i) => shortDate(labels[i]),
     titleFor: (i) => `${weekdayShort(labels[i])}, ${shortDate(labels[i])}${i >= H ? ' · taxmin' : ''}`,
     series: [
-      { name: 'Haqiqiy tushum', values: actual, color: C.s1 },
-      { name: 'Taxminiy tushum', values: est, color: C.s1, dashed: true },
+      { name: 'Haqiqiy sotuv', values: actual, color: C.s1 },
+      { name: 'Taxminiy sotuv', values: est, color: C.s1, dashed: true },
     ],
     band: { low: [...hist.map(() => null), ...f.days.map((x) => x.low)], high: [...hist.map(() => null), ...f.days.map((x) => x.high)], color: C.s1, name: "Bo'lishi mumkin bo'lgan chegara" },
     format: (v) => `${moneyFull(v)} so'm`,
     height: 180,
-    ariaLabel: 'So\'nggi 14 kun tushumi va keyingi 7 kun taxmini',
+    ariaLabel: 'So\'nggi 14 kun sotuvi va keyingi 7 kun taxmini',
   }));
 }
 

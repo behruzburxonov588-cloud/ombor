@@ -154,6 +154,27 @@ router.get('/sales', requirePerm('sales.view', 'reports.view'), async (req, res)
   });
 });
 
+// Sotuvda tez tanlash: oxirgi sotilganlar va so'nggi 30 kunda eng ko'p sotilganlar (faqat mahsulot id — narx va qoldiq ro'yxatdan)
+router.get('/sales/quick-picks', requirePerm('sales.create'), async (req, res) => {
+  const [recent, top] = await Promise.all([
+    pool.query(
+      `SELECT si.product_id FROM sale_items si
+         JOIN sales s ON s.id = si.sale_id AND s.kind = 'sale'
+         JOIN products p ON p.id = si.product_id AND NOT p.is_archived
+        WHERE s.created_at >= now() - interval '30 days'
+        GROUP BY si.product_id ORDER BY MAX(s.id) DESC LIMIT 12`,
+    ),
+    pool.query(
+      `SELECT si.product_id FROM sale_items si
+         JOIN sales s ON s.id = si.sale_id AND s.kind = 'sale'
+         JOIN products p ON p.id = si.product_id AND NOT p.is_archived
+        WHERE s.created_at >= now() - interval '30 days'
+        GROUP BY si.product_id ORDER BY COUNT(DISTINCT s.id) DESC, SUM(si.base_quantity) DESC LIMIT 12`,
+    ),
+  ]);
+  res.json({ recent: recent.rows.map((r) => r.product_id), top: top.rows.map((r) => r.product_id) });
+});
+
 router.get('/sales/:id', requirePerm('sales.view', 'sales.create', 'reports.view'), async (req, res) => {
   const sale = await loadSale(pool, Number(req.params.id));
   if (!sale) throw new HttpError(404, 'Savdo topilmadi');

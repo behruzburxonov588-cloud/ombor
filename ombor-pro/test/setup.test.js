@@ -34,7 +34,6 @@ test("sozlash: tekshiruv, turkum va birliklar qo'shiladi, takrorlansa ikki marta
   assert.equal((await owner.put('/api/setup', { ...SETUP, store_types: [] })).status, 400);
   assert.equal((await owner.put('/api/setup', { ...SETUP, store_types: ['kosmos'] })).status, 400);
   assert.equal((await owner.put('/api/setup', { ...SETUP, employee_count: '100' })).status, 400);
-  assert.equal((await owner.put('/api/setup', { ...SETUP, region: '' })).status, 400);
   const r = await owner.put('/api/setup', SETUP);
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.ok(r.body.categories >= 10, `turkumlar: ${r.body.categories}`);
@@ -45,6 +44,8 @@ test("sozlash: tekshiruv, turkum va birliklar qo'shiladi, takrorlansa ikki marta
   assert.equal(s.district, 'Chilonzor');
   const cats = (await owner.get('/api/categories')).body.categories.map((c) => c.name);
   assert.ok(cats.includes("Ko'ylaklar") && cats.includes('Sut mahsulotlari'));
+  // Viloyat ixtiyoriy (keyin yoziladi)
+  assert.equal((await owner.put('/api/setup', { ...SETUP, region: '' })).status, 200);
   const again = await owner.put('/api/setup', SETUP);
   assert.equal(again.body.categories, 0, "ikkinchi marta turkum qo'shilmaydi");
   const units = (await owner.get('/api/units')).body.units.map((u) => u.code);
@@ -64,7 +65,6 @@ test("ro'yxatdan o'tishda do'kon turi, manzil va login bir yo'la saqlanadi", asy
   // Xato tur — do'kon ochilmaydi va login band bo'lib qolmaydi
   const bad = await anon.post('/api/auth/register', { ...body, store_types: ['kosmos'] });
   assert.equal(bad.status, 400);
-  assert.equal((await anon.post('/api/auth/register', { ...body, region: '' })).status, 400);
   const r = await anon.post('/api/auth/register', body);
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.ok(r.body.categories >= 3, `turkumlar: ${r.body.categories}`);
@@ -173,4 +173,17 @@ test("CSV import (nuqtali vergul, Excel'ning o'zbekcha saqlashi)", async () => {
   assert.equal(tea.selling_price, 21000);
   const bad = await owner.upload('/api/products/import', 'file', { name: 'x.csv', data: 'a;b\n1;2\n', type: 'text/csv' });
   assert.equal(bad.status, 400);
+});
+
+test("oddiy ro'yxatdan o'tish: faqat nomi, ism, login, parol va do'kon turi", async () => {
+  const anon = client(srv.base);
+  const r = await anon.post('/api/auth/register', {
+    store_name: 'Oddiy savdo', full_name: 'Ali', username: 'oddiy_savdo', password: 'parol123', store_types: ['electronics'],
+  });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const s = (await anon.get('/api/settings')).body.settings;
+  assert.equal(s.setup_done, true);
+  assert.equal(s.employee_count, '1', "so'ralmasa — faqat o'zim");
+  assert.equal(s.region, '');
+  assert.deepEqual(s.store_types, ['electronics']);
 });

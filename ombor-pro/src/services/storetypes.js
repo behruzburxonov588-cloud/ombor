@@ -187,7 +187,8 @@ export function parseStoreProfile(body = {}) {
   const types = Array.isArray(body.store_types) ? [...new Set(body.store_types.map(String))] : [];
   if (!types.length) throw new HttpError(400, "Do'kon turini tanlang (bir nechtasini ham tanlash mumkin)");
   if (types.some((t) => !STORE_TYPE_KEYS.includes(t))) throw new HttpError(400, "Do'kon turi noto'g'ri");
-  const employees = String(body.employee_count || '');
+  // Xodimlar soni ixtiyoriy: so'ralmasa — «faqat o'zim» (keyin Sozlamalarda o'zgartiriladi)
+  const employees = String(body.employee_count || '1');
   if (!EMPLOYEE_COUNTS.includes(employees)) throw new HttpError(400, 'Xodimlar sonini tanlang');
   const patch = {
     store_types: types,
@@ -199,7 +200,7 @@ export function parseStoreProfile(body = {}) {
     store_address: str(body.store_address, 'Manzil', { max: 200 }) || '',
     setup_done: true,
   };
-  if (!patch.region) throw new HttpError(400, 'Viloyatni tanlang');
+  // Viloyat ixtiyoriy — ro'yxatdan o'tishda so'ralmaydi, keyin Sozlamalarda yoziladi
   if (body.receipt_footer !== undefined) patch.receipt_footer = str(body.receipt_footer, 'Chek izohi', { max: 200 }) || '';
   if (body.notify_low_stock !== undefined) patch.notify_low_stock = Boolean(body.notify_low_stock);
   if (body.costing_method !== undefined) {

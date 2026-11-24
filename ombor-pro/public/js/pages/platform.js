@@ -20,9 +20,13 @@ function connCard(data) {
         <button type="button" class="btn ${data.configured ? '' : 'btn-light'}" data-test>${icon('refresh', 'ico-sm')} Tekshirish</button>
       </div>
       ${steps ? `<ol class="aic-steps">
+        ${data.provider === 'claude' ? `
         <li><b>Kalit oling.</b> console.anthropic.com saytiga kiring → «API Keys» → «Create Key». Kalitni nusxalang (uni hech kimga yubormang).</li>
         <li><b>Hisobni to'ldiring.</b> O'sha saytda «Billing» bo'limida kamida 5 $ qo'ying. AI xarajati shundan yechiladi.</li>
-        <li><b>Cloudflare'ga qo'ying.</b> Workers → <i>ombor</i> → Settings → Variables and Secrets → Add. Type: <b>Secret</b>, nomi: <code>ANTHROPIC_API_KEY</code>, qiymati: kalit. «Deploy»ni bosing.</li>
+        <li><b>Cloudflare'ga qo'ying.</b> Workers → <i>ombor</i> → Settings → Variables and Secrets → Add. Type: <b>Secret</b>, nomi: <code>ANTHROPIC_API_KEY</code>, qiymati: kalit. «Deploy»ni bosing.</li>` : `
+        <li><b>Gemini kalitini oling.</b> aistudio.google.com saytiga kiring → «Get API key» → «Create API key». Kalitni nusxalang (uni hech kimga yubormang).</li>
+        <li><b>To'lovni yoqing.</b> Bepul kvota kichik — ko'p do'kon ishlatsa, Google Cloud'da «Billing»ni yoqing.</li>
+        <li><b>Cloudflare'ga qo'ying.</b> Workers → <i>ombor</i> → Settings → Variables and Secrets → Add. Type: <b>Secret</b>, nomi: <code>GEMINI_API_KEY</code>, qiymati: kalit. «Deploy»ni bosing. Boshqa model kerak bo'lsa — <code>GEMINI_MODEL</code> (oddiy) va <code>GEMINI_MODEL_PRO</code> (Pro) o'zgaruvchilari.</li>`}
         <li><b>Tekshiring.</b> Bir daqiqadan keyin shu yerda «Tekshirish»ni bosing.</li>
       </ol>` : ''}
       ${ok ? `<p class="aic-hint">${icon('info', 'ico-xs')} O'zingiz sinab ko'rish uchun pastdagi ro'yxatda o'z do'koningizga «+30 kun Pro» bosing, keyin yuqoridagi «Savol bering»dan so'rang.</p>` : ''}

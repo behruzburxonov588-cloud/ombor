@@ -71,7 +71,8 @@ const clientIp = (req) => req.headers['cf-connecting-ip'] || req.ip;
 
 // Kirish sahifasi uchun: birinchi marta sozlash kerakmi va yangi do'kon ochish mumkinmi
 router.get('/auth/status', async (req, res) => {
-  res.json({ setup_required: await noStoresYet(), signup: signupAllowed() });
+  // support — parolni unutgan do'kon egasi kimga murojaat qilishi (Telegram yoki telefon; muhitdan)
+  res.json({ setup_required: await noStoresYet(), signup: signupAllowed(), support: process.env.OMBOR_SUPPORT_CONTACT || '' });
 });
 
 // Do'kon turlari va ularga mos turkum/birlik/maydonlar — ro'yxatdan o'tish sahifasi uchun kirishsiz ham ochiq

@@ -2,7 +2,7 @@
 import {
   get, post, put, icon, esc, num, money, qty, dateTime, toast, errorToast, openModal, withBusy,
   productThumb, emptyState, confirmBox, readForm, uploadProductImage, packText, productPhoto,
-  groupBySize, priceRange, skeletonGrid, download, storeTypes, uploadFile, parseMoney, formatMoneyInput,
+  groupBySize, priceRange, skeletonGrid, download, storeTypes, uploadFile, parseMoney, formatMoneyInput, downloadMenu,
 } from '../ui.js';
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 import { renderProductWizard, openProductWizard } from '../productform.js';
@@ -53,7 +53,7 @@ const SORTS = [
 const STOCK_WORD = { out: 'Tugagan', low: 'Kam qoldi', ok: '' };
 const EXP_WORD = { expired: "Muddati o'tgan", soon: 'Muddati yaqin' };
 const expBad = (p) => p.expiry_status === 'expired' || p.expiry_status === 'soon';
-// Xarid narxi yozilmagan: sotilsa butun tushum foyda bo'lib chiqadi
+// Xarid narxi yozilmagan: sotilsa butun sotuv puli foyda bo'lib chiqadi
 const noCost = (p) => !p.cost_hidden && !p.is_archived && !(Number(p.purchase_price) > 0) && !(Number(p.avg_cost) > 0);
 const costOf = (p) => (p.cost_hidden ? null : (Number(p.purchase_price) > 0 ? Number(p.purchase_price) : Number(p.avg_cost) || 0));
 const costCell = (cost) => (cost > 0 ? money(cost) : '<span class="nocost">yozilmagan</span>');
@@ -83,6 +83,8 @@ function stockBar(p) {
 
 function actionsHtml(p, perm, { model = null } = {}) {
   const btns = [];
+  // Ro'yxatda faqat arxivdan qaytarish; sotish, tahrirlash va o'chirish — mahsulot sahifasida (takrorlanmaydi)
+  if (!p.is_archived) return '';
   if (perm.sell && !p.is_archived) {
     const dis = Number(p.stock_qty) <= 0;
     btns.push(model
@@ -111,12 +113,12 @@ function productCard(p, perm) {
         <span class="pcx-flags">${flagsHtml(p)}</span>
       </a>
       <div class="pcx-body">
-        <div class="pcx-cat">${p.category_name ? esc(p.category_name) : '<span class="faint">Turkumsiz</span>'}</div>
+        ${p.category_name ? `<div class="pcx-cat">${esc(p.category_name)}</div>` : ''}
         <a class="pcx-name" href="#/products/${p.id}">${esc(p.name)}</a>
-        <div class="pcx-code ${code ? '' : 'none'}">${icon('scan', 'ico-xs')}<span>${code ? esc(p.barcode || `SKU ${p.sku}`) : "shtrix-kod yo'q"}</span></div>
+        ${code ? `<div class="pcx-code">${icon('scan', 'ico-xs')}<span>${esc(p.barcode || `SKU ${p.sku}`)}</span></div>` : ''}
         <div class="pcx-prices">
           <div class="pcx-price"><span>Sotuv · 1 ${esc(p.base_unit_name)}</span><b>${money(p.selling_price)}</b></div>
-          ${cost === null ? '' : `<div class="pcx-price cost"><span>Kelish · 1 ${esc(p.base_unit_name)}</span><b>${costCell(cost)}</b></div>`}
+          ${cost === null ? '' : `<div class="pcx-price cost"><span>Xarid · 1 ${esc(p.base_unit_name)}</span><b>${costCell(cost)}</b></div>`}
         </div>
         <div class="pcx-stock">
           <div class="pcx-stock-row"><span>Qoldiq</span><b class="pcx-qty">${num(p.stock_qty, 3)} <small>${esc(p.base_unit_name)}</small></b></div>
@@ -124,7 +126,7 @@ function productCard(p, perm) {
           ${p.is_roll && p.roll_count ? `<div class="pcx-pack">${p.roll_count} ta rulon</div>` : pk ? `<div class="pcx-pack">= ${esc(pk)}</div>` : ''}
         </div>
       </div>
-      ${perm.sell || perm.manage ? `<div class="pcx-actions">${actionsHtml(p, perm)}</div>` : ''}
+      ${p.is_archived && perm.manage ? `<div class="pcx-actions">${actionsHtml(p, perm)}</div>` : ''}
     </article>`;
 }
 
@@ -140,7 +142,7 @@ function modelCard(g, perm) {
         <span class="pcx-flags">${flag ? `<span class="pcx-flag ${g.status}">${esc(flag)}</span>` : ''}<span class="pcx-flag sizes">${g.items.length} o'lcham</span></span>
       </a>
       <div class="pcx-body">
-        <div class="pcx-cat">${g.category_name ? esc(g.category_name) : '<span class="faint">Turkumsiz</span>'}</div>
+        ${g.category_name ? `<div class="pcx-cat">${esc(g.category_name)}</div>` : ''}
         <a class="pcx-name" href="#/products/${first.id}">${esc(g.name)}</a>
         <div class="szs" aria-label="O'lchamlar va qoldig'i">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}${v.image_path ? ' has-img' : ''}" title="${esc(v.variant_label)}">${v.image_path ? `<img src="${esc(v.image_path)}" alt="" loading="lazy">` : `<i>${esc(v.variant_label)}</i>`}<b>${num(v.stock_qty, 3)}</b></span>`).join('')}</div>
         <div class="pcx-prices">
@@ -149,7 +151,6 @@ function modelCard(g, perm) {
         </div>
         <div class="pcx-stock"><div class="pcx-stock-row"><span>Jami qoldiq</span><b class="pcx-qty">${num(g.stock_qty, 3)} <small>${esc(g.base_unit_name)}</small></b></div></div>
       </div>
-      ${perm.sell || perm.manage ? `<div class="pcx-actions">${actionsHtml({ ...first, stock_qty: g.stock_qty, name: g.name }, perm, { model: g.model_name })}</div>` : ''}
     </article>`;
 }
 
@@ -167,17 +168,17 @@ function tableHtml(rows, perm) {
   const showCost = rows.some((p) => !p.cost_hidden);
   return `
     <div class="card flush ptable-card"><div class="table-wrap cards"><table class="ptable">
-      <thead><tr><th>Tovar</th><th>Shtrix-kod / SKU</th>${showCost ? '<th class="right">Xarid narxi</th>' : ''}<th class="right">Sotuv narxi</th><th class="right">Qoldiq</th><th>Holati</th>${perm.sell || perm.manage ? '<th class="right">Amallar</th>' : ''}</tr></thead>
+      <thead><tr><th>Mahsulot</th><th>Shtrix-kod / SKU</th>${showCost ? '<th class="right">Xarid narxi</th>' : ''}<th class="right">Sotuv narxi</th><th class="right">Qoldiq</th><th>Holati</th>${rows.some((p) => p.is_archived) && perm.manage ? '<th class="right">Amallar</th>' : ''}</tr></thead>
       <tbody>${rows.map((p) => {
         const cost = costOf(p);
         return `<tr class="clickable st-${p.is_archived ? 'arch' : p.status}" data-href="#/products/${p.id}">
-          <td data-label="Tovar"><div class="pt-name">${productPhoto(p, 'pt-img')}<div class="pt-text"><a href="#/products/${p.id}">${esc(p.name)}</a><small>${p.category_name ? esc(p.category_name) : 'Turkumsiz'}</small></div></div></td>
+          <td data-label="Mahsulot"><div class="pt-name">${productPhoto(p, 'pt-img')}<div class="pt-text"><a href="#/products/${p.id}">${esc(p.name)}</a>${p.category_name ? `<small>${esc(p.category_name)}</small>` : ''}</div></div></td>
           <td data-label="Shtrix-kod" class="pt-code">${p.barcode ? esc(p.barcode) : '<span class="faint">—</span>'}${p.sku ? `<small>SKU ${esc(p.sku)}</small>` : ''}</td>
           ${showCost ? `<td data-label="Xarid narxi" class="right num">${cost === null ? '' : costCell(cost)}</td>` : ''}
           <td data-label="Sotuv narxi" class="right num"><b>${money(p.selling_price)}</b></td>
           <td data-label="Qoldiq" class="right num"><b class="pt-qty">${num(p.stock_qty, 3)}</b> <span class="muted">${esc(p.base_unit_name)}</span></td>
           <td data-label="Holati">${statusBadge(p)}</td>
-          ${perm.sell || perm.manage ? `<td class="right no-label"><div class="pt-actions">${actionsHtml(p, perm)}</div></td>` : ''}
+          ${rows.some((x) => x.is_archived) && perm.manage ? `<td class="right no-label"><div class="pt-actions">${actionsHtml(p, perm)}</div></td>` : ''}
         </tr>`;
       }).join('')}</tbody></table></div></div>`;
 }
@@ -203,7 +204,6 @@ async function renderList(root, params, ctx) {
   let sort = params.query.sort || 'name';
   let view = readView();
   const canManage = ctx.can('products.manage');
-  const canBuy = ctx.can('purchases.create');
   const canExport = ctx.can('reports.export');
   const perm = { manage: canManage, sell: ctx.can('sales.create') };
   let active = [];
@@ -211,18 +211,18 @@ async function renderList(root, params, ctx) {
 
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>Tovarlar</h1><p class="muted" id="count">Yuklanmoqda...</p></div>
+      <div><h1>Mahsulotlar</h1><p class="muted" id="count">Yuklanmoqda...</p></div>
       <div class="row">
-        ${canExport ? `<button class="btn btn-light hide-sm" type="button" data-export="xlsx" title="Ombor holati — Excel">${icon('xlsx', 'ico-sm')}<span class="mobile-hide">Excel</span></button>
-        <button class="btn btn-light hide-sm" type="button" data-export="pdf" title="Ombor holati — PDF">${icon('pdf', 'ico-sm')}<span class="mobile-hide">PDF</span></button>` : ''}
-        ${canManage ? `<button class="btn btn-light hide-sm" type="button" id="btn-import" title="Ko'p tovarni Excel fayldan birdan qo'shish">${icon('upload', 'ico-sm')}<span>Excel'dan yuklash</span></button>` : ''}
-        ${canBuy ? `<a class="btn btn-outline" href="#/stockin">${icon('truck', 'ico-sm')} Tovar kiritish</a>` : ''}
-        ${canManage ? `<a class="btn" href="#/products/new" id="btn-new">${icon('plus', 'ico-sm')} Yangi tovar</a>` : ''}
+        ${canExport || canManage ? downloadMenu(`
+          ${canManage ? `<button type="button" class="dl-item" id="btn-import">${icon('upload', 'ico-sm')} Excel'dan ko'p mahsulot qo'shish</button>` : ''}
+          ${canExport ? `<button type="button" class="dl-item" data-export="xlsx">${icon('xlsx', 'ico-sm')} Ro'yxatni Excel'ga</button>
+          <button type="button" class="dl-item" data-export="pdf">${icon('pdf', 'ico-sm')} Ro'yxatni PDF'ga</button>` : ''}`, 'Excel') : ''}
+        ${canManage ? `<a class="btn" href="#/products/new" id="btn-new">${icon('plus', 'ico-sm')} Yangi mahsulot</a>` : ''}
       </div>
     </div>
     <div class="plist-tools">
       <div class="plist-bar">
-        <div class="search-input">${icon('search', 'ico-sm')}<input class="input" type="search" id="q" placeholder="Nomi, shtrix-kod yoki SKU bo'yicha qidirish" value="${esc(q)}" autocomplete="off" aria-label="Tovar qidirish"></div>
+        <div class="search-input">${icon('search', 'ico-sm')}<input class="input" type="search" id="q" placeholder="Mahsulot nomi yoki shtrix-kod" value="${esc(q)}" autocomplete="off" aria-label="Tovar qidirish"></div>
         <select class="input plist-sort" id="sort" aria-label="Saralash">${SORTS.map(([k, l]) => `<option value="${k}" ${k === sort ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
         <div class="seg view-seg" role="group" aria-label="Ko'rinish">
           <button type="button" data-view="grid" class="${view === 'grid' ? 'active' : ''}" title="Kartochkalar" aria-label="Kartochkalar">${icon('dashboard', 'ico-sm')}</button>
@@ -251,11 +251,8 @@ async function renderList(root, params, ctx) {
       { key: 'archived', label: `${icon('archive', 'ico-xs')} Arxiv` },
     ];
     chipsEl.innerHTML = chips.map((c) => `<button type="button" class="chip ${c.cls || ''} ${c.key === filter ? 'active' : ''}" data-f="${c.key}">${c.label}</button>`).join('');
-    const parts = [`${active.length} xil tovar`];
-    if (out) parts.push(`${out} tasi tugagan`);
-    if (low) parts.push(`${low} tasi kam qolgan`);
-    if (exp) parts.push(`${exp} tasining muddati yaqin`);
-    root.querySelector('#count').textContent = parts.join(' · ');
+    // Sanoq tugmalarda (Tugagan, Kam qolgan) — bu yerda takrorlanmaydi
+    root.querySelector('#count').textContent = active.length ? `${active.length} xil mahsulot. Bosing — narxi, qoldig'i va tarixi ochiladi` : "Hali mahsulot yo'q";
     // Turkumlar (kategoriyalar) — bor bo'lsa
     const seen = new Map();
     for (const p of active) if (p.category_id && !seen.has(p.category_id)) seen.set(p.category_id, p.category_name);
@@ -603,7 +600,7 @@ async function renderDetail(root, id, ctx) {
 
   root.innerHTML = `
     <div class="page-head">
-      <a class="btn btn-light btn-sm" href="#/products">${icon('back', 'ico-sm')} Tovarlar</a>
+      <a class="btn btn-light btn-sm" href="#/products">${icon('back', 'ico-sm')} Mahsulotlar</a>
     </div>
 
     <section class="card pd-hero st-${st}">
@@ -613,7 +610,7 @@ async function renderDetail(root, id, ctx) {
       </div>
       <div class="pd-main">
         <h1 class="pd-name">${esc(p.name)}</h1>
-        <div class="small muted">${esc(p.category_name || 'Kategoriyasiz')}${p.sku ? ` · Artikul: <b>${esc(p.sku)}</b>` : ''}${p.barcode ? ` · Shtrix-kod: <span class="num">${esc(p.barcode)}</span>` : ''}</div>
+        ${p.category_name || p.sku || p.barcode ? `<div class="small muted">${[p.category_name ? esc(p.category_name) : '', p.sku ? `Artikul: <b>${esc(p.sku)}</b>` : '', p.barcode ? `Shtrix-kod: <span class="num">${esc(p.barcode)}</span>` : ''].filter(Boolean).join(' · ')}</div>` : ''}
         <div class="pd-stock">
           <div class="pd-stock-label">Omborda qoldi</div>
           <div class="pd-stock-num">${num(p.stock_qty, 3)} <span>${unit}</span></div>
@@ -625,15 +622,14 @@ async function renderDetail(root, id, ctx) {
         <div class="pd-actions">
           ${canBuy ? `<a class="btn btn-lg" href="#/stockin?product=${id}">${icon('truck')} Tovar kiritish</a>` : ''}
           ${canManage && !p.is_archived ? `<a class="btn btn-lg btn-outline" href="#/products/${id}/edit">${icon('edit')} O'zgartirish</a>` : ''}
-          ${ctx.can('sales.create') && !p.is_archived && Number(p.stock_qty) > 0 ? `<a class="btn btn-lg btn-soft" href="#/sales?add=${id}">${icon('cart')} Sotuvga</a>` : ''}
-          ${canManage ? `<button class="btn btn-lg btn-light" type="button" id="dup" title="Shu tovarga o'xshash yangi tovar">${icon('copy')} Nusxa olish</button>` : ''}
+          ${canManage ? `<button class="btn btn-lg btn-ghost" type="button" id="dup" title="Shunga o'xshash yangi mahsulot (masalan, boshqa rangi)">${icon('copy')} O'xshashini qo'shish</button>` : ''}
         </div>
       </div>
     </section>
 
     ${costProblem ? `<div class="alert alert-warn cost-alert">${icon('alert', 'ico-sm')}<div class="grow">
         <b>Foyda to'g'ri hisoblanmayapti: ${cost <= 0 ? 'xarid narxi yozilmagan' : 'ba\'zi tovarlarning xarid narxi yozilmagan'}</b>
-        <div class="small">${[missQty > 0 ? `omborda ${num(missQty, 3)} ${unit} narxsiz` : '', missSales > 0 ? `${missSales} ta sotuv xarid narxisiz (butun tushum foyda bo'lib chiqqan)` : ''].filter(Boolean).join(' · ') || "Sotsangiz, butun tushum foyda bo'lib ko'rinadi"}. Xarid narxini yozing — foyda o'zi qayta hisoblanadi.</div></div>
+        <div class="small">${[missQty > 0 ? `omborda ${num(missQty, 3)} ${unit} narxsiz` : '', missSales > 0 ? `${missSales} ta sotuv xarid narxisiz (butun sotuv puli foyda bo'lib chiqqan)` : ''].filter(Boolean).join(' · ') || "Sotsangiz, butun sotuv puli foyda bo'lib ko'rinadi"}. Xarid narxini yozing — foyda o'zi qayta hisoblanadi.</div></div>
         ${canManage ? `<button class="btn btn-sm" type="button" id="fix-cost">${icon('calc', 'ico-sm')} Xarid narxini yozish</button>` : ''}</div>` : ''}
     ${p.model_name ? '<section class="card" id="sizes"><div class="empty small">O\'lchamlar yuklanmoqda...</div></section>' : ''}
     ${p.is_roll && batches.length ? `<section class="card">

@@ -33,7 +33,7 @@ after(async () => {
 
 test("birinchi do'kon: holat, sozlash va ro'yxatdan o'tish imkoniyati", async () => {
   let st = await a.get('/api/auth/status');
-  assert.deepEqual(st.body, { setup_required: true, signup: true });
+  assert.deepEqual(st.body, { setup_required: true, signup: true, support: '' });
   const r = await a.post('/api/setup', newStore('Baraka', 'ali'));
   assert.equal(r.status, 201);
   st = await a.get('/api/auth/status');

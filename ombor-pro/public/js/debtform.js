@@ -13,7 +13,7 @@ const TEXT = {
     who: 'Kim qarz? (mijoz)',
     whoPh: 'Mijoz ismini yozing yoki ro\'yxatdan tanlang',
     newHint: "Bunday mijoz yo'q — yangi mijoz qo'shiladi",
-    explain: "Daftardagi eski qarz yoki dasturdan tashqari berilgan nasiya. Bu savdo hisoblanmaydi: tushum va foydaga qo'shilmaydi, faqat qarz bo'lib turadi. Tovar hozir nasiyaga sotilsa, «Sotuv» bo'limida «Nasiya» ni tanlang.",
+    explain: "Daftardagi eski qarz yoki dasturdan tashqari berilgan nasiya. Bu savdo hisoblanmaydi: sotuv va foydaga qo'shilmaydi, faqat qarz bo'lib turadi. Tovar hozir nasiyaga sotilsa, «Sotuv» bo'limida «Nasiya» ni tanlang.",
     list: '/customers',
     listKey: 'customers',
     create: (body) => post('/customers', body).then((r) => r.customer),
@@ -123,17 +123,32 @@ export function openReceivePayment({ debtors, selected = null, onDone = () => {}
           <label class="field"><span>Qanday to'ladi?</span>
             <select class="input" id="rmethod"><option value="cash">Naqd</option><option value="card">Karta</option><option value="transfer">O'tkazma</option></select></label>
         </div>
-        <small class="muted">To'lov eng eski qarzdan boshlab yopiladi.</small>
+        <div class="rcalc" id="rcalc"></div>
+        <small class="muted">To'lov eng eski qarzdan boshlab yopiladi. Har bir to'lov mijoz tarixida saqlanadi.</small>
         <div id="rerr"></div>
       </form>`,
     foot: `<button class="btn btn-outline" type="button" data-close>Bekor</button>
            <button class="btn btn-success" type="submit" form="rform">${icon('check', 'ico-sm')} Qabul qilish</button>`,
   });
   const $ = (s) => el.querySelector(s);
+  // Jonli hisob: jami qarz − to'lov = qoladi
+  const calc = () => {
+    const d = debtors.find((x) => String(x.id) === $('#rwho').value);
+    const box = $('#rcalc');
+    if (!d) { box.innerHTML = ''; return; }
+    const amount = toNum($('#ramount').value) || 0;
+    const left = Math.round((Number(d.debt) - amount) * 100) / 100;
+    box.innerHTML = `<div><span>Jami qarzi</span><b>${money(d.debt)}</b></div>
+      <div><span>To'layapti</span><b class="green">−${money(Math.max(0, amount))}</b></div>
+      <div class="rc-tot ${left < 0 ? 'bad' : ''}"><span>${left < 0 ? 'Qarzidan ko\'p!' : left === 0 ? 'Qarz to\'liq yopiladi' : 'Qoladi'}</span><b>${left < 0 ? money(-left) : money(left)}</b></div>`;
+  };
   $('#rwho').addEventListener('change', () => {
     const d = debtors.find((x) => String(x.id) === $('#rwho').value);
     $('#ramount').value = d ? d.debt : '';
+    calc();
   });
+  $('#ramount').addEventListener('input', calc);
+  calc();
   $('#rform').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = el.querySelector('[form="rform"]');

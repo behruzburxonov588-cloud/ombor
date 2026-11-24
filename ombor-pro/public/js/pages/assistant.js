@@ -11,7 +11,7 @@ function block(b, { title, sub, financial, compareText }) {
     <div><div class="l">${label}</div><div class="v">${value}</div><div class="d">${deltaPill(change, { goodWhenUp, title: compareText })}</div></div>`;
   return `
     <div class="mini-stats" style="margin-bottom:12px">
-      ${cell('Sof tushum', compact(b.net_revenue, { unit: true }), b.change.net_revenue)}
+      ${cell('Sotuv (qaytarishsiz)', compact(b.net_revenue, { unit: true }), b.change.net_revenue)}
       ${cell('Savdolar', `${num(b.sales_count, 0)} ta`, b.change.sales_count)}
       ${financial ? cell(b.net_profit >= 0 ? 'Sof foyda' : 'Sof zarar', compact(b.net_profit, { unit: true }), b.change.net_profit) : cell("O'rtacha chek", compact(b.avg_order, { unit: true }), null)}
       ${financial ? cell('Xarajatlar', compact(b.expenses, { unit: true }), b.change.expenses, false) : ''}
@@ -87,7 +87,7 @@ export async function render(root, params, ctx) {
           <div class="rec">${icon('bulb', 'ico-xs')}<span>${esc(i.recommendation)}</span></div>
         </div>`).join('') : emptyState("Hozircha tavsiya yo'q. Savdo tarixi ko'paygan sari tahlil aniqroq bo'ladi.", 'sparkles')}
     </section>
-    <p class="note" style="margin-top:12px">${icon('info', 'ico-xs')}<span>Xulosalar savdo, qaytarish, xarajat, ombor va qarz yozuvlaridan avtomatik hisoblanadi. Sof foyda = tushum − tovarlarning xarid narxi − xarajatlar − buzilgan/yo'qolgan tovar. Mijozlarning eski qarz to'lovlari savdo hisoblanmaydi.</span></p>`;
+    <p class="note" style="margin-top:12px">${icon('info', 'ico-xs')}<span>Xulosalar savdo, qaytarish, xarajat, ombor va qarz yozuvlaridan avtomatik hisoblanadi. Sof foyda = sotuv − tovarlarning xarid narxi − xarajatlar − buzilgan/yo'qolgan tovar. Mijozlarning eski qarz to'lovlari savdo hisoblanmaydi.</span></p>`;
 
   root.querySelector('#refresh').addEventListener('click', () => render(root, params, ctx).catch(errorToast));
 }

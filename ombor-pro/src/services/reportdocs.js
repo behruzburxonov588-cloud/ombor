@@ -23,7 +23,7 @@ export const REPORT_KINDS = {
 };
 
 const CASH_LABELS = {
-  sale: 'Savdo tushumi', refund: 'Qaytarilgan pul', customer_payment: "Mijoz qarz to'lovlari",
+  sale: 'Sotuvdan kelgan pul', refund: 'Qaytarilgan pul', customer_payment: "Mijoz qarz to'lovlari",
   supplier_payment: "Yetkazib beruvchilarga to'lov", expense: 'Xarajatlar', deposit: 'Kassaga kiritilgan', withdrawal: 'Kassadan olingan',
 };
 const METHOD_LABELS = { cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya', mixed: 'Aralash' };
@@ -50,7 +50,7 @@ function dailyColumns() {
     col('gross_revenue', 'Jami sotuv', 'money'),
     col('discounts', 'Chegirma', 'money'),
     col('returns', 'Qaytarish', 'money'),
-    col('net_revenue', 'Tushum', 'money'),
+    col('net_revenue', 'Sotuv', 'money'),
     col('cogs', 'Xarid narxi', 'money'),
     col('gross_profit', 'Sotuvdan foyda', 'money', { tone: true }),
     col('expenses', 'Xarajat', 'money'),
@@ -77,7 +77,7 @@ async function pnlDoc(db, q) {
     line('= Tushum', c.net_revenue, pv.net_revenue),
     line('− Sotilgan tovarning xarid narxi', c.cogs, pv.cogs),
     line('= Sotuvdan foyda', c.gross_profit, pv.gross_profit),
-    line('− Operatsion xarajatlar', c.expenses, pv.expenses),
+    line('− Xarajatlar', c.expenses, pv.expenses),
     line("− Buzilgan / yo'qolgan tovar", c.losses, pv.losses),
     line('    yaroqsiz tovar', c.damage, pv.damage),
     line('    sanashda chiqqan kamomad', c.shrinkage, pv.shrinkage),
@@ -87,12 +87,12 @@ async function pnlDoc(db, q) {
   return {
     range: r.range,
     summary: [
-      { label: 'Tushum', value: m(c.net_revenue) },
+      { label: 'Sotuv', value: m(c.net_revenue) },
       { label: 'Sotuvdan foyda', value: m(c.gross_profit), tone: tone(c.gross_profit) },
       { label: 'Xarajatlar', value: m(c.expenses) },
       { label: 'Sof foyda', value: m(c.net_profit), tone: tone(c.net_profit) },
-      { label: 'Sof foyda ulushi', value: fmtCell(c.net_margin, 'percent') },
-      { label: 'Sotuvdan foyda ulushi', value: fmtCell(c.gross_margin, 'percent') },
+      { label: 'Sof foyda foizi', value: fmtCell(c.net_margin, 'percent') },
+      { label: 'Sotuvdan foyda foizi', value: fmtCell(c.gross_margin, 'percent') },
       { label: 'Savdolar soni', value: String(c.sales_count) },
       { label: "O'rtacha chek", value: m(c.avg_order) },
       { label: 'Mijozlar qarzi (hozir)', value: m(r.debts.customers), tone: r.debts.customers > 0 ? 'warn' : undefined },
@@ -158,7 +158,7 @@ async function salesDoc(db, q) {
   return {
     range: r.range,
     summary: [
-      { label: 'Tushum', value: m(t.net_revenue) },
+      { label: 'Sotuv', value: m(t.net_revenue) },
       { label: 'Savdolar soni', value: String(t.sales_count) },
       { label: "O'rtacha chek", value: m(t.avg_order) },
       { label: 'Sotuvdan foyda', value: m(t.gross_profit), tone: tone(t.gross_profit) },
@@ -196,10 +196,10 @@ async function productsDoc(db, q, settings) {
     col('qty_sold', 'Sotilgan', 'number', { pdf: 1.1 }),
     col('unit', 'Birlik', 'text', { width: 8, pdf: 0.8 }),
     col('receipts', 'Cheklar', 'number', { pdf: 0.9 }),
-    col('revenue', 'Tushum', 'money'),
+    col('revenue', 'Sotuv', 'money'),
     col('cogs', 'Xarid narxi', 'money'),
     col('profit', 'Foyda', 'money', { tone: true }),
-    col('margin', 'Foyda ulushi', 'percent', { pdf: 0.9 }),
+    col('margin', 'Foyda foizi', 'percent', { pdf: 0.9 }),
     col('stock_qty', 'Qoldiq', 'number', { pdf: 1.1 }),
     col('stock_value', 'Qoldiq qiymati', 'money'),
   ];
@@ -208,7 +208,7 @@ async function productsDoc(db, q, settings) {
     range,
     summary: [
       { label: 'Sotilgan tovarlar', value: `${sold.length} xil` },
-      { label: 'Tushum', value: m(items.reduce((s, i) => s + i.revenue, 0)) },
+      { label: 'Sotuv', value: m(items.reduce((s, i) => s + i.revenue, 0)) },
       { label: 'Foyda', value: m(items.reduce((s, i) => s + i.profit, 0)) },
       { label: 'Sotilmagan (qoldig\'i bor)', value: `${items.filter((i) => !i.is_archived && i.stock_qty > 0 && i.qty_sold <= 0).length} ta` },
     ],
@@ -286,7 +286,7 @@ async function weeklyDoc(db, q, settings) {
     range: { from: w.start, to: w.end },
     summary: [
       { label: 'Savdolar', value: String(c.sales_count) },
-      { label: 'Tushum', value: m(c.net_revenue) },
+      { label: 'Sotuv', value: m(c.net_revenue) },
       { label: 'Xarajatlar', value: m(c.expenses) },
       { label: 'Sotuvdan foyda', value: m(c.gross_profit), tone: tone(c.gross_profit) },
       { label: 'Sof foyda', value: m(c.net_profit), tone: tone(c.net_profit) },
@@ -300,7 +300,7 @@ async function weeklyDoc(db, q, settings) {
       columns: [
         col('day', 'Sana', 'date', { width: 12, pdf: 1.3 }),
         col('sales_count', 'Savdolar', 'number', { pdf: 0.9 }),
-        col('net_revenue', 'Tushum', 'money'),
+        col('net_revenue', 'Sotuv', 'money'),
         col('prev_net_revenue', "O'tgan hafta", 'money'),
         col('change', "O'zgarish", 'percent', { pdf: 1 }),
         col('gross_profit', 'Sotuvdan foyda', 'money', { tone: true }),
@@ -422,7 +422,7 @@ async function staffDoc(db, q, user) {
         col('full_name', 'Xodim', 'text', { width: 26, pdf: 2.4 }),
         col('role_label', 'Rol', 'text', { width: 14, pdf: 1.3 }),
         col('sales_count', 'Savdolar', 'number', { pdf: 0.9 }),
-        col('net_revenue', 'Tushum', 'money'),
+        col('net_revenue', 'Sotuv', 'money'),
         ...(financial ? [col('gross_profit', 'Sotuvdan foyda', 'money', { tone: true })] : []),
         col('avg_order', "O'rtacha chek", 'money'),
         col('discounts', 'Chegirmalar', 'money'),

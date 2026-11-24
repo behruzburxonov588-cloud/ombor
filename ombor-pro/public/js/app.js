@@ -208,45 +208,34 @@ async function showAuth(setupRequired) {
     }
   } else {
     const known = lastLogin();
-    // Ochilish harakati (qutilar tushadi) — shu brauzer oynasida faqat birinchi marta
-    let intro = true;
-    try { intro = sessionStorage.getItem('ombor.intro') !== '1'; sessionStorage.setItem('ombor.intro', '1'); } catch { /* xotira yopiq */ }
-    root.className = `auth auth-split${intro ? ' intro' : ''}`;
+    root.className = 'auth auth-simple';
     root.innerHTML = `
-      <section class="auth-hero" aria-label="OMBOR PRO haqida">
-        <div class="ah-brand">
-          <span class="ah-logo">${logoSvg('logo-svg ah-svg')}</span>
-          <div class="ah-name"><b>OMBOR PRO</b><span>Do'kon hisobi oddiy tilda</span></div>
+      <div class="as-wrap">
+        <div class="as-brand"><span class="as-logo">${logoSvg()}</span><b>OMBOR PRO</b></div>
+        <div class="auth-card">
+          <h1 class="as-h">${known ? 'Xush kelibsiz!' : "Do'koningizga kiring"}</h1>
+          <p class="as-sub">${known ? 'Parolingizni yozing' : 'Login va parolingizni yozing'}</p>
+          <form id="login-form" class="form-grid" novalidate>
+            <label class="field"><span>Login</span><input class="input input-lg" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(known)}" placeholder="masalan: baraka"></label>
+            <label class="field"><span>Parol</span><span class="pw-wrap"><input class="input input-lg" name="password" type="password" required autocomplete="current-password" placeholder="Parolingiz"><button type="button" class="pw-eye" data-eye aria-label="Parolni ko'rsatish">Ko'rsatish</button></span></label>
+            <div id="form-error"></div>
+            <button class="btn btn-lg btn-block" type="submit">Kirish</button>
+          </form>
+          <button type="button" class="link-btn as-forgot" data-forgot>Parolni unutdingizmi?</button>
         </div>
-        <ul class="ah-points">
-          <li>${icon('plus', 'ico-sm')}<span>Tovar keldi — nomini tanlab, sonini yozasiz. 10 soniya</span></li>
-          <li>${icon('cart', 'ico-sm')}<span>Sotdingiz — ombordagi son va foyda o'zi hisoblanadi</span></li>
-          <li>${icon('chart', 'ico-sm')}<span>Kechqurun bitta ekranda: bugun qancha sotdingiz, qancha qoldi</span></li>
-        </ul>
-        <div class="tape ah-tape" aria-hidden="true">
-          <div class="between"><span>Sotuv</span><b class="num">1 480 000</b></div>
-          <div class="between"><span>Xarid narxi</span><b class="num">−1 068 000</b></div>
-          <div class="tape-rule"></div>
-          <div class="between"><span>Bugungi foyda</span><b class="num pos">412 000 so'm</b></div>
-        </div>
-      </section>
-      <div class="auth-card">
-        <div class="auth-brand">
-          <div class="mark">${logoSvg()}</div>
-          <h1>${known ? 'Xush kelibsiz' : "Do'koningizga kiring"}</h1>
-          <p>${known
-    ? 'Parolingizni kiriting. «Chiqish» ni bosmaguningizcha qayta so\'ralmaydi'
-    : "Login va parolni do'kon egasi beradi. Egasi bo'lsangiz — ro'yxatdan o'tgandagisini yozing"}</p>
-        </div>
-        <form id="login-form" class="form-grid" novalidate>
-          <label class="field"><span>Login</span><input class="input input-lg" name="username" required autocomplete="username" autocapitalize="none" value="${esc(known)}"></label>
-          <label class="field"><span>Parol</span><span class="pw-wrap"><input class="input input-lg" name="password" type="password" required autocomplete="current-password"><button type="button" class="pw-eye" data-eye aria-label="Parolni ko'rsatish">Ko'rsatish</button></span></label>
-          <div id="form-error"></div>
-          <button class="btn btn-lg btn-block" type="submit">Kirish</button>
-        </form>
-        <p class="auth-note">${icon('info', 'ico-xs')} Kassirlar faqat sotuvni ko'radi. Xarid narxi va foyda faqat egasiga ko'rinadi.</p>
-        ${state.signup !== false ? `<div class="auth-divider">do'koningiz hali yo'qmi</div><button type="button" class="btn btn-outline btn-lg btn-block" data-mode="register">Yangi do'kon ochish — 2 daqiqa</button>` : ''}
+        ${state.signup !== false ? `<div class="as-new"><span>Do'koningiz hali yo'qmi?</span><button type="button" class="btn btn-outline btn-lg btn-block" data-mode="register">Yangi do'kon ochish — bepul</button></div>` : ''}
       </div>`;
+    root.querySelector('[data-forgot]').addEventListener('click', () => {
+      const support = state.support || '';
+      openModal({
+        title: 'Parolni unutdingizmi?',
+        body: `<div class="forgot">
+          <div class="forgot-row"><span class="forgot-ico">${icon('users', 'ico-sm')}</span><div><b>Sotuvchi (xodim) bo'lsangiz</b><p>Do'kon egasiga ayting. U «Sozlamalar → Xodimlar»da sizga yangi parol beradi.</p></div></div>
+          <div class="forgot-row"><span class="forgot-ico">${icon('store', 'ico-sm')}</span><div><b>Do'kon egasi bo'lsangiz</b><p>${support ? `Yordam xizmatiga yozing: <b>${esc(support)}</b>. Loginingizni ayting — parolni tiklab beramiz.` : "OMBOR PRO'ni sizga ulab bergan odamga yoki yordam xizmatiga murojaat qiling. Loginingizni ayting — parolni tiklab berishadi."}</p></div></div>
+        </div>`,
+        foot: '<button class="btn" type="button" data-close>Tushunarli</button>',
+      });
+    });
     root.querySelector('[data-eye]').addEventListener('click', (e) => {
       const inp = root.querySelector('[name="password"]');
       const show = inp.type === 'password';
@@ -297,8 +286,6 @@ function buildShell() {
         <button class="icon-btn" id="btn-menu" type="button" aria-label="Menyuni ochish">${icon('menu')}</button>
         <div class="title" id="page-title"></div>
         <div class="spacer"></div>
-        <button class="searchbox" id="searchbox" type="button" aria-label="Qidiruv">${icon('search', 'ico-sm')}<span>Qidirish…</span><span class="kbd">Ctrl K</span></button>
-        <button class="icon-btn" id="btn-search" type="button" aria-label="Qidiruv">${icon('search')}</button>
         <button class="ai-btn" id="btn-ai" type="button" aria-label="AI yordamchi: savol bering">${icon('sparkles', 'ico-sm')}<span>Savol bering</span></button>
         <button class="help-btn" id="btn-help" type="button" aria-label="Yordam: bu sahifa nima uchun">${icon('help', 'ico-sm')}<span>Yordam</span></button>
         <button class="icon-btn" id="btn-bell" type="button" aria-label="Bildirishnomalar">${icon('bell')}<span class="dot" hidden></span></button>
@@ -315,10 +302,9 @@ function buildShell() {
   $('#btn-help').addEventListener('click', showHelp);
   $('#btn-ai').addEventListener('click', async () => {
     const { openAi } = await import('./ai.js');
-    openAi({ help: showHelp }).catch(errorToast);
+    openAi({ help: showHelp, owner: state.user?.username || '' }).catch(errorToast);
   });
-  $('#btn-search').addEventListener('click', openGlobalSearch);
-  $('#searchbox').addEventListener('click', openGlobalSearch);
+  // Umumiy qidiruv yuqorida ko'rinmaydi (har sahifaning o'z qidiruvi bor) — faqat Ctrl+K bilan
   $('#btn-bell').addEventListener('click', (e) => openBell(e.currentTarget));
   $('#btn-user').addEventListener('click', (e) => openUserMenu(e.currentTarget));
   window.addEventListener('hashchange', route);
@@ -709,6 +695,7 @@ async function start() {
   try {
     const status = await get('/auth/status');
     state.signup = status.signup !== false;
+    state.support = status.support || '';
     if (status.setup_required) {
       $('#boot').hidden = true;
       await showAuth(true);

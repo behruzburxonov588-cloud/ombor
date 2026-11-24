@@ -303,22 +303,23 @@ async function renderSettings(root, ctx) {
         <label class="field" style="grid-column:1/-1"><span>Chek pastki yozuvi</span><input class="input" name="receipt_footer" maxlength="200" value="${esc(s.receipt_footer || '')}"></label>
       </div>
 
-      <div class="card-head" style="margin-top:6px"><h2>Hisob-kitob</h2></div>
-      <div class="form-grid two" style="gap:10px">
-        <label class="field"><span>Foydani hisoblash usuli</span>
-          <select class="input" name="costing_method">
-            <option value="FIFO" ${s.costing_method === 'FIFO' ? 'selected' : ''}>Avval kelgan tovar avval sotiladi (tavsiya)</option>
-            <option value="WAVG" ${s.costing_method === 'WAVG' ? 'selected' : ''}>O'rtacha xarid narxi bo'yicha</option>
-          </select>
-          <small>O'zgartirish faqat keyingi amallarga ta'sir qiladi. Eski tarix o'zgarmaydi.</small></label>
-        <label class="field"><span>Qarz ogohlantirish (kun oldin)</span>
-          <input class="input" name="debt_warning_days" data-type="num" inputmode="numeric" value="${s.debt_warning_days}"></label>
-      </div>
+      <div class="card-head" style="margin-top:6px"><h2>Eslatmalar</h2></div>
       <div class="stack">
-        <label class="check"><input type="checkbox" name="notify_low_stock" ${s.notify_low_stock ? 'checked' : ''}><span>Kam qolgan va tugagan tovarlar haqida ogohlantirish</span></label>
-        <label class="check"><input type="checkbox" name="notify_debts" ${s.notify_debts ? 'checked' : ''}><span>Muddati yaqin va o'tgan qarzlar haqida eslatish</span></label>
-        <a class="link-btn" href="#/notifications?tab=settings">${icon('bell', 'ico-xs')} Batafsil: jadval, Telegram, chegaralar</a>
+        <label class="check"><input type="checkbox" name="notify_low_stock" ${s.notify_low_stock ? 'checked' : ''}><span>Tovar kam qolsa yoki tugasa — eslatsin</span></label>
+        <label class="check"><input type="checkbox" name="notify_debts" ${s.notify_debts ? 'checked' : ''}><span>Qarz to'lash kuni yaqinlashsa yoki o'tib ketsa — eslatsin</span></label>
+        <label class="field" style="max-width:320px"><span>Qarz kunidan necha kun oldin eslatsin</span>
+          <input class="input" name="debt_warning_days" data-type="num" inputmode="numeric" value="${s.debt_warning_days}"></label>
+        <a class="link-btn" href="#/notifications?tab=settings">${icon('bell', 'ico-xs')} Telegram'ga ham yuborish va boshqa eslatmalar</a>
       </div>
+      <details class="adv">
+        <summary>Mutaxassis uchun: foydani hisoblash usuli</summary>
+        <label class="field" style="margin-top:10px"><span>Bir tovar har xil narxda kelganda, sotilganda qaysi xarid narxi olinsin?</span>
+          <select class="input" name="costing_method">
+            <option value="FIFO" ${s.costing_method === 'FIFO' ? 'selected' : ''}>Avval kelgani avval sotiladi (tavsiya)</option>
+            <option value="WAVG" ${s.costing_method === 'WAVG' ? 'selected' : ''}>O'rtacha xarid narxi</option>
+          </select>
+          <small>Bilmasangiz — o'zgartirmang. Faqat keyingi sotuvlarga ta'sir qiladi.</small></label>
+      </details>
       <div id="serr"></div>
       <button class="btn btn-lg" type="submit">${icon('check')} Saqlash</button>
     </form>` : `

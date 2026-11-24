@@ -1203,7 +1203,7 @@ export async function weeklyReport(db, query, method) {
 
 export async function customerDebts(db) {
   const today = todayLocal();
-  const [{ rows }, pays, collected] = await Promise.all([
+  const [{ rows }, pays, collected, led] = await Promise.all([
     db.query(
       `SELECT c.id, c.name, c.phone,
               SUM(s.balance_due) AS debt, COUNT(*)::int AS open_sales,
@@ -1227,7 +1227,32 @@ export async function customerDebts(db) {
     db.query(
       `SELECT COALESCE(SUM(amount), 0) AS v FROM customer_payments WHERE created_at >= now() - interval '30 days'`,
     ),
+    // Qarz daftari: nasiya olgan (yoki qo'lda qarz yozilgan) HAMMA mijoz — yopilganlari ham.
+    // Jami olgan = nasiya hujjatlari summasi (qaytarilgani ayrilgan); qolgan = to'lanmagan; to'lagan = farqi
+    db.query(
+      `SELECT c.id, c.name, c.phone,
+              COUNT(*)::int AS docs,
+              SUM(s.total - s.refunded_total) AS taken,
+              SUM(s.balance_due) AS remaining,
+              MIN(s.due_date) FILTER (WHERE s.balance_due > 0 AND s.due_date IS NOT NULL) AS next_due,
+              MAX(s.created_at) AS last_at
+         FROM sales s JOIN customers c ON c.id = s.customer_id
+        WHERE s.credit_amount > 0
+        GROUP BY c.id ORDER BY SUM(s.balance_due) DESC, MAX(s.created_at) DESC`,
+    ),
   ]);
+  const ledger = led.rows.map((r) => {
+    const taken = round2(Math.max(0, n(r.taken)));
+    const remaining = round2(r.remaining);
+    const paid = round2(Math.max(0, taken - remaining));
+    const due = r.next_due ? String(r.next_due).slice(0, 10) : null;
+    let state = 'open';
+    if (remaining <= 0.004) state = 'paid';
+    else if (due && due < today) state = 'overdue';
+    else if (due && due === today) state = 'due';
+    else if (paid > 0) state = 'partial';
+    return { id: r.id, name: r.name, phone: r.phone, docs: r.docs, taken, paid, remaining, next_due: due, last_at: r.last_at, state };
+  });
   const customers = rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -1252,8 +1277,14 @@ export async function customerDebts(db) {
       aging: {
         d30: sum((c) => c.aging.d30), d60: sum((c) => c.aging.d60), d90: sum((c) => c.aging.d90), d90p: sum((c) => c.aging.d90p),
       },
+      // Muddati kelgan (bugun yoki o'tib ketgan), qisman to'langan va to'liq yopilgan qarzdorlar
+      due_now: round2(ledger.filter((c) => c.state === 'overdue' || c.state === 'due').reduce((x, c) => x + c.remaining, 0)),
+      due_now_customers: ledger.filter((c) => c.state === 'overdue' || c.state === 'due').length,
+      partial_customers: ledger.filter((c) => c.remaining > 0 && c.paid > 0).length,
+      closed_customers: ledger.filter((c) => c.state === 'paid').length,
     },
     customers,
+    ledger,
     recent_payments: pays.rows,
   };
 }

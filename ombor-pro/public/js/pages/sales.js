@@ -13,7 +13,6 @@ const METHODS = [
   { key: 'card', label: 'Karta', ico: 'card' },
   { key: 'transfer', label: "O'tkazma", ico: 'transfer' },
   { key: 'credit', label: 'Nasiya (qarzga)', ico: 'credit' },
-  { key: 'mixed', label: "Bir nechta usul", ico: 'split' },
 ];
 
 
@@ -36,7 +35,7 @@ function loadState(owner = '') {
 
 // Bo'sh savatcha (egasi saqlanadi — aks holda boshqa kalit ostida saqlanib, eski savatcha qaytib chiqadi)
 function emptyState0(owner = '') {
-  return { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', key: newKey('pos'), owner };
+  return { cart: [], customer: null, method: 'cash', mixed: { cash: '', card: '', transfer: '', credit: '' }, dueDate: '', credPaid: '', credPaidMethod: 'cash', key: newKey('pos'), owner };
 }
 
 let S = loadState('');
@@ -97,6 +96,11 @@ function payValidity(t) {
   if (S.cart.length === 0) return 'Savatcha bo\'sh';
   if (t.problem) return t.problem;
   if (S.method === 'credit' && !S.customer) return 'Nasiyaga sotish uchun mijozni tanlang';
+  if (S.method === 'credit') {
+    const paid = money0(S.credPaid);
+    if (paid < 0) return "To'lov manfiy bo'lishi mumkin emas";
+    if (paid >= t.total - 0.005) return "Hammasini hozir to'lasa — «Naqd» yoki «Karta»ni tanlang";
+  }
   if (S.method === 'mixed') {
     if (Math.abs(mixedSum() - t.total) > 0.005) return `Aralash to'lov jami summaga teng bo'lishi kerak (qolgan: ${num(round(t.total - mixedSum()))})`;
     if (money0(S.mixed.credit) > 0 && !S.customer) return 'Nasiya qismi uchun mijozni tanlang';
@@ -146,6 +150,7 @@ async function addProduct(p, qtyDelta = 1, { roll = null } = {}) {
 
 function setMethod(m) {
   S.method = m;
+  if (m !== 'credit') S.credPaid = '';
   if (m !== 'mixed') S.mixed = { cash: '', card: '', transfer: '', credit: '' };
   save();
   refreshAll();
@@ -168,34 +173,53 @@ function cartHtml(ctx) {
             ${productPhoto({ name: l.name, image_path: l.image_path }, 'cl-img')}
             <div class="cl-name"><b>${esc(l.name)}</b>
               <span>${money(c.f * Number(l.price))} / ${esc(l.unit_name)} · qoldiq ${num(l.stock, 4)} ${esc(l.base_unit_name)}</span></div>
-            <button class="cart-x" type="button" data-remove="${i}" aria-label="${esc(l.name)}ni savatchadan olib tashlash" title="Olib tashlash">${icon('x', 'ico-sm')}<span>Olib tashlash</span></button>
+            <button class="cart-x" type="button" data-remove="${i}" aria-label="${esc(l.name)}ni savatchadan olib tashlash" title="Savatchadan olib tashlash">${icon('trash', 'ico-sm')}</button>
           </div>
           <div class="cl-mid">
             <div class="qty-ctrl" aria-label="Miqdor">
-              <button type="button" data-step="${i}" data-d="-1" aria-label="${Number(l.qty) <= 1 ? 'Savatchadan olib tashlash' : 'Kamaytirish'}">${Number(l.qty) <= 1 ? icon('x', 'ico-sm') : '−'}</button>
+              <button type="button" data-step="${i}" data-d="-1" aria-label="Kamaytirish" ${Number(l.qty) <= 1 ? 'disabled' : ''}>−</button>
               <input type="text" inputmode="decimal" value="${String(round4(l.qty)).replace('.', ',')}" data-qty="${i}" aria-label="Miqdor">
               <button type="button" data-step="${i}" data-d="1" aria-label="Ko'paytirish">+</button>
             </div>
             ${hasUnits ? `<select class="input cl-unit" data-unit="${i}" aria-label="Birlik">${unitOptions}</select>` : `<span class="cl-unit-fixed">${esc(l.unit_name)}</span>`}
             <span class="cl-total num">${money(c.total)}</span>
           </div>
-          ${canDiscount ? `<label class="cl-disc"><span>${icon('percent', 'ico-xs')} Chegirma</span>
-              <input class="input" type="text" data-money inputmode="decimal" value="${l.discount ? formatMoneyInput(l.discount) : ''}" placeholder="0" data-disc="${i}" aria-label="${esc(l.name)}: chegirma, so'm"><em>so'm</em>
-              ${c.discount ? `<b class="red">−${money(c.discount)}</b>` : ''}</label>` : ''}
+          ${canDiscount ? (l.discount || l.discOpen ? `<div class="cl-price">
+              <label><span>1 ${esc(l.unit_name)} narxi</span>
+                <input class="input" type="text" data-money inputmode="decimal" value="${formatMoneyInput(round(c.f * Number(l.price) - (Number(l.qty) > 0 ? c.discount / Number(l.qty) : 0)))}" data-lprice="${i}" aria-label="${esc(l.name)}: 1 ${esc(l.unit_name)} narxi"></label>
+              <label><span>yoki chegirma, jami</span>
+                <input class="input" type="text" data-money inputmode="decimal" value="${l.discount ? formatMoneyInput(l.discount) : ''}" placeholder="0" data-disc="${i}" aria-label="${esc(l.name)}: chegirma, so'm"></label>
+              ${c.discount ? `<b class="red">−${money(c.discount)}</b>` : ''}</div>`
+    : `<button type="button" class="link-btn cl-disc-open" data-disc-open="${i}">${icon('percent', 'ico-xs')} Narxni o'zgartirish yoki chegirma</button>`) : ''}
           ${c.over ? `<div class="cl-warn">${icon('alert', 'ico-xs')} Qoldiq yetarli emas</div>` : ''}
         </div>`;
     }).join('')
-    : `<div class="empty-state cart-empty"><span class="es-ico">${icon('cart')}</span><b>Savatcha bo'sh</b><p>Chapdagi tovarni bosing yoki shtrix-kodni o'qiting — u shu yerga tushadi. Adashsangiz, tovar ustidagi «−» ni bosing.</p></div>`;
+    : `<div class="empty-state cart-empty"><span class="es-ico">${icon('cart')}</span><b>Savatcha bo'sh</b><p>${window.matchMedia('(min-width: 720px)').matches ? 'Chapdagi' : 'Yuqoridagi'} tovarni bosing — shu yerga tushadi.</p></div>`;
 
   const cust = S.customer
     ? `<div class="cust-chip"><span class="avatar">${esc((S.customer.name || '?').trim().charAt(0).toUpperCase())}</span><div class="grow"><b>${esc(S.customer.name)}</b>
          <span>Joriy qarz: ${money(S.customer.debt)}</span></div>
          <button class="btn btn-sm btn-light" type="button" data-cust>O'zgartirish</button>
          <button class="icon-btn" type="button" data-cust-clear aria-label="Mijozni olib tashlash" title="Mijozni olib tashlash">${icon('x', 'ico-sm')}</button></div>`
-    : `<button class="btn btn-light btn-block" type="button" data-cust>${icon('users', 'ico-sm')} Mijoz tanlash <span class="muted">(ixtiyoriy)</span></button>`;
+    : `<button class="btn btn-light btn-block" type="button" data-cust>${icon('users', 'ico-sm')} ${S.method === 'credit' || S.method === 'mixed' ? 'Kim qarzga oldi? — mijozni tanlang' : 'Mijoz tanlash'}</button>`;
+  const needCust = S.customer || S.method === 'credit' || (S.method === 'mixed' && money0(S.mixed.credit) > 0);
+  const credPaid = money0(S.credPaid);
+  const credBox = S.method === 'credit' ? `
+    <div class="cred-box">
+      <div class="cred-q">Kimga nasiyaga?</div>
+      ${cust}
+      <label class="field"><span>Hozir qancha to'ladi? <small>— to'lamasa, bo'sh qoldiring</small></span>
+        <div class="money-input"><input class="input" type="text" data-money inputmode="decimal" data-credpaid value="${S.credPaid ? esc(formatMoneyInput(S.credPaid)) : ''}" placeholder="0"><em>so'm</em></div></label>
+      <div class="seg cred-m" role="radiogroup" aria-label="Qanday to'ladi" ${credPaid > 0 ? '' : 'hidden'}>
+        <button type="button" data-credm="cash" class="${S.credPaidMethod === 'cash' ? 'active' : ''}">Naqd</button>
+        <button type="button" data-credm="card" class="${S.credPaidMethod === 'card' ? 'active' : ''}">Karta</button>
+      </div>
+      <div class="cred-sum"><span>Qarz bo'ladi</span><b class="num" data-credleft>${money(Math.max(0, round(t.total - credPaid)))}</b></div>
+    </div>` : '';
 
   const pay = S.method === 'mixed'
-    ? `<div class="form-grid two" style="gap:8px">
+    ? `<div class="form-grid two pay-mixed-box" style="gap:8px">
+        <div class="between" style="grid-column:1/-1"><b class="small">Har biridan qancha?</b><button type="button" class="link-btn" data-method="cash">Bekor</button></div>
         ${['cash', 'card', 'transfer', 'credit'].map((k) => `
           <label class="field"><span>${{ cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", credit: 'Nasiya' }[k]}</span>
             <input class="input" type="text" data-money inputmode="decimal" data-mixed="${k}" value="${S.mixed[k] ?? ''}" placeholder="0"></label>`).join('')}
@@ -204,26 +228,29 @@ function cartHtml(ctx) {
     : '';
 
   const dueRow = S.method === 'credit' || (S.method === 'mixed' && money0(S.mixed.credit) > 0)
-    ? `<label class="field"><span>To'lov muddati (ixtiyoriy)</span><input class="input" type="date" data-due value="${esc(S.dueDate)}"></label>`
+    ? `<label class="field"><span>Qachongacha to'laydi? <small>(ixtiyoriy — kuni kelganda eslatamiz)</small></span><input class="input" type="date" data-due value="${esc(S.dueDate)}"></label>`
     : '';
 
   const reason = payValidity(t);
-  const count = S.cart.reduce((n, l) => n + Number(l.qty || 0), 0);
   return `
-    <div class="card-head cart-head"><div class="row" style="gap:8px"><h2>Savatcha</h2><span class="badge badge-info">${S.cart.length} ta tovar</span></div>
-      ${S.cart.length ? `<button class="btn btn-ghost btn-sm cart-clear" type="button" data-clear title="Savatchani butunlay tozalash">${icon('trash', 'ico-sm')}<span>Tozalash</span></button>` : ''}</div>
+    <div class="card-head cart-head"><div class="row" style="gap:8px"><h2>Savatcha</h2>${S.cart.length ? `<span class="badge badge-info">${S.cart.length} xil</span>` : ''}</div>
+      ${S.cart.length ? `<button class="link-btn cart-clear" type="button" data-clear title="Savatchani butunlay tozalash">Hammasini olib tashlash</button>` : ''}</div>
     <div class="cart-lines">${lines}</div>
     ${S.cart.length ? `
-      <div class="cart-cust">${cust}</div>
-      ${pay || dueRow ? `<div class="stack" style="margin-top:12px">${pay}${dueRow}</div>` : ''}
       <div class="cart-foot">
         <div class="cart-sum">
-          <div class="between small"><span class="muted">Tovarlar (${num(round4(count), 3)} birlik)</span><span class="num">${money(t.gross)}</span></div>
-          ${t.discount ? `<div class="between small"><span class="muted">Chegirma</span><span class="num red">−${money(t.discount)}</span></div>` : ''}
+          ${t.discount ? `<div class="between small"><span class="muted">Tovarlar</span><span class="num">${money(t.gross)}</span></div>
+          <div class="between small"><span class="muted">Chegirma</span><span class="num red">−${money(t.discount)}</span></div>` : ''}
           <div class="between cart-total"><span>To'lanadi</span><span class="big num">${money(t.total)}</span></div>
         </div>
+        <div class="pay-q">Xaridor qanday to'laydi?</div>
         <div class="pay-row" role="group" aria-label="Xaridor qanday to'laydi">${METHODS.map((m) => `<button type="button" data-method="${m.key}" class="${S.method === m.key ? 'active' : ''}" aria-pressed="${S.method === m.key}">${icon(m.ico)}<span>${m.label}</span></button>`).join('')}</div>
-        ${reason ? `<div class="small amber" style="font-weight:650">${esc(reason)}</div>` : ''}
+        ${S.method === 'mixed' ? '' : '<button type="button" class="link-btn pay-mixed" data-method="mixed">Bir qismi naqd, bir qismi karta?</button>'}
+        ${pay}
+        ${credBox}
+        ${needCust && S.method !== 'credit' ? `<div class="cart-cust">${cust}</div>` : ''}
+        ${dueRow}
+        ${reason && reason !== "Savatcha bo'sh" ? `<div class="small amber" style="font-weight:650">${esc(reason)}</div>` : ''}
         <button class="btn btn-success btn-lg btn-block" type="button" data-checkout ${reason ? 'disabled' : ''}>
           ${icon('check')} Sotish · ${money(t.total)}
         </button>
@@ -243,12 +270,8 @@ function mountCart(el, ctx) {
     const i = Number(b.dataset.step);
     const l = S.cart[i];
     const next = round4(Number(l.qty) + Number(b.dataset.d));
-    if (next <= 0) { // 1 tadan kamaytirsa — savatchadan chiqadi
-      S.cart.splice(i, 1);
-      save();
-      refreshAll();
-      return;
-    }
+    if (next <= 0) return; // olib tashlash — savat belgisi bilan
+
     l.qty = next;
     if (calc(l).over) { toast(`"${l.name}" qoldig'i yetarli emas`, 'warn'); return; }
     save();
@@ -279,6 +302,42 @@ function mountCart(el, ctx) {
     if (calc(l).discount < v) toast('Chegirma summadan katta bo\'lishi mumkin emas', 'warn');
     save();
     refreshAll();
+  }));
+  el.querySelectorAll('[data-lprice]').forEach((inp) => inp.addEventListener('change', () => {
+    const l = S.cart[Number(inp.dataset.lprice)];
+    const c = calc(l);
+    const orig = c.f * Number(l.price);
+    const v = parseMoney(inp.value || '0');
+    if (!(v >= 0)) { toast("Narx noto'g'ri", 'warn'); refreshAll(); return; }
+    if (v > orig + 0.004) { toast(`Narxni faqat kamaytirish mumkin (asl narxi ${money(orig)})`, 'warn'); refreshAll(); return; }
+    // Yangi narx chegirma sifatida yoziladi: (asl narx − yangi narx) × soni
+    l.discount = round((orig - v) * Number(l.qty));
+    l.discOpen = true;
+    save();
+    refreshAll();
+  }));
+  el.querySelector('[data-credpaid]')?.addEventListener('input', (e) => {
+    S.credPaid = e.target.value;
+    save();
+    const t = totals();
+    const left = el.querySelector('[data-credleft]');
+    if (left) left.textContent = money(Math.max(0, round(t.total - money0(S.credPaid))));
+    const m = el.querySelector('.cred-m');
+    if (m) m.hidden = !(money0(S.credPaid) > 0);
+    const btn = el.querySelector('[data-checkout]');
+    if (btn) btn.disabled = Boolean(payValidity(t));
+  });
+  el.querySelector('[data-credpaid]')?.addEventListener('change', () => refreshAll());
+  el.querySelectorAll('[data-credm]').forEach((b) => b.addEventListener('click', () => {
+    S.credPaidMethod = b.dataset.credm;
+    save();
+    refreshAll();
+  }));
+  el.querySelectorAll('[data-disc-open]').forEach((b) => b.addEventListener('click', () => {
+    const l = S.cart[Number(b.dataset.discOpen)];
+    l.discOpen = true;
+    refreshAll();
+    el.querySelector(`[data-lprice="${b.dataset.discOpen}"]`)?.focus();
   }));
   el.querySelectorAll('[data-remove]').forEach((b) => b.addEventListener('click', () => {
     S.cart.splice(Number(b.dataset.remove), 1);
@@ -328,8 +387,16 @@ function refreshAll() {
     bar.querySelector('[data-count]').textContent = S.cart.length;
     bar.querySelector('[data-total]').textContent = money(t.total);
   }
-  const badge = document.getElementById('grid-selected');
-  if (badge) badge.textContent = `${S.cart.length} ta tovar savatchada`;
+  // 3 qadam: savatcha bo'sh — 1-qadam; tovar bor — 1 bajarildi, 2 va 3 navbatda
+  const steps = document.getElementById('pos-steps');
+  if (steps) {
+    const has = S.cart.length > 0;
+    steps.querySelectorAll('[data-st]').forEach((li) => {
+      const n = Number(li.dataset.st);
+      li.classList.toggle('done', has && n === 1);
+      li.classList.toggle('on', has ? n > 1 : n === 1);
+    });
+  }
   syncTiles();
 }
 
@@ -341,8 +408,6 @@ function syncTiles() {
     const ids = new Set(g.items.map((v) => v.id));
     const n = S.cart.filter((l) => ids.has(l.pid)).reduce((sum, l) => sum + Number(l.qty), 0);
     tile.classList.toggle('in-cart', n > 0);
-    const minus = tile.parentElement?.querySelector('[data-minus-model]');
-    if (minus) minus.hidden = !(n > 0);
     let b = tile.querySelector('.qty-badge');
     if (n > 0) {
       if (!b) { b = document.createElement('span'); b.className = 'qty-badge'; tile.prepend(b); }
@@ -353,8 +418,6 @@ function syncTiles() {
     const pid = Number(tile.dataset.pid);
     const n = S.cart.filter((l) => l.pid === pid).reduce((sum, l) => sum + Number(l.qty), 0);
     tile.classList.toggle('in-cart', n > 0);
-    const minus = tile.parentElement?.querySelector('[data-minus]');
-    if (minus) minus.hidden = !(n > 0);
     let b = tile.querySelector('.qty-badge');
     if (n > 0) {
       if (!b) {
@@ -441,8 +504,12 @@ async function checkout(btn, ctx) {
     discount: Number(l.discount || 0) || 0,
     ...(l.batch_id ? { batch_id: l.batch_id } : {}),
   }));
-  const payment = { method: S.method };
-  if (S.method === 'mixed') {
+  let payment = { method: S.method };
+  const credPaid = money0(S.credPaid);
+  if (S.method === 'credit' && credPaid > 0) {
+    payment = { method: 'mixed', cash: 0, card: 0, transfer: 0, credit: round(t.total - credPaid) };
+    payment[S.credPaidMethod === 'card' ? 'card' : 'cash'] = credPaid;
+  } else if (S.method === 'mixed') {
     payment.cash = money0(S.mixed.cash);
     payment.card = money0(S.mixed.card);
     payment.transfer = money0(S.mixed.transfer);
@@ -585,9 +652,9 @@ function gridHtml(list) {
         ${productPhoto(p, 'pcard-img')}
         <div class="pname">${esc(p.name)}</div>
         <div class="pprice">${num(p.selling_price)} <span class="small muted">so'm/${esc(p.base_unit_name)}</span></div>
-        <div class="pstock">${out ? '<span class="red" style="font-weight:700">Tugagan</span>' : `Qoldiq: ${num(p.stock_qty, 3)} ${esc(p.base_unit_name)}`}</div>
+        <div class="pstock">${out ? '<span class="red" style="font-weight:700">Tugagan</span>' : `${num(p.stock_qty, 3)} ${esc(p.base_unit_name)} bor`}</div>
+        ${out ? '' : `<span class="pcard-add" aria-hidden="true">${icon('plus', 'ico-sm')}</span>`}
       </button>
-      <button class="pcard-minus" type="button" data-minus="${p.id}" aria-label="${esc(p.name)}: bittaga kamaytirish yoki olib tashlash" ${inCart > 0 ? '' : 'hidden'}>${icon('minus')}</button>
     </div>`;
   }).join('');
 }
@@ -605,7 +672,6 @@ function modelTile(g) {
         <div class="pprice">${priceRange(g)}</div>
         <div class="szs">${g.items.map((v) => `<span class="sz${Number(v.stock_qty) <= 0 ? ' out' : ''}${v.image_path ? ' has-img' : ''}">${v.image_path ? `<img src="${esc(v.image_path)}" alt="" loading="lazy">` : `<i>${esc(v.variant_label)}</i>`}<b>${num(v.stock_qty, 3)}</b></span>`).join('')}</div>
       </button>
-      <button class="pcard-minus" type="button" data-minus-model="${esc(g.model_name)}" aria-label="${esc(g.name)}: oxirgi qo'shilganini olib tashlash" ${inCart > 0 ? '' : 'hidden'}>${icon('minus')}</button>
     </div>`;
 }
 
@@ -640,31 +706,7 @@ function openSizePick(g) {
   el.querySelector('[data-done]').addEventListener('click', close);
 }
 
-// Plitka ustidagi «−»: oxirgi qo'shilgan qatordan bittasini kamaytiradi, qolmasa savatchadan chiqaradi
-function removeOne(pid, ids = null) {
-  for (let i = S.cart.length - 1; i >= 0; i -= 1) {
-    const l = S.cart[i];
-    if (ids ? !ids.has(l.pid) : l.pid !== pid) continue;
-    const next = round4(Number(l.qty) - 1);
-    if (next <= 0) S.cart.splice(i, 1);
-    else l.qty = next;
-    save();
-    refreshAll();
-    if (navigator.vibrate) navigator.vibrate(8);
-    return;
-  }
-}
-
 function bindGrid() {
-  document.querySelectorAll('#grid [data-minus]').forEach((b) => b.addEventListener('click', (e) => {
-    e.stopPropagation();
-    removeOne(Number(b.dataset.minus));
-  }));
-  document.querySelectorAll('#grid [data-minus-model]').forEach((b) => b.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const g = C.groups?.get(b.dataset.minusModel);
-    if (g) removeOne(null, new Set(g.items.map((v) => v.id)));
-  }));
   document.querySelectorAll('#grid [data-model]').forEach((b) => b.addEventListener('click', () => {
     const g = C.groups?.get(b.dataset.model);
     if (g) openSizePick(g);
@@ -770,7 +812,10 @@ async function loadProducts(q = '') {
 function drawGrid() {
   const grid = document.getElementById('grid');
   if (!grid) return;
-  const list = C.cat ? products.filter((p) => String(p.category_id) === String(C.cat)) : products;
+  const pickIds = C.cat === '__top' ? C.picks?.top : C.cat === '__recent' ? C.picks?.recent : null;
+  const list = pickIds
+    ? pickIds.map((id) => products.find((p) => p.id === id)).filter(Boolean)
+    : C.cat ? products.filter((p) => String(p.category_id) === String(C.cat)) : products;
   grid.innerHTML = gridHtml(list);
   bindGrid();
 }
@@ -779,9 +824,13 @@ function drawGrid() {
 function drawCats() {
   const box = document.getElementById('pcats');
   if (!box) return;
-  if (!C.cats || !C.cats.length) { box.hidden = true; return; }
+  const picks = [
+    ...(C.picks?.top?.length ? [{ id: '__top', name: "Ko'p sotiladi", ico: 'flame' }] : []),
+    ...(C.picks?.recent?.length ? [{ id: '__recent', name: 'Oxirgi sotilganlar', ico: 'history' }] : []),
+  ];
+  if (!picks.length && !(C.cats && C.cats.length)) { box.hidden = true; return; }
   box.hidden = false;
-  box.innerHTML = [{ id: '', name: 'Hammasi' }, ...C.cats].map((c) => `<button type="button" class="chip ${String(C.cat || '') === String(c.id) ? 'active' : ''}" data-cat="${c.id}">${esc(c.name)}</button>`).join('');
+  box.innerHTML = [{ id: '', name: 'Hammasi' }, ...picks, ...(C.cats || [])].map((c) => `<button type="button" class="chip ${c.ico ? 'chip-pick ' : ''}${String(C.cat || '') === String(c.id) ? 'active' : ''}" data-cat="${c.id}">${c.ico ? icon(c.ico, 'ico-xs') : ''}${esc(c.name)}</button>`).join('');
   box.querySelectorAll('[data-cat]').forEach((b) => b.addEventListener('click', () => {
     C.cat = b.dataset.cat;
     box.querySelectorAll('[data-cat]').forEach((x) => x.classList.toggle('active', x === b));
@@ -965,20 +1014,22 @@ export async function render(root, params, ctx) {
   if (S.owner !== ctx.user.username) S = loadState(ctx.user.username);
   const isDesktop = window.matchMedia('(min-width: 720px)').matches;
   root.innerHTML = `
+    <div class="page-head pos-head">
+      <div><h1>Sotuv</h1>
+        <ol class="pos-steps" id="pos-steps" aria-label="Qanday sotiladi">
+          <li data-st="1"><b>1</b>Tovarni bosing</li>
+          <li data-st="2"><b>2</b>Sonini tekshiring</li>
+          <li data-st="3"><b>3</b>«Sotish»ni bosing</li>
+        </ol></div>
+    </div>
     <div class="pos">
       <div class="pos-main-col">
         <div class="pos-search">
           <div class="input-group">
-            <div class="search-input grow">${icon('search', 'ico-sm')}<input class="input" id="q" type="search" placeholder="Tovar nomi yoki shtrix-kodini yozing" autocomplete="off" aria-label="Tovar qidirish"></div>
-            <button class="btn btn-light" type="button" id="btn-scan" aria-label="Kamera bilan shtrix-kod" style="min-width:56px">${icon('camera')}</button>
-          </div>
-          <div class="input-group pos-bc" style="margin-top:8px">
-            <div class="search-input grow">${icon('scan', 'ico-sm')}<input class="input" id="barcode" type="text" inputmode="numeric" placeholder="Shtrix-kod: skaner bilan o'qiting yoki raqamni yozib Enter" autocomplete="off" aria-label="Shtrix-kod"></div>
-            <button class="btn btn-outline" type="button" id="btn-bc" style="min-width:56px">${icon('scan')}</button>
+            <div class="search-input grow">${icon('search', 'ico-sm')}<input class="input" id="q" type="search" placeholder="Tovar nomi yoki shtrix-kod" autocomplete="off" aria-label="Tovar qidirish" enterkeyhint="search"></div>
+            <button class="btn btn-light" type="button" id="btn-scan" aria-label="Kamera bilan shtrix-kod o'qish" title="Kamera bilan shtrix-kod o'qish" style="min-width:56px">${icon('camera')}</button>
           </div>
           <div class="chips pos-cats" id="pcats" hidden></div>
-          <div class="between pos-meta" style="margin-top:10px"><span class="small muted" id="grid-selected">${S.cart.length} ta tovar savatchada</span>
-            <a class="small" href="#/sales/history">Bugungi savdolar &rsaquo;</a></div>
         </div>
         <div class="product-grid" id="grid"><div class="empty">Yuklanmoqda...</div></div>
       </div>
@@ -1001,6 +1052,19 @@ export async function render(root, params, ctx) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     clearTimeout(timer);
+    const text = q.value.trim();
+    // Skaner raqamni yozib Enter bosadi: shtrix-kod bo'yicha topilsa — darhol savatchaga
+    if (/^\d{6,}$/.test(text)) {
+      try {
+        await addByBarcode(text);
+        q.value = '';
+        C.query = '';
+        await loadProducts('');
+        return;
+      } catch (err) {
+        if (err.status !== 404) { errorToast(err); q.select(); return; }
+      }
+    }
     try {
       C.query = q.value.trim();
       await loadProducts(C.query);
@@ -1014,20 +1078,6 @@ export async function render(root, params, ctx) {
       errorToast(err);
     }
   });
-  const bc = root.querySelector('#barcode');
-  const doBarcode = async () => {
-    const code = bc.value.trim();
-    if (!code) return;
-    try {
-      await addByBarcode(code);
-      bc.value = '';
-    } catch (err) {
-      errorToast(err);
-      bc.select();
-    }
-  };
-  bc.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doBarcode(); } });
-  root.querySelector('#btn-bc').addEventListener('click', doBarcode);
   root.querySelector('#btn-scan').addEventListener('click', openScanner);
   root.querySelector('#cartbar').addEventListener('click', () => {
     const r = openModal({ title: 'Savatcha va to\'lov', body: '<div id="cart-m"></div>', wide: true, onClose: () => { cartModal = null; } });
@@ -1044,6 +1094,7 @@ export async function render(root, params, ctx) {
   if (preQ || addId) history.replaceState(null, '', '#/sales');
   if (preQ) { q.value = preQ; C.query = preQ; }
   await loadProducts(C.query);
+  get('/sales/quick-picks').then((qp) => { C.picks = qp; drawCats(); }).catch(() => {});
   refreshAll();
   if (addId) {
     try {

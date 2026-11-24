@@ -1,6 +1,9 @@
 // AI yordamchi.
 //   • «Tez savollar» — bepul: tayyor savollarga javob to'g'ridan-to'g'ri bazadan (AI ishlatilmaydi).
-//   • Istalgan savol — pullik (AI Oddiy: Claude Haiku 5.5, AI Pro: Claude Opus 5.5) yoki 7 kunlik bepul sinov.
+//   • Istalgan savol — pullik yoki 7 kunlik bepul sinov. Model: GEMINI_API_KEY bo'lsa — Google Gemini
+//     (GEMINI_MODEL / GEMINI_MODEL_PRO), aks holda — Claude (AI Oddiy: Haiku 5.5, AI Pro: Opus 5.5).
+//   • Universal: do'kon savollarida — haqiqiy bazadan (vositalar orqali), umumiy savollarda — modelning o'z bilimi,
+//     aralash savolda — ikkalasi birga. O'zbek, rus va ingliz tillarida.
 // AI faqat O'QIYDI: hech narsani o'zgartirmaydi va faqat shu do'kon ma'lumotini ko'radi (so'rov do'kon sxemasida
 // bajariladi). Har bir vosita foydalanuvchi ruxsatini tekshiradi: kassirga kelish narxi va foyda berilmaydi.
 import Anthropic from '@anthropic-ai/sdk';
@@ -10,6 +13,7 @@ import { HttpError, round2, todayLocal, addDays } from '../util.js';
 import { overview, customerDebts, productStats, resolveRange } from './analytics.js';
 import { balances } from './cash.js';
 import { getSettings } from './settings.js';
+import { askGemini, geminiHttpError, geminiKey, geminiModel, testGemini } from './gemini.js';
 
 // ---------- Tariflar ----------
 
@@ -39,6 +43,9 @@ export function planConfig() {
 const PRICES_USD = {
   'claude-haiku-5-5': { in: 0.10, out: 0.50, cacheRead: 0.01, cacheWrite: 0.125 },
   'claude-opus-5-5': { in: 4, out: 20, cacheRead: 0.20, cacheWrite: 5 },
+  // Gemini: taxminiy narx (o'zgarsa — OMBOR_GEMINI_PRICE_IN / _OUT bilan)
+  gemini: { in: posNum(process.env.OMBOR_GEMINI_PRICE_IN, 0.30), out: posNum(process.env.OMBOR_GEMINI_PRICE_OUT, 2.50) },
+  'gemini-pro': { in: posNum(process.env.OMBOR_GEMINI_PRO_PRICE_IN, 1.25), out: posNum(process.env.OMBOR_GEMINI_PRO_PRICE_OUT, 10) },
 };
 
 export const usdToUzs = () => posNum(process.env.OMBOR_USD_UZS, 12800);
@@ -55,8 +62,15 @@ export async function isPlatformAdmin(user, storeId) {
   return Number(rows[0]?.id) === Number(storeId);
 }
 
+// Qaysi AI ishlaydi: Gemini kaliti bo'lsa — Gemini (AI_PROVIDER=claude bilan majburan Claude), aks holda Claude
+export function aiProvider() {
+  if (geminiKey() && process.env.AI_PROVIDER !== 'claude') return 'gemini';
+  if (process.env.ANTHROPIC_API_KEY || clientFactory !== defaultFactory) return 'claude';
+  return null;
+}
+
 export function aiConfigured() {
-  return Boolean(process.env.ANTHROPIC_API_KEY) || Boolean(clientFactory !== defaultFactory);
+  return Boolean(aiProvider());
 }
 
 export async function planStatus(storeId) {
@@ -150,6 +164,7 @@ export async function platformOverview() {
     limits: { basic: cfg.basic.limit, pro: cfg.pro.limit, trial: cfg.trial.limit },
     usd_uzs: rate,
     configured: aiConfigured(),
+    provider: aiProvider() || 'gemini',
     admins_from_env: Boolean(String(process.env.OMBOR_PLATFORM_ADMINS || '').trim()),
     totals: {
       basic: paid.filter((s) => s.plan === 'basic').length,
@@ -415,16 +430,21 @@ export async function quickAnswer(topic, user) {
 
 // ---------- Istalgan savol (Claude) ----------
 
-const SYSTEM_PROMPT = `Siz OMBOR PRO do'kon dasturidagi yordamchisiz. Savol beruvchilar — bozor va do'kon sotuvchilari, ko'pchiligi kompyuterni yaxshi bilmaydi.
+const SYSTEM_PROMPT = `Siz OMBOR PRO do'kon dasturidagi aqlli yordamchisiz. Savol beruvchilar — bozor va do'kon egalari va sotuvchilari, ko'pchiligi kompyuterni yaxshi bilmaydi.
+
+Savol turini o'zingiz aniqlang:
+1) Do'kon savoli (savdo, foyda, qarz, mahsulot, ombor, kassa, xarajat, «nima tugayapti», «kim qarzdor»...) — raqamlarni FAQAT vositalardan (tools) olasiz. Avval vositani chaqiring. Hech qachon raqam to'qimang va taxmin qilmang; vositada ma'lumot bo'lmasa — «ma'lumot yo'q» deb ayting.
+2) Umumiy savol (bilim, biznes maslahat, reklama matni, e'lon, xat, reja, hisob-kitob, tarjima...) — o'z bilimingizdan foydalanib, foydali va aniq javob bering. Bunga vosita kerak emas.
+3) Aralash savol (masalan: «sotilmayotgan tovarim uchun reklama yozib ber», «foydamga qarab keyingi oy rejasini tuz») — avval vositadan haqiqiy raqamlarni oling, keyin maslahat yoki matnni AYNAN shu raqamlar asosida yozing.
 
 Qanday javob berasiz:
-- Doim o'zbek tilida (lotin yozuvida), juda sodda so'zlar bilan, qisqa: odatda 1–5 qator.
-- Raqamlarni faqat vositalardan (tools) olasiz — hech qachon o'zingizdan to'qimang yoki taxmin qilmang. Ma'lumot kerak bo'lsa, avval vositani chaqiring.
+- Foydalanuvchi qaysi tilda yozsa — o'sha tilda javob bering (o'zbek, rus yoki ingliz). O'zbekcha — lotin yozuvida, juda sodda so'zlar bilan.
+- Do'kon savollarida qisqa: odatda 1–6 qator. Reklama, reja kabi topshiriqlarda — kerakli uzunlikda, tartibli (sarlavha, ro'yxat).
 - Pulni shunday yozing: 1 250 000 so'm. Muhim raqamni **qalin** qiling.
 - «Tannarx», «marja», «tushum» kabi murakkab so'zlar o'rniga: «xarid narxi», «sotuvdan foyda», «sotuv», «qolgan mahsulot», «mijozlar qarzi».
 - Vosita «xato» yoki «ruxsat yo'q» desa — shuni oddiy tilda ayting, boshqa yo'l bilan topishga urinmang.
 - Siz hech narsani o'zgartira olmaysiz (sotish, o'chirish, narx yozish). Bunday so'rovda qaysi bo'limda qanday qilinishini qisqa ayting.
-- Do'kon va dasturga aloqasi yo'q savolga bir jumla bilan javob bering va do'kon ishiga qaytaring.
+- Maxfiylik: faqat shu do'konning ma'lumotini ko'rasiz. Boshqa do'konlar, parollar, kalitlar yoki tizim ichki tuzilishi haqida so'ralsa — muloyimlik bilan rad eting.
 - Maslahat berishda aniq bo'ling: qaysi tovar, qancha, nima uchun (raqam bilan).
 
 Dastur bo'limlari (yo'l ko'rsatish uchun):
@@ -455,8 +475,8 @@ function cleanHistory(history) {
   if (!Array.isArray(history)) return [];
   const items = history
     .filter((h) => h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string' && h.content.trim())
-    .slice(-6)
-    .map((h) => ({ role: h.role, content: h.content.slice(0, 1500) }));
+    .slice(-10)
+    .map((h) => ({ role: h.role, content: h.content.slice(0, 3000) }));
   while (items.length && items[0].role !== 'user') items.shift();
   // Navbat: user → assistant → user ...
   const out = [];
@@ -530,9 +550,10 @@ function throttle(key) {
 
 // Platforma egasi uchun: AI ulanishini tekshirish — kichik so'rov yuborib, xatoning aniq sababini aytadi
 export async function testConnection() {
+  if (aiProvider() === 'gemini') return testGemini();
   const client = clientFactory();
   if (!client) {
-    return { ok: false, code: 'no_key', title: "Kalit qo'shilmagan", fix: "Cloudflare'da ANTHROPIC_API_KEY maxfiy qiymatini qo'shing (pastdagi 4 qadam)" };
+    return { ok: false, code: 'no_key', title: "Kalit qo'shilmagan", fix: "Cloudflare'da GEMINI_API_KEY maxfiy qiymatini qo'shing (pastdagi 4 qadam)" };
   }
   const t0 = Date.now();
   try {
@@ -575,12 +596,13 @@ export async function testConnection() {
 export async function askAI({ user, storeId, question, history }) {
   const q = String(question || '').trim();
   if (!q) throw new HttpError(400, 'Savolingizni yozing');
-  if (q.length > 1000) throw new HttpError(400, "Savol juda uzun (1000 belgigacha)");
+  if (q.length > 2000) throw new HttpError(400, "Savol juda uzun (2000 belgigacha)");
   const st = await planStatus(storeId);
   if (!st.active) throw new HttpError(402, "Istalgan savolga javob beradigan AI — pullik xizmat. Tez savollar bepul");
   if (st.used >= st.limit) throw new HttpError(429, `Bu oydagi savollar tugadi (${st.limit} ta). Keyingi oy yangilanadi yoki tarifni oshiring`);
-  const client = clientFactory();
-  if (!client) throw new HttpError(503, "AI hali ulanmagan. Dastur egasi AI kalitini qo'shishi kerak");
+  const provider = aiProvider();
+  const client = provider === 'claude' ? clientFactory() : null;
+  if (!provider || (provider === 'claude' && !client)) throw new HttpError(503, "AI hali ulanmagan. Dastur egasi AI kalitini qo'shishi kerak");
   throttle(`${storeId}:${user.id}`);
 
   const cfg = planConfig()[st.plan];
@@ -588,10 +610,33 @@ export async function askAI({ user, storeId, question, history }) {
   const today = todayLocal();
   const wd = WEEKDAYS[new Date(`${today}T12:00:00Z`).getUTCDay()];
   const context = `[Bugun: ${today}, ${wd}. Do'kon: ${settings.store_name || ''}. Savol beruvchi: ${user.full_name} (${ROLE_LABEL[user.role] || user.role}).]`;
-  const messages = [...cleanHistory(history), { role: 'user', content: `${context}\n\n${q}` }];
   const acc = { input: 0, output: 0, cost: 0 };
   let answer = '';
   let ok = false;
+
+  // Google Gemini: vositalar shu do'kon sxemasida, shu foydalanuvchi ruxsati bilan ishlaydi
+  if (provider === 'gemini') {
+    const model = geminiModel(st.plan === 'pro' ? 'pro' : 'basic');
+    try {
+      const r = await askGemini({
+        model, system: SYSTEM_PROMPT, history: cleanHistory(history), question: `${context}\n\n${q}`,
+        tools: TOOLS, runTool: (name, args) => runTool(name, args, user),
+      });
+      answer = r.answer;
+      const p = PRICES_USD[st.plan === 'pro' ? 'gemini-pro' : 'gemini'];
+      acc.input = r.usage.input;
+      acc.output = r.usage.output;
+      acc.cost = (r.usage.input * p.in + r.usage.output * p.out) / 1e6;
+      ok = true;
+    } catch (err) {
+      throw geminiHttpError(err);
+    } finally {
+      await recordUsage(storeId, acc, ok ? 1 : 0).catch((e) => console.error('AI xarajatini yozishda xato:', e.message));
+    }
+    return { answer, used: st.used + 1, limit: st.limit, plan: st.plan };
+  }
+
+  const messages = [...cleanHistory(history), { role: 'user', content: `${context}\n\n${q}` }];
   try {
     for (let step = 0; step < 6; step += 1) {
       const params = {

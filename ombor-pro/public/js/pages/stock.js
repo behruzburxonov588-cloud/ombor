@@ -6,27 +6,19 @@ import {
 import { openBarcodeScanner, cameraScanSupported } from '../scanner.js';
 
 const MOVEMENT_LABELS = {
-  opening: "Boshlang'ich qoldiq", purchase: 'Kirim', sale: 'Sotuv', return: 'Qaytarish',
+  opening: "Boshlang'ich qoldiq", purchase: 'Kiritildi', sale: 'Sotildi', return: 'Qaytarildi',
   damage: 'Zarar', correction: 'Tuzatish',
 };
 const MOVEMENT_TYPES = ['', 'purchase', 'sale', 'return', 'damage', 'correction', 'opening'];
 
 const TABS = [
-  { key: 'overview', label: 'Qoldiq', perms: ['stock.view'] },
-  { key: 'movements', label: 'Kirdi-chiqdi tarixi', perms: ['stock.view', 'history.view'] },
-  { key: 'adjust', label: 'Buzilgan / tuzatish', perms: ['stock.adjust'] },
+  { key: 'overview', label: 'Hozir qancha bor', perms: ['stock.view'] },
+  { key: 'movements', label: 'Nima keldi, nima ketdi', perms: ['stock.view', 'history.view'] },
+  { key: 'adjust', label: "Buzildi yoki yo'qoldi", perms: ['stock.adjust'] },
   { key: 'counts', label: 'Sanash', perms: ['stock.count', 'stock.approve'] },
   { key: 'discrepancies', label: 'Sanashdagi farqlar', perms: ['stock.view'] },
 ];
 
-
-function periodCard(range, note = '') {
-  return `
-    <div class="toolbar-row">
-      ${periodPicker(range)}
-      ${note ? `<div class="small muted" style="max-width:520px">${esc(note)}</div>` : ''}
-    </div>`;
-}
 
 function diffHtml(value) {
   if (value === null || value === undefined || value === '') return '—';
@@ -50,8 +42,7 @@ export async function render(root, params, ctx) {
   const inner = allowed.filter((t) => COUNT_TABS.includes(t.key) === counting);
 
   root.innerHTML = `
-    <div class="page-head"><div><h1>${counting ? 'Sanash' : 'Qoldiq va tarix'}</h1><p class="muted">${counting ? "Tovarni qo'lda sanab, dasturdagi qoldiq bilan solishtiring" : "Har bir tovardan qancha qolgani va nima kirib-chiqqani"}</p></div>
-      ${!counting && ctx.can('purchases.create') ? `<a class="btn" href="#/stockin">${icon('truck', 'ico-sm')} Tovar kiritish</a>` : ''}</div>
+    <div class="page-head"><div><h1>${counting ? 'Mahsulotlarni sanash' : 'Qolgan mahsulot'}</h1><p class="muted">${counting ? "Javondagini qo'lda sanab, ilovadagi son bilan solishtiring" : "Omborda nima qancha qolgani va nima kirib-chiqqani"}</p></div></div>
     ${inner.length > 1 ? `<div class="seg" role="tablist" style="margin-bottom:14px;flex-wrap:wrap">
       ${inner.map((t) => `<button type="button" role="tab" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}" aria-selected="${t.key === tab.key}">${t.label}</button>`).join('')}
     </div>` : ''}
@@ -70,42 +61,29 @@ export async function render(root, params, ctx) {
 
 async function tabOverview(body, q, ctx) {
   const range = resolvePeriod(q, 'month');
-  const { from, to } = range;
-  const r = await get(`/stock/overview?from=${from}&to=${to}`);
+  const r = await get(`/stock/overview?from=${range.from}&to=${range.to}`);
   const t = r.totals;
   const items = r.items.filter((i) => !i.archived || i.current > 0);
+  const chip = (f, label, n, cls = '') => `<button type="button" class="chip ${cls} ${f === '' ? 'active' : ''}" data-f="${f}">${label}${n !== null ? ` <b>${n}</b>` : ''}</button>`;
 
   body.innerHTML = `
-    ${periodCard(range, "«Keldi» va «Sotildi» ustunlari tanlangan davr uchun. «Hozir bor» — bugungi qoldiq.")}
-    <div class="kpis">
-      <div class="kpi neutral"><div class="label">Ombordagi tovar qiymati</div><div class="value">${money(t.inventory_value)}</div>
-        <div class="hint">xarid narxida hisoblangan</div></div>
-      <div class="kpi neutral"><div class="label">Tovar turlari</div><div class="value">${t.products}</div><div class="hint">sotuvdagi tovarlar</div></div>
-      <div class="kpi ${t.low ? 'warn' : 'good'}"><div class="label">Kam qolgan</div><div class="value">${t.low}</div><div class="hint">tez orada olib kelish kerak</div></div>
-      <div class="kpi ${t.out ? 'bad' : 'good'}"><div class="label">Tugagan</div><div class="value">${t.out}</div><div class="hint">omborda umuman yo'q</div></div>
-    </div>
-    <div class="chips" style="margin-top:14px">
-      <button type="button" class="chip active" data-f="">Hammasi</button>
-      <button type="button" class="chip" data-f="low">Kam qolgan</button>
-      <button type="button" class="chip" data-f="out">Tugagan</button>
+    <p class="stock-sum">${t.products} xil mahsulot. Hammasi xarid narxida <b>${money(t.inventory_value)}</b> turadi</p>
+    <div class="chips">
+      ${chip('', 'Hammasi', items.length)}
+      ${chip('low', 'Kam qolgan', t.low, t.low ? 'chip-warn' : '')}
+      ${chip('out', 'Tugagan', t.out, t.out ? 'chip-bad' : '')}
     </div>
     <div class="card" style="margin-top:12px">
       ${items.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Tovar</th><th class="right">Keldi</th><th class="right">Sotildi</th><th class="right" title="Buzilgan, yo'qolgan">Buzildi</th><th class="right" title="Qo'lda to'g'rilangan">Tuzatildi</th><th class="right">Hozir bor</th><th class="right">Qiymati</th><th>Holat</th></tr></thead>
+        <thead><tr><th>Mahsulot</th><th class="right">Hozir bor</th><th class="right">Qiymati</th><th>Holati</th></tr></thead>
         <tbody>${items.map((i) => `<tr data-st="${i.status}">
-          <td data-label="Tovar"><b>${esc(i.name)}</b>${i.archived ? ' <span class="badge badge-muted">arxiv</span>' : ''}</td>
-          <td data-label="Keldi" class="right num">${qty(i.incoming)} ${esc(i.unit)}</td>
-          <td data-label="Sotildi" class="right num">${qty(i.sold)} ${esc(i.unit)}</td>
-          <td data-label="Buzildi" class="right num ${i.damaged ? 'red' : ''}">${qty(i.damaged)}</td>
-          <td data-label="Tuzatildi" class="right num">${diffHtml(i.corrected)}</td>
+          <td data-label="Mahsulot"><b>${esc(i.name)}</b>${i.archived ? ' <span class="badge badge-muted">arxiv</span>' : ''}</td>
           <td data-label="Hozir bor" class="right num"><b>${qty(i.current)}</b> ${esc(i.unit)}</td>
           <td data-label="Qiymati" class="right num">${money(i.stock_value)}</td>
-          <td data-label="Holat">${statusBadge(i.status)}</td>
+          <td data-label="Holati">${statusBadge(i.status)}</td>
         </tr>`).join('')}</tbody></table></div>`
-        : emptyState("Tovar yo'q", 'layers')}
+        : emptyState("Hali mahsulot yo'q", 'layers')}
     </div>`;
-
-  bindPeriod(body, (next) => ctx.go(`#/stock?tab=overview&${periodQuery(next)}`));
 
   body.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', () => {
     body.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('active', x === b));

@@ -118,6 +118,19 @@ export function logoSvg(cls = 'logo-svg') {
   </svg>`;
 }
 
+// «Yuklab olish» menyusi: kam ishlatiladigan Excel/PDF tugmalari bitta tugma ichida (sahifada joy egallamaydi).
+// inner — ichidagi tugmalar (data-export va h.k. — sahifa ularga o'z hodisalarini ulaydi)
+export function downloadMenu(inner, label = 'Yuklab olish') {
+  return `<details class="dl-menu"><summary class="btn btn-light btn-sm">${icon('download', 'ico-sm')}<span>${esc(label)}</span></summary><div class="dl-pop" role="menu">${inner}</div></details>`;
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('details.dl-menu[open]').forEach((d) => {
+      if (!d.contains(e.target) || e.target.closest('.dl-pop button, .dl-pop a')) d.open = false;
+    });
+  });
+}
+
 export function icon(name, cls = 'ico') {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 }
@@ -615,7 +628,7 @@ export function deltaAmount(cur, prev, { goodWhenUp = true, unit = 'money', titl
 
 export function deltaPill(change, { goodWhenUp = true, title = '' } = {}) {
   if (change === null || change === undefined) {
-    return `<span class="delta flat" title="${esc(title || "Oldingi davrda ma'lumot yo'q")}">yangi</span>`;
+    return ''; // oldingi davrda ma'lumot yo'q — taqqoslash belgisi ko'rsatilmaydi
   }
   const n = Number(change);
   if (Math.abs(n) < 0.05) return `<span class="delta flat" title="${esc(title)}">${icon('flat', 'ico-xs')}0%</span>`;

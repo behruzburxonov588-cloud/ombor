@@ -5,7 +5,7 @@ import { currentSchema } from '../db.js';
 import { storeIdForSchema } from '../tenants.js';
 import { HttpError } from '../util.js';
 import {
-  planConfig, planStatus, startTrial, quickAnswer, askAI, QUICK, isPlatformAdmin, aiConfigured,
+  planConfig, planStatus, startTrial, quickAnswer, askAI, QUICK, isPlatformAdmin, aiConfigured, aiProvider,
   platformOverview, setStorePlan, testConnection,
 } from '../services/ai.js';
 
@@ -36,6 +36,7 @@ router.get('/ai/status', async (req, res) => {
     ...st,
     quick: QUICK,
     configured: aiConfigured(),
+    provider: aiProvider(),
     can_start_trial: !st.trial_used && !st.active && can(req.user, 'settings.manage'),
     plans: {
       basic: { label: cfg.basic.label, price: cfg.basic.price, limit: cfg.basic.limit },

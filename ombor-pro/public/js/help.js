@@ -4,11 +4,11 @@ import { openModal, esc, icon } from './ui.js';
 
 // Atamalar lug'ati: sahifalarda ishlatiladigan so'zlarning oddiy ma'nosi
 export const TERMS = {
-  tushum: ['Tushum', "Sotuvdan kelgan pul. Chegirma va qaytarilgan tovar ayirib tashlangan. Qarz to'lovlari bunga kirmaydi."],
+  tushum: ['Sotuv', "Sotuvdan kelgan pul. Chegirma va qaytarilgan tovar ayirib tashlangan. Qarz to'lovlari bunga kirmaydi."],
   tannarx: ['Xarid narxi', "Tovarni o'zingiz necha so'mga olgansiz. Masalan: atlasning metrini 10 000 dan oldingiz. Foyda shu narxdan hisoblanadi."],
   savdo_foyda: ['Sotuvdan foyda', "Sotgan pulingizdan tovarning xarid narxi ayrilgani. 15 000 ga sotdingiz, 10 000 ga olgansiz — 5 000 foyda. Xarajatlar hali ayrilmagan."],
   sof_foyda: ['Sof foyda', "Cho'ntakda qoladigan pul: sotuvdan foyda minus xarajatlar (ijara, obed, yo'l...) va buzilgan yoki yo'qolgan tovar."],
-  marja: ['Foyda ulushi (marja)', "Har 100 so'm tushumdan necha so'm sof foyda qolishi. Masalan, 20% — har 100 so'mdan 20 so'm foyda."],
+  marja: ['Foyda foizi (marja)', "Har 100 so'm sotuvdan necha so'm sof foyda qolishi. Masalan, 20% — har 100 so'mdan 20 so'm foyda."],
   foiz: ['Yashil va qizil foizlar', "Oldingi davr bilan solishtirish. ↑ — ko'paygan, ↓ — kamaygan. Yashil — yaxshi, qizil — e'tibor bering."],
   nasiya: ['Mijozlar qarzi (nasiya)', "Tovarni qarzga berish. Mijoz keyin to'laydi; kim qancha qarzligi «Mijozlar va qarzlar» bo'limida ko'rinadi."],
   kassa_puli: ['Kassadagi pul', "Hozir qo'lingizda qancha pul borligi: naqd, karta va o'tkazma. Barcha savdo, to'lov va xarajatlardan keyingi qoldiq."],

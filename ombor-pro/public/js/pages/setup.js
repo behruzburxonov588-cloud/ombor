@@ -3,7 +3,7 @@
 //       1) Do'kon turi  2) Xodimlar soni  3) Manzil  4) Do'kon ma'lumotlari va logotip  5) Login va parol → do'kon ochiladi
 //   • Keyin ilova ichida «Sozlamalar»dan o'zgartirish: 1–4 bir xil, 5) Asosiy sozlamalar
 // Tanlangan turga mos turkumlar va o'lchov birliklari avtomatik qo'shiladi, tovar formasi shu turga moslashadi.
-import { get, post, put, esc, icon, toast, errorToast, withBusy, uploadLogo, storeTypes } from '../ui.js';
+import { get, post, put, esc, icon, toast, errorToast, withBusy, uploadLogo, storeTypes, logoSvg } from '../ui.js';
 import { REGIONS, REGION_NAMES } from '../regions.js';
 
 const EMPLOYEES = [
@@ -84,7 +84,7 @@ function wizard(root, { mode, types, fields, cur, ctx = null, onLogin = null, on
       <h2 class="su-q">Do'koningiz qayerda joylashgan?</h2>
       <p class="su-sub">Chekda va hisobotlarda manzil ko'rinadi.</p>
       <div class="form-grid two">
-        <label class="field"><span>Viloyat <span class="req">*</span></span>
+        <label class="field"><span>Viloyat</span>
           <select class="input input-lg" id="su-region"><option value="">— tanlang —</option>${REGION_NAMES.map((r) => `<option ${r === st.region ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label>
         <label class="field"><span>Tuman yoki shahar</span>
           <input class="input input-lg" id="su-district" list="su-districts" value="${esc(st.district)}" placeholder="${list.length ? 'Tanlang yoki yozing' : 'Avval viloyatni tanlang'}" autocomplete="off">
@@ -260,7 +260,6 @@ function wizard(root, { mode, types, fields, cur, ctx = null, onLogin = null, on
   function validate() {
     if (st.step === 0 && !st.types.length) return "Kamida bitta do'kon turini tanlang";
     if (st.step === 1 && !st.employees) return 'Nechta kishi ishlashini tanlang';
-    if (st.step === 2 && !st.region) return 'Viloyatni tanlang';
     if (st.step === 3 && !st.name) return "Do'kon nomini yozing";
     if (st.step === 4 && signup) {
       if (!st.owner) return 'Ismingizni yozing';
@@ -375,10 +374,158 @@ export async function render(root, params, ctx) {
   wizard(root, { mode: 'edit', types, fields, cur, ctx });
 }
 
-// Ro'yxatdan o'tish: do'kon turi, xodimlar, manzil, do'kon ma'lumotlari va login-parol — bitta oqimda
+// Ro'yxatdan o'tish — faqat 2 qadam: 1) hisob (do'kon nomi, ism, login, parol)  2) nima sotasiz (do'kon turi).
+// Viloyat, telefon, logotip, xodimlar soni so'ralmaydi — keyin «Sozlamalar»da yoziladi.
 export async function renderSignup(root, { first = false, onLogin, onLoginPage } = {}) {
-  const { types, fields } = await storeTypes();
-  wizard(root, {
-    mode: first ? 'first' : 'register', types, fields, cur: { receipt_footer: 'Xaridingiz uchun rahmat!' }, onLogin, onLoginPage,
-  });
+  const { types } = await storeTypes();
+  const st = { step: 0, name: '', owner: '', username: '', userTouched: false, password: '', show: false, types: [], done: false };
+
+  const top = () => `
+    <div class="su-top">
+      <div class="su-brand"><span class="mark">${logoSvg()}</span><b>OMBOR PRO</b></div>
+      ${onLoginPage && !st.done ? `<div class="su-have"><span>Hisobingiz bormi?</span> <button type="button" class="link-btn" id="su-login">Kirish</button></div>` : ''}
+    </div>`;
+  const steps = () => `<ol class="su2-steps" aria-label="Bosqichlar">
+      <li class="${st.step === 0 ? 'cur' : 'done'}"><span>${st.step > 0 ? icon('check', 'ico-xs') : 1}</span>Hisob</li>
+      <li class="${st.step === 1 ? 'cur' : ''}"><span>2</span>Nima sotasiz?</li>
+    </ol>`;
+
+  function stepAccount() {
+    return `
+      <h1 class="su2-h">Yangi do'kon ochish</h1>
+      <p class="su2-sub">To'rtta maydon — va do'koningiz tayyor. Bepul.</p>
+      <form id="su2" class="form-grid" novalidate autocomplete="on">
+        <label class="field"><span>Do'kon nomi</span>
+          <input class="input input-lg" id="su-name" maxlength="100" placeholder="Masalan: Baraka savdo" autocomplete="organization"></label>
+        <label class="field"><span>Ismingiz</span>
+          <input class="input input-lg" id="su-owner" maxlength="100" placeholder="Masalan: Alisher" autocomplete="name"></label>
+        <label class="field"><span>Login <small>— kirishda yozasiz</small></span>
+          <input class="input input-lg" id="su-user" maxlength="50" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="masalan: baraka">
+          <small class="muted">Lotin harflari va raqamlar, kamida 3 ta</small></label>
+        <label class="field"><span>Parol <small>— kamida 6 ta belgi</small></span>
+          <span class="pw-wrap"><input class="input input-lg" id="su-pass" type="password" autocomplete="new-password" placeholder="Parol o'ylab toping"><button type="button" class="pw-eye" id="su-eye">Ko'rsatish</button></span></label>
+        <div id="su-err"></div>
+        <button class="btn btn-lg btn-block" type="submit">Davom etish ${icon('right', 'ico-sm')}</button>
+      </form>`;
+  }
+
+  function stepTypes() {
+    return `
+      <h1 class="su2-h">Do'koningizda nima sotiladi?</h1>
+      <p class="su2-sub">Bosing. Mahsulot qo'shish shunga moslashadi: kiyimda o'lcham, matoda metr va rulon, oziq-ovqatda kilogramm</p>
+      <div class="su2-types" role="group" aria-label="Do'kon turi">${types.map((t) => `
+        <button type="button" class="su2-type${st.types.includes(t.key) ? ' on' : ''}" data-type="${t.key}" aria-pressed="${st.types.includes(t.key)}">
+          <span class="su2-ti">${icon(t.icon)}</span><b>${esc(t.label)}</b>
+          <span class="su2-check" aria-hidden="true">${icon('check', 'ico-xs')}</span>
+        </button>`).join('')}</div>
+      <p class="small muted su2-note">Bir nechta narsa sotsangiz — hammasini belgilang. Keyin «Sozlamalar»da o'zgartirsa bo'ladi</p>
+      <div id="su-err"></div>
+      <div class="su2-nav">
+        <button class="btn btn-lg btn-light" type="button" id="su-back">${icon('back', 'ico-sm')} Orqaga</button>
+        <button class="btn btn-lg btn-success" type="button" id="su-finish">${icon('check', 'ico-sm')} Do'konni ochish</button>
+      </div>`;
+  }
+
+  function stepDone() {
+    return `
+      <div class="su2-done">
+        <span class="su-done-ico">${icon('check')}</span>
+        <h1 class="su2-h">Do'koningiz tayyor!</h1>
+        <p class="su2-sub">«${esc(st.name)}» ochildi. Endi mahsulotlaringizni kiriting — keyin sotasiz.</p>
+        <div class="su-login-card">${icon('user', 'ico-sm')}<div><span>Kirish uchun loginingiz</span><b>${esc(st.username)}</b></div></div>
+        <a class="btn btn-lg btn-block" href="#/dashboard" data-go>Boshlash ${icon('right', 'ico-sm')}</a>
+      </div>`;
+  }
+
+  const err = (msg) => {
+    const el = root.querySelector('#su-err');
+    if (!el) return;
+    el.innerHTML = msg ? `<div class="alert alert-bad">${icon('alert', 'ico-sm')}<div>${esc(msg)}</div></div>` : '';
+  };
+
+  function draw() {
+    root.innerHTML = `<div class="su2">${top()}<section class="su2-card">${st.done ? stepDone() : `${steps()}${st.step === 0 ? stepAccount() : stepTypes()}`}</section></div>`;
+    root.querySelector('#su-login')?.addEventListener('click', () => onLoginPage());
+    if (st.done) {
+      root.querySelector('[data-go]').addEventListener('click', (e) => { e.preventDefault(); location.hash = '#/dashboard'; location.reload(); });
+      return;
+    }
+    if (st.step === 0) bindAccount();
+    else bindTypes();
+  }
+
+  function bindAccount() {
+    const $ = (id) => root.querySelector(id);
+    // Parol HTML ichiga yozilmaydi — faqat maydonga qo'yiladi
+    $('#su-name').value = st.name;
+    $('#su-owner').value = st.owner;
+    $('#su-user').value = st.username;
+    $('#su-pass').value = st.password;
+    $('#su-pass').type = st.show ? 'text' : 'password';
+    $('#su-eye').textContent = st.show ? 'Yashirish' : "Ko'rsatish";
+    $('#su-name').addEventListener('input', (e) => {
+      st.name = e.target.value;
+      // Login do'kon nomidan o'zi taklif qilinadi (o'zgartirilmagan bo'lsa)
+      if (!st.userTouched) { st.username = slug(st.name); $('#su-user').value = st.username; }
+    });
+    $('#su-owner').addEventListener('input', (e) => { st.owner = e.target.value; });
+    $('#su-user').addEventListener('input', (e) => { st.username = e.target.value.trim().toLowerCase(); st.userTouched = true; });
+    $('#su-pass').addEventListener('input', (e) => { st.password = e.target.value; });
+    $('#su-eye').addEventListener('click', () => {
+      st.show = !st.show;
+      $('#su-pass').type = st.show ? 'text' : 'password';
+      $('#su-eye').textContent = st.show ? 'Yashirish' : "Ko'rsatish";
+    });
+    $('#su2').addEventListener('submit', (e) => {
+      e.preventDefault();
+      st.name = st.name.trim();
+      st.owner = st.owner.trim();
+      const fail = (m, id) => { err(m); $(id)?.focus(); };
+      if (!st.name) return fail("Do'kon nomini yozing", '#su-name');
+      if (!st.owner) return fail('Ismingizni yozing', '#su-owner');
+      if (!/^[a-z0-9_.-]{3,50}$/.test(st.username)) return fail("Login faqat lotin harflari va raqamlardan bo'lsin, kamida 3 ta (masalan: baraka)", '#su-user');
+      if (st.password.length < 6) return fail("Parol kamida 6 ta belgidan iborat bo'lsin", '#su-pass');
+      st.step = 1;
+      draw();
+      window.scrollTo({ top: 0 });
+      return undefined;
+    });
+    if (window.matchMedia('(min-width: 720px)').matches) $('#su-name').focus();
+  }
+
+  function bindTypes() {
+    root.querySelectorAll('[data-type]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.type;
+      st.types = st.types.includes(k) ? st.types.filter((x) => x !== k) : [...st.types, k];
+      b.classList.toggle('on', st.types.includes(k));
+      b.setAttribute('aria-pressed', String(st.types.includes(k)));
+      err('');
+    }));
+    root.querySelector('#su-back').addEventListener('click', () => { st.step = 0; draw(); });
+    root.querySelector('#su-finish').addEventListener('click', (e) => withBusy(e.currentTarget, async () => {
+      if (!st.types.length) return err("Kamida bittasini bosing — masalan, «Oziq-ovqat do'koni»");
+      try {
+        await post(first ? '/setup' : '/auth/register', {
+          store_types: st.types, store_name: st.name, full_name: st.owner, username: st.username, password: st.password,
+          receipt_footer: 'Xaridingiz uchun rahmat!',
+        });
+        st.password = '';
+        onLogin?.(st.username);
+        st.done = true;
+        draw();
+        window.scrollTo({ top: 0 });
+      } catch (e2) {
+        // Login band bo'lsa — birinchi qadamga qaytib, loginni o'zgartirish so'raladi
+        if (e2.status === 409 && /login/i.test(e2.message)) {
+          st.step = 0;
+          draw();
+          err(e2.message);
+          root.querySelector('#su-user')?.focus();
+        } else err(e2.message);
+      }
+      return undefined;
+    }).catch(errorToast));
+  }
+
+  draw();
 }

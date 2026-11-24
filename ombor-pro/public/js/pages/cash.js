@@ -2,7 +2,7 @@
 import {
   get, post, icon, esc, num, money, dateTime, dateOnly, toast, errorToast, openModal, withBusy,
   emptyState, todayStr, newKey, takeNewFlag, monthName, download,
-  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, parseMoney, EXPENSE_LABEL, PAY_METHOD } from '../ui.js';
+  resolvePeriod, periodPicker, bindPeriod, periodWord, periodQuery, parseMoney, EXPENSE_LABEL, PAY_METHOD, downloadMenu } from '../ui.js';
 
 const CATEGORY_LABELS = {
   sale: 'Savdo', refund: 'Qaytarish', customer_payment: "Qarz to'lovi",
@@ -79,7 +79,7 @@ async function tabCash(body, q, ctx, refresh) {
       lekin dasturda shu hisobdan deb yozilgan. To'g'rilash uchun shu summani «Kassaga pul qo'yish» orqali kiriting.</span></div>` : ''}
     <div class="section-title"><h2>Bugun</h2></div>
     <div class="sum-row three">
-      <div class="sum-cell good"><span>Kirdi</span><b>+${money(todayIn)}</b><small>savdo, qarz to'lovlari va boshqa tushumlar</small></div>
+      <div class="sum-cell good"><span>Kirdi</span><b>+${money(todayIn)}</b><small>savdo, qarz to'lovlari va boshqa kelgan pullar</small></div>
       <div class="sum-cell bad"><span>Chiqdi</span><b>−${money(todayOut)}</b><small>xarajatlar, yetkazib beruvchiga to'lov, qaytarishlar</small></div>
       <div class="sum-cell ${todayIn - todayOut < 0 ? 'bad' : ''}"><span>Farq</span><b>${money(todayIn - todayOut, { sign: true })}</b><small>bugun pul shuncha ${todayIn - todayOut < 0 ? 'kamaydi' : "ko'paydi"}</small></div>
     </div>
@@ -265,9 +265,7 @@ async function tabExpenses(body, q, ctx, refresh) {
   const word = periodWord(range);
   const { expenses, by_category, total, categories } = await get(`/expenses?from=${range.from}&to=${range.to}`);
   const canManage = ctx.can('expenses.manage');
-  const days = Math.round((Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / 86400000) + 1;
   const cats = [...by_category].sort((x, y) => Number(y.total) - Number(x.total));
-  const top = cats[0];
   let cat = '';
   let text = '';
 
@@ -275,16 +273,14 @@ async function tabExpenses(body, q, ctx, refresh) {
     <div class="toolbar-row">
       ${periodPicker(range)}
       <div class="row">
-        ${ctx.can('reports.export') ? `<button class="btn btn-light btn-sm" type="button" data-export="xlsx">${icon('xlsx', 'ico-sm')} Excel</button>
-        <button class="btn btn-light btn-sm" type="button" data-export="pdf">${icon('pdf', 'ico-sm')} PDF</button>` : ''}
-        ${canManage ? `<button class="btn" type="button" id="exp-new">${icon('plus', 'ico-sm')} Xarajat qo'shish</button>` : ''}
+        ${ctx.can('reports.export') && expenses.length ? downloadMenu(`<button type="button" class="dl-item" data-export="xlsx">${icon('xlsx', 'ico-sm')} Excel</button>
+        <button type="button" class="dl-item" data-export="pdf">${icon('pdf', 'ico-sm')} PDF</button>`) : ''}
+        ${canManage ? `<button class="btn" type="button" id="exp-new">${icon('plus', 'ico-sm')} Xarajat yozish</button>` : ''}
       </div>
     </div>
     <div class="sum-row">
       <div class="sum-cell bad"><span>Jami xarajat</span><b>${money(total)}</b><small>${esc(word)}</small></div>
       <div class="sum-cell"><span>Yozuvlar</span><b>${expenses.length} ta</b></div>
-      <div class="sum-cell"><span>Kuniga o'rtacha</span><b>${money(days > 0 ? total / days : 0)}</b><small>${days} kun</small></div>
-      <div class="sum-cell"><span>Eng katta turkum</span><b>${top ? esc(EXPENSE_LABEL[top.category] || top.category) : '—'}</b>${top ? `<small>${money(top.total)}</small>` : ''}</div>
     </div>
 
     <div class="home-row halves" style="margin-top:14px">
