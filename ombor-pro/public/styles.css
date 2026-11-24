@@ -2915,3 +2915,4 @@ h1 { font-family: var(--font-display); font-size: 28px; font-weight: 800; letter
   .si-prod { align-items: flex-start; }
   .si-prod-text > b { font-size: 17px; }
 }
+.ah-tape .between span { white-space: nowrap; }
