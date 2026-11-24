@@ -109,6 +109,15 @@ export const ICONS = {
   image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
 };
 
+// OMBOR PRO belgisi: uchta quti ustma-ust (ombor). anim — kirish ekranida qutilar birin-ketin tushadi
+export function logoSvg(cls = 'logo-svg') {
+  return `<svg class="${cls}" viewBox="0 0 112 112" aria-hidden="true" focusable="false">
+    <g class="lb lb1"><rect x="16" y="58" width="38" height="36" rx="6" fill="currentColor"/><path d="M16 71h38M31 58v13M39 58v13" stroke="var(--logo-line, #2563eb)" stroke-width="3.2"/></g>
+    <g class="lb lb2"><rect x="58" y="58" width="38" height="36" rx="6" fill="currentColor"/><path d="M58 71h38M73 58v13M81 58v13" stroke="var(--logo-line, #2563eb)" stroke-width="3.2"/></g>
+    <g class="lb lb3"><rect x="37" y="18" width="38" height="36" rx="6" fill="currentColor" fill-opacity=".72"/><path d="M37 31h38M52 18v13M60 18v13" stroke="var(--logo-line, #2563eb)" stroke-width="3.2"/></g>
+  </svg>`;
+}
+
 export function icon(name, cls = 'ico') {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 }

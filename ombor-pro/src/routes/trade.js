@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { pool, withTransaction } from '../db.js';
 import { requirePerm } from '../auth.js';
 import { HttpError, num, periodBounds, paging, round2 } from '../util.js';
-import { createPurchase, loadPurchase } from '../services/purchases.js';
+import { createPurchase, loadPurchase, undoPurchase } from '../services/purchases.js';
 import { createSale, returnSale, loadSale } from '../services/sales.js';
 import { customerDebt } from '../services/ledger.js';
 import { seesCost } from './catalog.js';
@@ -96,6 +96,12 @@ router.get('/purchases/:id', requirePerm('purchases.view'), async (req, res) => 
 router.post('/purchases', requirePerm('purchases.create'), async (req, res) => {
   const result = await withTransaction((client) => createPurchase(client, req.user, req.body || {}));
   res.status(result.duplicate ? 200 : 201).json(result);
+});
+
+// Xato kiritilgan yukni bekor qilish (faqat undan keyin hech narsa o'zgarmagan bo'lsa)
+router.post('/purchases/:id/undo', requirePerm('purchases.create'), async (req, res) => {
+  const id = num(req.params.id, 'Kirim', { positive: true });
+  res.json(await withTransaction((client) => undoPurchase(client, req.user, id)));
 });
 
 // ---------- Sotuvlar ----------

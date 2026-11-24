@@ -162,7 +162,7 @@ async function pnl(body, { period }) {
   body.innerHTML = `
     <div class="stats">
       ${stat('Tushum', kpiMoney(c.net_revenue), pctFrom(c.net_revenue, p.net_revenue), { note: `${c.sales_count} ta savdo` })}
-      ${stat('Savdo foydasi', kpiMoney(c.gross_profit), pctFrom(c.gross_profit, p.gross_profit), { note: `foyda ulushi ${pctText(c.gross_margin)}`, neg: c.gross_profit < 0 })}
+      ${stat('Sotuvdan foyda', kpiMoney(c.gross_profit), pctFrom(c.gross_profit, p.gross_profit), { note: `foyda ulushi ${pctText(c.gross_margin)}`, neg: c.gross_profit < 0 })}
       ${stat('Xarajatlar', kpiMoney(c.expenses), pctFrom(c.expenses, p.expenses), { goodWhenUp: false, note: 'operatsion' })}
       ${stat("Buzilgan / yo'qolgan tovar", kpiMoney(c.losses), pctFrom(c.losses, p.losses), { goodWhenUp: false, note: 'zarar va kamomad' })}
       ${stat(c.net_profit >= 0 ? 'Sof foyda' : 'Zarar', kpiMoney(c.net_profit), pctFrom(c.net_profit, p.net_profit), { note: `sof foyda ulushi ${pctText(c.net_margin)}`, neg: c.net_profit < 0 })}
@@ -171,7 +171,7 @@ async function pnl(body, { period }) {
     <div class="grid main-side" style="margin-top:14px;align-items:start">
       <section class="card">
         <div class="card-head"><div><h2>Kunlik foyda</h2><div class="card-sub">Ustun — sof foyda (yashil) yoki zarar (qizil); chiziq — yalpi foyda</div></div>
-          <div class="legend"><span><i class="box" style="background:${C.pos}"></i>Sof foyda</span><span><i class="box" style="background:${C.neg}"></i>Zarar</span><span><i style="background:${C.s1}"></i>Savdo foydasi</span></div></div>
+          <div class="legend"><span><i class="box" style="background:${C.pos}"></i>Sof foyda</span><span><i class="box" style="background:${C.neg}"></i>Zarar</span><span><i style="background:${C.s1}"></i>Sotuvdan foyda</span></div></div>
         <div data-chart="pnl"></div>
         <div class="note" style="margin-top:8px">${icon('info', 'ico-xs')}<span>Ijara yoki maosh kabi katta xarajatlar to'langan kuni sof foyda manfiy bo'lishi tabiiy — umumiy natijaga qarang.</span></div>
       </section>
@@ -182,8 +182,8 @@ async function pnl(body, { period }) {
           ${line('− Chegirmalar', c.discounts, p.discounts, 'sub')}
           ${line(`− Qaytarishlar (${c.returns_count} ta)`, c.returns, p.returns, 'sub')}
           ${line('Tushum', c.net_revenue, p.net_revenue, 'total')}
-          ${line('− Tovarlarning kelish narxi', c.cogs, p.cogs, 'sub')}
-          ${line('Savdo foydasi', c.gross_profit, p.gross_profit, 'total')}
+          ${line('− Tovarlarning xarid narxi', c.cogs, p.cogs, 'sub')}
+          ${line('Sotuvdan foyda', c.gross_profit, p.gross_profit, 'total')}
           ${line('− Operatsion xarajatlar', c.expenses, p.expenses, 'sub')}
           ${line('− Yaroqsiz tovar', c.damage, p.damage, 'sub')}
           ${line('− Sanashda chiqqan kamomad', c.shrinkage, p.shrinkage, 'sub')}
@@ -191,7 +191,7 @@ async function pnl(body, { period }) {
           ${line(c.net_profit >= 0 ? 'Sof foyda' : 'Zarar', c.net_profit, p.net_profit, 'grand')}
         </div>
         <div class="kv" style="margin-top:14px">
-          <span class="k">Savdo foydasi ulushi</span><span class="v">${pctText(c.gross_margin)}</span>
+          <span class="k">Sotuvdan foyda ulushi</span><span class="v">${pctText(c.gross_margin)}</span>
           <span class="k">Sof foyda ulushi</span><span class="v ${c.net_margin < 0 ? 'neg' : ''}">${pctText(c.net_margin)}</span>
           <span class="k">Nasiyaga sotilgan</span><span class="v">${moneyFull(c.credit_sales)}</span>
           <span class="k">Qarzdan undirilgan (savdo emas)</span><span class="v">${moneyFull(c.debt_collected)}</span>
@@ -227,7 +227,7 @@ async function pnl(body, { period }) {
     titleFor: (i) => (wk ? `${shortDate(rows[i].day)} dan boshlangan hafta` : `${weekdayShort(rows[i].day)}, ${shortDate(rows[i].day)}`),
     series: [
       { kind: 'bar', name: 'Sof foyda', values: rows.map((d) => d.net_profit), colorFor: (v) => (v >= 0 ? C.pos : C.neg) },
-      { name: 'Savdo foydasi', values: rows.map((d) => d.gross_profit), color: C.s1 },
+      { name: 'Sotuvdan foyda', values: rows.map((d) => d.gross_profit), color: C.s1 },
     ],
     format: (v) => `${moneyFull(v)} so'm`,
     height: 260,
@@ -248,7 +248,7 @@ async function sales(body, { period, q, ctx, link }) {
       ${stat('Tushum', kpiMoney(t.net_revenue), pctFrom(t.net_revenue, p.net_revenue), { note: `chegirmagacha ${compact(t.gross_revenue)}` })}
       ${stat('Savdolar soni', `${num(t.sales_count, 0)}<span class="cur">ta</span>`, pctFrom(t.sales_count, p.sales_count), { note: `${t.lines} pozitsiya` })}
       ${stat("O'rtacha chek", kpiMoney(t.avg_order), pctFrom(t.avg_order, p.avg_order), { note: 'bir savdo summasi' })}
-      ${stat('Savdo foydasi', kpiMoney(t.gross_profit), pctFrom(t.gross_profit, p.gross_profit), { note: `foyda ulushi ${pctText(t.gross_margin)}` })}
+      ${stat('Sotuvdan foyda', kpiMoney(t.gross_profit), pctFrom(t.gross_profit, p.gross_profit), { note: `foyda ulushi ${pctText(t.gross_margin)}` })}
       ${stat('Chegirmalar', kpiMoney(t.discounts), pctFrom(t.discounts, p.discounts), { goodWhenUp: false, note: 'berilgan' })}
       ${stat('Qaytarishlar', kpiMoney(t.returns), pctFrom(t.returns, p.returns), { goodWhenUp: false, note: `${t.returns_count} ta` })}
     </div>
@@ -262,7 +262,7 @@ async function sales(body, { period, q, ctx, link }) {
         <div class="card-head" style="padding:16px 18px 0"><div><h2>Taqsimot</h2><div class="card-sub">Har bir ${label.toLowerCase()} bo'yicha</div></div>
           <div class="seg">${[['daily', 'Kunlik'], ['weekly', 'Haftalik'], ['monthly', 'Oylik']].map(([k, l]) => `<button type="button" data-grain="${k}" class="${r.grain === k ? 'active' : ''}">${l}</button>`).join('')}</div></div>
         ${r.rows.length ? `<div class="table-wrap cards"><table>
-          <thead><tr><th>${label}</th><th class="right">Savdolar</th><th class="right">Jami sotuv</th><th class="right">Chegirma</th><th class="right">Qaytarish</th><th class="right">Tushum</th><th class="right">Savdo foydasi</th><th class="right">O'rtacha chek</th></tr></thead>
+          <thead><tr><th>${label}</th><th class="right">Savdolar</th><th class="right">Jami sotuv</th><th class="right">Chegirma</th><th class="right">Qaytarish</th><th class="right">Tushum</th><th class="right">Sotuvdan foyda</th><th class="right">O'rtacha chek</th></tr></thead>
           <tbody>${r.rows.map((x) => `<tr>
             <td data-label="${label}">${r.grain === 'monthly' ? esc(x.period.slice(0, 7)) : dateOnly(x.period)}</td>
             <td data-label="Savdolar" class="right num">${num(x.sales_count, 0)}</td>
@@ -270,11 +270,11 @@ async function sales(body, { period, q, ctx, link }) {
             <td data-label="Chegirma" class="right num muted">${moneyFull(x.discounts)}</td>
             <td data-label="Qaytarish" class="right num muted">${moneyFull(x.returns)}</td>
             <td data-label="Tushum" class="right num strong">${moneyFull(x.net_revenue)}</td>
-            <td data-label="Savdo foydasi" class="right num ${x.gross_profit < 0 ? 'neg' : ''}">${moneyFull(x.gross_profit)}</td>
+            <td data-label="Sotuvdan foyda" class="right num ${x.gross_profit < 0 ? 'neg' : ''}">${moneyFull(x.gross_profit)}</td>
             <td data-label="O'rtacha chek" class="right num">${moneyFull(x.avg_order)}</td></tr>`).join('')}</tbody>
           <tfoot><tr><td data-label="Jami">Jami</td><td data-label="Savdolar" class="right num">${num(t.sales_count, 0)}</td><td data-label="Jami sotuv" class="right num">${moneyFull(t.gross_revenue)}</td>
             <td data-label="Chegirma" class="right num">${moneyFull(t.discounts)}</td><td data-label="Qaytarish" class="right num">${moneyFull(t.returns)}</td>
-            <td data-label="Tushum" class="right num">${moneyFull(t.net_revenue)}</td><td data-label="Savdo foydasi" class="right num">${moneyFull(t.gross_profit)}</td><td data-label="O'rtacha chek" class="right num">${moneyFull(t.avg_order)}</td></tr></tfoot>
+            <td data-label="Tushum" class="right num">${moneyFull(t.net_revenue)}</td><td data-label="Sotuvdan foyda" class="right num">${moneyFull(t.gross_profit)}</td><td data-label="O'rtacha chek" class="right num">${moneyFull(t.avg_order)}</td></tr></tfoot>
         </table></div>` : emptyState("Bu davrda savdo yo'q", 'cart')}
       </section>
       <div class="stack">
@@ -460,16 +460,16 @@ async function inventory(body, { ctx }) {
   ];
   body.innerHTML = `
     <div class="stats">
-      ${stat('Ombordagi tovar qiymati', kpiMoney(t.cost_value), undefined, { note: 'kelish narxida' })}
+      ${stat('Ombordagi tovar qiymati', kpiMoney(t.cost_value), undefined, { note: 'xarid narxida' })}
       ${t.retail_value !== null ? stat('Sotuv narxida', kpiMoney(t.retail_value), undefined, { note: 'hammasi sotilsa' }) : ''}
-      ${t.potential_profit !== null ? stat('Kutilayotgan foyda', kpiMoney(t.potential_profit), undefined, { note: 'sotuv narxi − kelish narxi' }) : ''}
+      ${t.potential_profit !== null ? stat('Kutilayotgan foyda', kpiMoney(t.potential_profit), undefined, { note: 'sotuv narxi − xarid narxi' }) : ''}
       ${stat('Tovarlar', `${t.products}<span class="cur">ta</span>`, undefined, { note: `${t.in_stock} tasi omborda` })}
       ${stat('Kam qolgan', `${t.low}<span class="cur">ta</span>`, undefined, { note: 'minimal qoldiqdan kam' })}
       ${stat('Tugagan', `${t.out}<span class="cur">ta</span>`, undefined, { note: 'qoldiq nol', neg: t.out > 0 })}
     </div>
     <div class="grid main-side" style="margin-top:14px">
       <section class="card">
-        <div class="card-head"><div><h2>Ombor harakati</h2><div class="card-sub">So'nggi 30 kun, kelish narxida</div></div>
+        <div class="card-head"><div><h2>Ombor harakati</h2><div class="card-sub">So'nggi 30 kun, xarid narxida</div></div>
           <div class="legend"><span><i class="box" style="background:${C.s1}"></i>Kirim</span><span><i class="box" style="background:#eb6834"></i>Chiqim (sotuv)</span></div></div>
         <div data-chart="flow"></div>
         <div class="card-head" style="margin:18px 0 8px"><div><h2 style="font-size:13.5px">Ombor qiymati</h2><div class="card-sub">Har kun oxirida</div></div></div>
@@ -549,7 +549,7 @@ async function weekly(body, { q, ctx }) {
       ${stat('Savdolar', `${num(c.sales_count, 0)}<span class="cur">ta</span>`, pctFrom(c.sales_count, p.sales_count))}
       ${stat('Tushum', kpiMoney(c.net_revenue), pctFrom(c.net_revenue, p.net_revenue))}
       ${stat('Xarajatlar', kpiMoney(c.expenses), pctFrom(c.expenses, p.expenses), { goodWhenUp: false })}
-      ${stat('Savdo foydasi', kpiMoney(c.gross_profit), pctFrom(c.gross_profit, p.gross_profit), { neg: c.gross_profit < 0 })}
+      ${stat('Sotuvdan foyda', kpiMoney(c.gross_profit), pctFrom(c.gross_profit, p.gross_profit), { neg: c.gross_profit < 0 })}
       ${stat(c.net_profit >= 0 ? 'Sof foyda' : 'Zarar', kpiMoney(c.net_profit), pctFrom(c.net_profit, p.net_profit), { neg: c.net_profit < 0 })}
       ${stat("Yo'qotishlar", kpiMoney(c.losses), pctFrom(c.losses, p.losses), { goodWhenUp: false })}
     </div>
@@ -563,14 +563,14 @@ async function weekly(body, { q, ctx }) {
         <div class="legend"><span><i class="box" style="background:${C.s1}"></i>Shu hafta</span><span><i class="box" style="background:${C.prev}"></i>Oldingi hafta</span></div></div>
       <div data-chart="week"></div>
       <div class="table-wrap cards" style="margin-top:12px"><table>
-        <thead><tr><th>Kun</th><th class="right">Savdolar</th><th class="right">Tushum</th><th class="right">Oldingi hafta</th><th class="right">O'zgarish</th><th class="right">Savdo foydasi</th><th class="right">Xarajat</th><th class="right">Sof foyda</th></tr></thead>
+        <thead><tr><th>Kun</th><th class="right">Savdolar</th><th class="right">Tushum</th><th class="right">Oldingi hafta</th><th class="right">O'zgarish</th><th class="right">Sotuvdan foyda</th><th class="right">Xarajat</th><th class="right">Sof foyda</th></tr></thead>
         <tbody>${r.days.map((d) => `<tr class="${d.future ? 'muted' : ''}">
           <td data-label="Kun">${weekdayShort(d.day)}, ${shortDate(d.day)}</td>
           <td data-label="Savdolar" class="right num">${d.future ? '—' : num(d.sales_count, 0)}</td>
           <td data-label="Tushum" class="right num strong">${d.future ? '—' : moneyFull(d.net_revenue)}</td>
           <td data-label="Oldingi hafta" class="right num muted">${moneyFull(d.previous?.net_revenue || 0)}</td>
           <td data-label="O'zgarish" class="right">${d.future ? '' : deltaPill(pctFrom(d.net_revenue, d.previous?.net_revenue || 0))}</td>
-          <td data-label="Savdo foydasi" class="right num">${d.future ? '—' : moneyFull(d.gross_profit)}</td>
+          <td data-label="Sotuvdan foyda" class="right num">${d.future ? '—' : moneyFull(d.gross_profit)}</td>
           <td data-label="Xarajat" class="right num">${d.future ? '—' : moneyFull(d.expenses)}</td>
           <td data-label="Sof foyda" class="right num ${d.net_profit < 0 ? 'neg' : ''}">${d.future ? '—' : moneyFull(d.net_profit)}</td></tr>`).join('')}</tbody>
       </table></div>
@@ -610,10 +610,10 @@ async function forecast(body) {
       <div data-chart="fc"></div>
     </section>
     <section class="card flush" style="margin-top:14px"><div class="table-wrap cards"><table>
-      <thead><tr><th>Kun</th><th class="right">Minimal</th><th class="right">Kutilgan tushum</th><th class="right">Maksimal</th><th class="right">Savdo foydasi (taxmin)</th><th class="right">Sof foyda (taxmin)</th></tr></thead>
+      <thead><tr><th>Kun</th><th class="right">Minimal</th><th class="right">Kutilgan tushum</th><th class="right">Maksimal</th><th class="right">Sotuvdan foyda (taxmin)</th><th class="right">Sof foyda (taxmin)</th></tr></thead>
       <tbody>${f.days.map((d) => `<tr><td data-label="Kun">${weekdayShort(d.day)}, ${shortDate(d.day)}</td>
         <td data-label="Minimal" class="right num muted">${moneyFull(d.low)}</td><td data-label="Kutilgan" class="right num strong">${moneyFull(d.revenue)}</td>
-        <td data-label="Maksimal" class="right num muted">${moneyFull(d.high)}</td><td data-label="Savdo foydasi" class="right num">${moneyFull(d.gross_profit)}</td>
+        <td data-label="Maksimal" class="right num muted">${moneyFull(d.high)}</td><td data-label="Sotuvdan foyda" class="right num">${moneyFull(d.gross_profit)}</td>
         <td data-label="Sof foyda" class="right num ${d.net_profit < 0 ? 'neg' : ''}">${moneyFull(d.net_profit)}</td></tr>`).join('')}</tbody>
     </table></div></section>
     <p class="note" style="margin-top:10px">${icon('info', 'ico-xs')}<span>Asos: ${dateOnly(f.basis.history_from)} – ${dateOnly(f.basis.history_to)}, savdo bo'lgan kunlar: ${f.basis.active_days}. Sof foyda taxmini o'rtacha kunlik xarajat va yo'qotishlarni ayiradi.</span></p>`}`;

@@ -543,7 +543,7 @@ async function showReceipt(sale, ctx, opts = {}) {
            ${full.profit !== undefined ? `<div class="sale-profit ${full.profit < 0 ? 'neg' : ''}">
               <span>${icon('trendUp', 'ico-sm')} Bu sotuvdan foyda</span><b>${full.profit < 0 ? '−' : '+'}${money(Math.abs(full.profit))}</b>
               ${full.items.length > 1 ? `<div class="sp-lines">${full.items.map((i) => `<span>${esc(i.product_name)}</span><span class="${i.profit < 0 ? 'red' : ''}">${i.profit < 0 ? '−' : '+'}${money(Math.abs(i.profit))}</span>`).join('')}</div>` : ''}
-              ${full.cost_missing ? `<small class="amber">Ba'zi tovarning kelish narxi yozilmagan — foyda aslidan ko'p ko'rinadi</small>` : ''}
+              ${full.cost_missing ? `<small class="amber">Ba'zi tovarning xarid narxi yozilmagan — foyda aslidan ko'p ko'rinadi</small>` : ''}
             </div>` : ''}
            <div id="print-area">${html}</div>`,
     foot: `<button class="btn btn-outline" type="button" data-print>${icon('print', 'ico-sm')} Chop etish</button>
@@ -855,7 +855,7 @@ async function renderHistory(root, ctx, query = {}) {
     root.querySelector('#sum').innerHTML = `
       <div class="sum-cell"><span>Cheklar</span><b>${count} ta</b>${hasProfit ? `<small>o'rtacha ${money(count ? net / count : 0)}</small>` : ''}</div>
       <div class="sum-cell"><span>Savdo summasi</span><b>${money(net)}</b><small>qaytarishlar ayirilgan</small></div>
-      ${hasProfit ? `<div class="sum-cell ${profit < 0 ? 'bad' : 'good'}"><span>Foyda</span><b>${profit < 0 ? '−' : ''}${money(Math.abs(profit))}</b><small>sotuv − kelish narxi</small></div>`
+      ${hasProfit ? `<div class="sum-cell ${profit < 0 ? 'bad' : 'good'}"><span>Foyda</span><b>${profit < 0 ? '−' : ''}${money(Math.abs(profit))}</b><small>sotuv − xarid narxi</small></div>`
     : `<div class="sum-cell"><span>O'rtacha chek</span><b>${money(count ? net / count : 0)}</b></div>`}
       <div class="sum-cell ${debt > 0 ? 'warn' : ''}"><span>Nasiyada qolgan</span><b>${money(debt)}</b>${returned > 0 ? `<small>qaytarilgan ${money(returned)}</small>` : ''}</div>`;
     root.querySelector('#hlist').innerHTML = rows.length ? `<div class="table-wrap cards"><table>

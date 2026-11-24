@@ -171,3 +171,120 @@ export async function createPurchase(client, user, body) {
   });
   return { purchase: await loadPurchase(client, purchaseId) };
 }
+
+// Kiritishni bekor qilish («Tovar kiritish»dagi «Bekor qilish»): xato kiritilgan yukni butunlay qaytaradi.
+// Faqat hech narsa o'zgarmagan bo'lsa: shu tovarlarda keyin sotuv/kirim/sanash bo'lmagan, keyin to'lov qilinmagan,
+// kassa smenasi yopilmagan. Aks holda xato — «Zarar / tuzatish» orqali to'g'rilanadi.
+export const UNDO_HOURS = 24;
+
+export async function undoPurchase(client, user, purchaseId) {
+  const { rows } = await client.query(
+    `SELECT p.*, (p.created_at > now() - make_interval(hours => $2)) AS fresh
+       FROM purchases p WHERE p.id = $1 FOR UPDATE`,
+    [purchaseId, UNDO_HOURS],
+  );
+  const pur = rows[0];
+  if (!pur || pur.kind !== 'purchase') throw new HttpError(404, 'Kirim topilmadi');
+  if (pur.created_by !== user.id && user.role !== 'owner') {
+    throw new HttpError(403, "Faqat o'zingiz kiritgan yukni bekor qila olasiz");
+  }
+  if (!pur.fresh) throw new HttpError(409, `Kiritilganiga ${UNDO_HOURS} soatdan oshgan. Endi «Zarar / tuzatish» orqali to'g'rilang`);
+
+  const { rows: items } = await client.query(
+    'SELECT * FROM purchase_items WHERE purchase_id = $1 ORDER BY id',
+    [purchaseId],
+  );
+  const products = await lockProducts(client, items.map((i) => i.product_id));
+  const ids = [...products.keys()];
+
+  // Shu tovarlarda keyin boshqa harakat bo'lganmi (sotuv, boshqa kirim, sanash, zarar)
+  const { rows: later } = await client.query(
+    `SELECT 1 FROM stock_movements m
+      WHERE m.product_id = ANY($1::int[])
+        AND m.id > (SELECT MIN(id) FROM stock_movements WHERE reference_type = 'purchase' AND reference_id = $2)
+        AND NOT (m.reference_type = 'purchase' AND m.reference_id = $2)
+      LIMIT 1`,
+    [ids, purchaseId],
+  );
+  if (later[0]) {
+    throw new HttpError(409, "Bu tovarlar keyin sotilgan yoki yana kiritilgan — bekor qilib bo'lmaydi. «Zarar / tuzatish» orqali to'g'rilang");
+  }
+  const batchIds = items.map((i) => i.batch_id).filter(Boolean);
+  const { rows: touched } = await client.query(
+    'SELECT 1 FROM stock_batches WHERE id = ANY($1::int[]) AND qty_remaining <> qty_initial LIMIT 1',
+    [batchIds],
+  );
+  if (touched[0]) throw new HttpError(409, "Bu yukdan sotilgan — bekor qilib bo'lmaydi");
+
+  // To'lovlar: faqat kiritish paytidagi to'lov bo'lsa (keyin alohida to'langan bo'lsa — bekor qilinmaydi)
+  const { rows: allocs } = await client.query(
+    `SELECT a.id, a.payment_id, a.amount, sp.amount AS payment_amount, (sp.created_at = p.created_at) AS at_entry
+       FROM supplier_payment_allocations a
+       JOIN supplier_payments sp ON sp.id = a.payment_id
+       JOIN purchases p ON p.id = a.purchase_id
+      WHERE a.purchase_id = $1`,
+    [purchaseId],
+  );
+  const paymentIds = allocs.map((a) => a.payment_id);
+  // Kiritish paytidagi to'lov o'sha tranzaksiyada yozilgan (vaqti bir xil); boshqasi — keyingi to'lov
+  if (allocs.length > 1 || allocs.some((a) => !a.at_entry || Number(a.amount) !== Number(a.payment_amount))) {
+    throw new HttpError(409, "Bu yuk uchun keyin to'lov qilingan — bekor qilib bo'lmaydi");
+  }
+  if (paymentIds.length) {
+    const { rows: shut } = await client.query(
+      `SELECT 1 FROM cash_transactions t JOIN cash_shifts s ON s.id = t.shift_id
+        WHERE t.reference_type = 'supplier_payment' AND t.reference_id = ANY($1::int[]) AND s.status = 'closed' LIMIT 1`,
+      [paymentIds],
+    );
+    if (shut[0]) throw new HttpError(409, "Kassa smenasi yopilgan — bu yukni bekor qilib bo'lmaydi");
+  }
+
+  // Faqat shu tranzaksiya ichida: moliyaviy yozuvlarni o'chirishga ruxsat (migratsiya 013)
+  await client.query("SELECT set_config('ombor.undo', 'on', true)");
+
+  // Ombor: qoldiq va o'rtacha tannarx kiritishdan oldingi holatga qaytadi
+  for (const it of items) {
+    const p = products.get(it.product_id);
+    const qty = Number(it.base_quantity);
+    const cost = Number(it.unit_cost);
+    const nowQty = Number(p.stock_qty);
+    const nowAvg = Number(p.avg_cost);
+    const prevQty = round4(nowQty - qty);
+    if (prevQty < -0.0001) throw new HttpError(409, `"${p.name}" qoldig'i yetmaydi — bekor qilib bo'lmaydi`);
+    // Yaxlitlash qoldig'i (7000,0001) qolmasin: so'mga yaqin bo'lsa — so'mgacha
+    const raw = prevQty > 0 ? Math.max(0, (nowQty * nowAvg - qty * cost) / prevQty) : nowAvg;
+    const prevAvg = Math.abs(raw - round2(raw)) < 0.001 ? round2(raw) : round4(raw);
+    await client.query('UPDATE products SET stock_qty = $2, avg_cost = $3, updated_at = now() WHERE id = $1', [p.id, Math.max(0, prevQty), prevAvg]);
+    p.stock_qty = Math.max(0, prevQty);
+    p.avg_cost = prevAvg;
+  }
+  await client.query("DELETE FROM stock_movements WHERE reference_type = 'purchase' AND reference_id = $1", [purchaseId]);
+  await client.query('DELETE FROM purchase_items WHERE purchase_id = $1', [purchaseId]);
+  if (batchIds.length) await client.query('DELETE FROM stock_batches WHERE id = ANY($1::int[])', [batchIds]);
+
+  // Xarid narxi: shu tovarning oldingi partiyasidagi narx (oldingi kirim yoki boshlang'ich qoldiq; bo'lmasa — o'zgarmaydi)
+  for (const pid of ids) {
+    const { rows: prev } = await client.query(
+      `SELECT unit_cost FROM stock_batches WHERE product_id = $1 AND unit_cost > 0
+        ORDER BY received_at DESC, id DESC LIMIT 1`,
+      [pid],
+    );
+    if (prev[0]) await client.query('UPDATE products SET purchase_price = $2 WHERE id = $1', [pid, round2(Number(prev[0].unit_cost))]);
+  }
+
+  if (paymentIds.length) {
+    await client.query("DELETE FROM cash_transactions WHERE reference_type = 'supplier_payment' AND reference_id = ANY($1::int[])", [paymentIds]);
+    await client.query('DELETE FROM supplier_payment_allocations WHERE purchase_id = $1', [purchaseId]);
+    await client.query('DELETE FROM supplier_payments WHERE id = ANY($1::int[])', [paymentIds]);
+  }
+  await client.query('DELETE FROM purchases WHERE id = $1', [purchaseId]);
+  await client.query("SELECT set_config('ombor.undo', 'off', true)");
+  await audit(client, user.id, 'purchase.undo', 'purchase', purchaseId, {
+    purchase_no: pur.purchase_no, total: Number(pur.total), paid: Number(pur.paid_amount), lines: items.length,
+  });
+  return {
+    undone: true,
+    purchase_no: pur.purchase_no,
+    products: ids.map((id) => ({ id, name: products.get(id).name, stock_qty: Number(products.get(id).stock_qty) })),
+  };
+}

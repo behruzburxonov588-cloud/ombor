@@ -1049,7 +1049,7 @@ export async function homeSummary(db, user, query) {
   const settings = await getSettings(db);
   const warnDays = Number(settings.debt_warning_days) || 3;
 
-  const [pnl, stock, bal, cust, sup, nc] = await Promise.all([
+  const [pnl, stock, bal, cust, sup, nc, owed] = await Promise.all([
     pnlTotals(db, range.fromTs, range.toTs, range.from, range.to),
     db.query(
       `SELECT p.id, p.name, un.name AS unit, p.stock_qty, p.min_stock,
@@ -1080,6 +1080,10 @@ export async function homeSummary(db, user, query) {
       )
       : null,
     financial ? costMissing(db, range) : null,
+    // Mijozlar qarzi: hamma mijozlar jami qancha qarz (muddati o'tgan-o'tmaganidan qat'i nazar)
+    debtAccess
+      ? db.query('SELECT COALESCE(SUM(balance_due), 0) AS total, COUNT(DISTINCT customer_id)::int AS people FROM sales WHERE balance_due > 0 AND customer_id IS NOT NULL')
+      : null,
   ]);
 
   const item = (r) => ({ id: r.id, name: r.name, unit: r.unit, qty: round4(r.stock_qty), min: round4(r.min_stock) });
@@ -1101,6 +1105,7 @@ export async function homeSummary(db, user, query) {
       net: pnl.net_profit,
     } : null,
     cash: bal ? { cash: round2(bal.cash), card: round2(bal.card), transfer: round2(bal.transfer) } : null,
+    debts: owed ? { customers_total: round2(owed.rows[0].total), customers_count: owed.rows[0].people } : null,
     attention: {
       out: st.filter((r) => n(r.stock_qty) <= 0).slice(0, 5).map(item),
       out_count: st.length ? Number(st[0].out_count) : 0,

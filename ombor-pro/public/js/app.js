@@ -1,7 +1,7 @@
 // OMBOR PRO - asosiy ilova: kirish, tuzilma (yon panel, yuqori panel), marshrutlar, bildirishnomalar
 import {
   icon, esc, get, post, onUnauthorized, openModal, closeModal, toast, errorToast, num, money,
-  openPopover, closePopover, initials, timeAgo, confirmBox, skeletonPage,
+  openPopover, closePopover, initials, timeAgo, confirmBox, skeletonPage, logoSvg,
 } from './ui.js';
 
 // Marshrut -> sahifa moduli
@@ -13,6 +13,7 @@ const ROUTES = {
   sales: { perms: ['sales.create', 'sales.view'], load: () => import('./pages/sales.js') },
   products: { perms: ['products.view'], load: () => import('./pages/products.js') },
   purchases: { perms: ['purchases.view', 'purchases.create'], load: () => import('./pages/purchases.js') },
+  stockin: { perms: ['purchases.create'], load: () => import('./pages/stockin.js') },
   stock: { perms: ['stock.view', 'stock.count', 'stock.approve'], load: () => import('./pages/stock.js') },
   customers: { perms: ['customers.view', 'sales.create'], load: () => import('./pages/parties.js') },
   debts: { perms: ['customers.view', 'reports.view'], load: () => import('./pages/debts.js') },
@@ -27,43 +28,62 @@ const ROUTES = {
   platform: { perms: [], load: () => import('./pages/platform.js') },
 };
 
-// Menyu: 6 ta bo'lim. Kam ishlatiladiganlari bo'lim ichida yorliq bo'lib turadi (ichma-ich).
+// Menyu: 11 ta bo'lim — har biri bitta ish. Kam ishlatiladiganlari bo'lim ichida yorliq bo'lib turadi.
 //   short — telefondagi pastki menyu uchun qisqa nom; tip — sichqoncha ustiga kelganda tushuntirish;
 //   tabs — bo'lim ichidagi yorliqlar (sahifa tepasida ko'rinadi), solo — 1 kishilik do'konda yashiriladi,
-//   onlyActive — menyuda ko'rinmaydi, faqat o'sha sahifa ochilganda yorliq bo'lib chiqadi.
+//   onlyActive — menyuda ko'rinmaydi, faqat o'sha sahifa ochilganda yorliq bo'lib chiqadi; sep — oldidan chiziq.
 const SECTIONS = [
   {
-    id: 'dashboard', label: 'Bosh sahifa', short: 'Bosh', icon: 'dashboard', tip: "Bugun qancha sotildi, qancha foyda va muhim ogohlantirishlar",
+    id: 'dashboard', label: 'Bosh sahifa', short: 'Bosh', icon: 'dashboard', tip: "Bugun qancha sotildi, qancha foyda va nima qilish kerak",
     tabs: [{ label: 'Bosh sahifa', href: '#/dashboard', route: 'dashboard', match: (p) => p.key === 'dashboard' }],
   },
   {
-    id: 'sales', label: 'Sotish', short: 'Sotish', icon: 'cart', tip: 'Xaridorga sotish va bugungi cheklar (qaytarish shu yerda)',
+    id: 'sale', label: 'Sotuv', short: 'Sotuv', icon: 'cart', tip: 'Xaridorga sotish',
+    tabs: [{ label: 'Sotuv', href: '#/sales', route: 'sales', perms: ['sales.create'], match: (p) => p.key === 'sales' && p.id !== 'history' }],
+  },
+  {
+    id: 'history', label: 'Sotuvlar tarixi', short: 'Tarix', icon: 'receipt', tip: 'Bugungi va oldingi cheklar, qaytarish',
+    tabs: [{ label: 'Sotuvlar tarixi', href: '#/sales/history', route: 'sales', perms: ['sales.view', 'sales.create'], match: (p) => p.key === 'sales' && p.id === 'history' }],
+  },
+  {
+    id: 'stockin', label: 'Tovar kiritish', short: 'Kiritish', icon: 'truck', tip: "Kelgan tovarni omborga kiritish — har biri 10 soniya", sep: true,
     tabs: [
-      { label: 'Sotish', href: '#/sales', route: 'sales', perms: ['sales.create'], match: (p) => p.key === 'sales' && p.id !== 'history' },
-      { label: 'Cheklar', href: '#/sales/history', route: 'sales', perms: ['sales.view', 'sales.create'], match: (p) => p.key === 'sales' && p.id === 'history' },
+      { label: 'Tez kiritish', href: '#/stockin', route: 'stockin', match: (p) => p.key === 'stockin' },
+      { label: "Ko'p tovar bitta yuk", href: '#/purchases/new', route: 'purchases', perms: ['purchases.create'], match: (p) => p.key === 'purchases' && p.id === 'new' },
+      { label: 'Kelgan yuklar', href: '#/purchases', route: 'purchases', perms: ['purchases.view'], match: (p) => p.key === 'purchases' && p.id !== 'new' },
     ],
   },
   {
-    id: 'goods', label: 'Tovarlar', short: 'Tovarlar', icon: 'box', tip: 'Tovarlar, yuk keldi, qoldiq va tovar sanash — hammasi bir joyda',
+    id: 'products', label: 'Mahsulotlar', short: 'Mahsulot', icon: 'box', tip: "Mahsulotlar ro'yxati, narxlari va rasmlari",
+    tabs: [{ label: 'Mahsulotlar', href: '#/products', route: 'products', match: (p) => p.key === 'products' }],
+  },
+  {
+    id: 'stock', label: 'Ombor', short: 'Ombor', icon: 'warehouse', tip: 'Qolgan mahsulot, harakatlar tarixi va mahsulotlarni sanash',
     tabs: [
-      { label: 'Tovarlar', href: '#/products', route: 'products', match: (p) => p.key === 'products' },
-      { label: 'Yuk keldi', href: '#/purchases', route: 'purchases', match: (p) => p.key === 'purchases' },
-      { label: "Qoldiq va tarix", href: '#/stock', route: 'stock', perms: ['stock.view'], match: (p) => p.key === 'stock' && !['counts', 'discrepancies'].includes(p.query.tab) && p.id !== 'count' },
-      { label: 'Sanash', href: '#/stock?tab=counts', route: 'stock', perms: ['stock.count', 'stock.approve'], match: (p) => p.key === 'stock' && (['counts', 'discrepancies'].includes(p.query.tab) || p.id === 'count') },
+      { label: 'Qolgan mahsulot', href: '#/stock', route: 'stock', perms: ['stock.view'], match: (p) => p.key === 'stock' && !['counts', 'discrepancies'].includes(p.query.tab) && p.id !== 'count' },
+      { label: 'Mahsulotlarni sanash', href: '#/stock?tab=counts', route: 'stock', perms: ['stock.count', 'stock.approve'], match: (p) => p.key === 'stock' && (['counts', 'discrepancies'].includes(p.query.tab) || p.id === 'count') },
     ],
   },
   {
-    id: 'money', label: 'Pul', short: 'Pul', icon: 'wallet', tip: "Kassadagi pul, xarajatlar, qarzlar va mijozlar",
+    id: 'expenses', label: 'Xarajatlar', short: 'Xarajat', icon: 'expense', tip: "Ijara, obed, yo'l kabi xarajatlar va kassadagi pul", sep: true,
     tabs: [
-      { label: 'Kassadagi pul', href: '#/cash?tab=cash', route: 'cash', perms: ['cash.view', 'cash.shift'], match: (p) => p.key === 'cash' && p.query.tab !== 'expenses' },
       { label: 'Xarajatlar', href: '#/cash?tab=expenses', route: 'cash', perms: ['expenses.view', 'reports.view'], match: (p) => p.key === 'cash' && p.query.tab === 'expenses' },
+      { label: 'Kassadagi pul', href: '#/cash?tab=cash', route: 'cash', perms: ['cash.view', 'cash.shift'], match: (p) => p.key === 'cash' && p.query.tab !== 'expenses' },
+    ],
+  },
+  {
+    id: 'debts', label: 'Mijozlar va qarzlar', short: 'Qarzlar', icon: 'debt', tip: "Kim qancha qarz, nasiyalar va mijozlar ro'yxati",
+    tabs: [
       { label: 'Qarzlar', href: '#/debts', route: 'debts', match: (p) => p.key === 'debts' },
       { label: 'Mijozlar', href: '#/customers', route: 'customers', match: (p) => p.key === 'customers' },
-      { label: 'Yetkazib beruvchilar', href: '#/suppliers', route: 'suppliers', onlyActive: true, match: (p) => p.key === 'suppliers' },
     ],
   },
   {
-    id: 'reports', label: 'Hisobot', short: 'Hisobot', icon: 'table', tip: "Foyda, savdo, grafiklar va maslahatlar. Excel va PDF",
+    id: 'suppliers', label: 'Yetkazib beruvchilar', short: 'Ta\'minot', icon: 'store', tip: "Tovar kimdan keladi, ularga qancha qarzingiz bor",
+    tabs: [{ label: 'Yetkazib beruvchilar', href: '#/suppliers', route: 'suppliers', match: (p) => p.key === 'suppliers' }],
+  },
+  {
+    id: 'reports', label: 'Hisobotlar', short: 'Hisobot', icon: 'table', tip: "Foyda, savdo, grafiklar va maslahatlar. Excel va PDF", sep: true,
     tabs: [
       { label: 'Hisobotlar', href: '#/reports', route: 'reports', match: (p) => p.key === 'reports' },
       { label: 'Grafiklar', href: '#/analytics', route: 'analytics', match: (p) => p.key === 'analytics' },
@@ -86,14 +106,14 @@ const SECTIONS = [
 // Faqat yuqori paneldagi qo'ng'iroqcha orqali ochiladigan sahifalar (sarlavha uchun)
 const EXTRA_TITLES = { notifications: 'Bildirishnomalar', setup: "Do'konni sozlash" };
 
-// Telefondagi pastki menyu: Bosh, Sotish, Tovarlar, Pul, Menyu («+ Qo'shish» — yuqori panelda)
-const MOBILE = ['dashboard', 'sales', 'goods', 'money'];
+// Telefondagi pastki menyu: Bosh, Sotuv, Kiritish, Mahsulot, Menyu («+ Qo'shish» — yuqori panelda)
+const MOBILE = ['dashboard', 'sale', 'stockin', 'products'];
 
 // "+ Qo'shish" menyusi: har sahifadan bir bosishda yangi yozuv (faqat ruxsat berilganlari ko'rinadi)
 const QUICK = [
-  { label: 'Yangi tovar', hint: 'Tovar, narxi, qadog\'i', icon: 'box', href: '#/products/new', perms: ['products.manage'] },
-  { label: 'Sotish', hint: 'Xaridorga tovar sotish', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
-  { label: 'Yuk keldi', hint: 'Kelgan tovarni omborga kiritish', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
+  { label: 'Sotuv', hint: 'Xaridorga tovar sotish', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
+  { label: 'Tovar kiritish', hint: 'Kelgan tovarni omborga', icon: 'truck', href: '#/stockin', perms: ['purchases.create'] },
+  { label: 'Yangi mahsulot', hint: 'Nomi, narxi, rasmi', icon: 'box', href: '#/products/new', perms: ['products.manage'] },
   { label: 'Qarz yozish', hint: 'Daftardagi eski qarz', icon: 'debt', href: '#/debts?new=1', perms: ['customers.manage'], route: 'debts' },
   { label: 'Xarajat', hint: 'Ijara, maosh, kommunal', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'], route: 'cash' },
   { label: 'Mijoz', hint: 'Xaridor (nasiya uchun)', icon: 'users', href: '#/customers?new=1', perms: ['customers.manage'] },
@@ -201,24 +221,52 @@ async function showAuth(setupRequired) {
     }
   } else {
     const known = lastLogin();
+    // Ochilish harakati (qutilar tushadi) — shu brauzer oynasida faqat birinchi marta
+    let intro = true;
+    try { intro = sessionStorage.getItem('ombor.intro') !== '1'; sessionStorage.setItem('ombor.intro', '1'); } catch { /* xotira yopiq */ }
+    root.className = `auth auth-split${intro ? ' intro' : ''}`;
     root.innerHTML = `
+      <section class="auth-hero" aria-label="OMBOR PRO haqida">
+        <div class="ah-brand">
+          <span class="ah-logo">${logoSvg('logo-svg ah-svg')}</span>
+          <div class="ah-name"><b>OMBOR PRO</b><span>Do'kon hisobi oddiy tilda</span></div>
+        </div>
+        <ul class="ah-points">
+          <li>${icon('plus', 'ico-sm')}<span>Tovar keldi — nomini tanlab, sonini yozasiz. 10 soniya</span></li>
+          <li>${icon('cart', 'ico-sm')}<span>Sotdingiz — ombordagi son va foyda o'zi hisoblanadi</span></li>
+          <li>${icon('chart', 'ico-sm')}<span>Kechqurun bitta ekranda: bugun qancha sotdingiz, qancha qoldi</span></li>
+        </ul>
+        <div class="tape ah-tape" aria-hidden="true">
+          <div class="between"><span>Sotuv</span><b class="num">1 480 000</b></div>
+          <div class="between"><span>Xarid narxi</span><b class="num">−1 068 000</b></div>
+          <div class="tape-rule"></div>
+          <div class="between"><span>Bugungi foyda</span><b class="num pos">412 000 so'm</b></div>
+        </div>
+      </section>
       <div class="auth-card">
         <div class="auth-brand">
-          <div class="mark">${icon('layers')}</div>
-          <h1>${known ? 'Xush kelibsiz' : 'OMBOR PRO'}</h1>
+          <div class="mark">${logoSvg()}</div>
+          <h1>${known ? 'Xush kelibsiz' : "Do'koningizga kiring"}</h1>
           <p>${known
-    ? 'Parolingizni kiriting. Kirganingizdan keyin «Chiqish» tugmasini bosmaguningizcha qayta so\'ralmaydi'
-    : "Login va parolingizni kiriting. Telefon yoki kompyuter — farqi yo'q, ma'lumotlaringiz bir xil ko'rinadi"}</p>
+    ? 'Parolingizni kiriting. «Chiqish» ni bosmaguningizcha qayta so\'ralmaydi'
+    : "Login va parolni do'kon egasi beradi. Egasi bo'lsangiz — ro'yxatdan o'tgandagisini yozing"}</p>
         </div>
         <form id="login-form" class="form-grid" novalidate>
-          <label class="field"><span>Login</span><input class="input" name="username" required autocomplete="username" autocapitalize="none" value="${esc(known)}"></label>
-          <label class="field"><span>Parol</span><input class="input" name="password" type="password" required autocomplete="current-password"></label>
+          <label class="field"><span>Login</span><input class="input input-lg" name="username" required autocomplete="username" autocapitalize="none" value="${esc(known)}"></label>
+          <label class="field"><span>Parol</span><span class="pw-wrap"><input class="input input-lg" name="password" type="password" required autocomplete="current-password"><button type="button" class="pw-eye" data-eye aria-label="Parolni ko'rsatish">Ko'rsatish</button></span></label>
           <div id="form-error"></div>
           <button class="btn btn-lg btn-block" type="submit">Kirish</button>
         </form>
-        <p class="auth-note">${icon('info', 'ico-xs')} Xodimmisiz? Login va parolni do'kon egasidan oling.</p>
-        ${state.signup !== false ? `<div class="auth-foot">Do'koningiz hali yo'qmi? <button type="button" class="link-btn" data-mode="register">Yangi do'kon ochish</button></div>` : ''}
+        <p class="auth-note">${icon('info', 'ico-xs')} Kassirlar faqat sotuvni ko'radi. Xarid narxi va foyda faqat egasiga ko'rinadi.</p>
+        ${state.signup !== false ? `<div class="auth-divider">do'koningiz hali yo'qmi</div><button type="button" class="btn btn-outline btn-lg btn-block" data-mode="register">Yangi do'kon ochish — 2 daqiqa</button>` : ''}
       </div>`;
+    root.querySelector('[data-eye]').addEventListener('click', (e) => {
+      const inp = root.querySelector('[name="password"]');
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      e.currentTarget.textContent = show ? 'Yashirish' : "Ko'rsatish";
+      e.currentTarget.setAttribute('aria-label', show ? 'Parolni yashirish' : "Parolni ko'rsatish");
+    });
     root.querySelector('[data-mode="register"]')?.addEventListener('click', () => showAuth('register'));
     // Login tayyor bo'lsa — darhol parolga
     const focusEl = root.querySelector(known ? '[name="password"]' : '[name="username"]');
@@ -317,10 +365,21 @@ function toggleDrawer(open) {
   }
 }
 
+// Yon menyudagi ikki katta tugma: eng ko'p qilinadigan ikki ish
+function sbCtas() {
+  const sale = ctx.can('sales.create');
+  const buy = ctx.can('purchases.create');
+  if (!sale && !buy) return '';
+  return `<div class="sb-ctas${sale && buy ? '' : ' one'}">
+      ${sale ? `<a class="sb-cta" href="#/sales">${icon('cart', 'ico-sm')}<span>Sotuv</span></a>` : ''}
+      ${buy ? `<a class="sb-cta sb-cta-soft" href="#/stockin">${icon('plus', 'ico-sm')}<span>Tovar kiritish</span></a>` : ''}
+    </div>`;
+}
+
 // Do'kon logotipi bo'lsa — o'sha, bo'lmasa OMBOR PRO belgisi
 function brandMark() {
   const logo = state.settings.logo_path;
-  return logo ? `<span class="brand-mark has-logo"><img src="${esc(logo)}" alt=""></span>` : `<span class="brand-mark">${icon('layers')}</span>`;
+  return logo ? `<span class="brand-mark has-logo"><img src="${esc(logo)}" alt=""></span>` : `<span class="brand-mark">${logoSvg()}</span>`;
 }
 
 function renderNav(p) {
@@ -331,11 +390,12 @@ function renderNav(p) {
       ${brandMark()}
       <div class="names"><div class="product">OMBOR PRO</div><div class="store">${esc(state.settings.store_name || '')}</div></div>
     </div>
-    ${ctx.can('sales.create') ? `<a class="sb-cta" href="#/sales">${icon('cart', 'ico-sm')}<span>Sotuvni boshlash</span></a>` : ''}
+    ${sbCtas()}
     <nav class="sb-nav sb-flat">
-      ${SECTIONS.filter(navAllowed).map((sec) => `<a class="nav-item${active?.id === sec.id ? ' active' : ''}" href="${sectionHref(sec)}" title="${esc(sec.tip || '')}" ${active?.id === sec.id ? 'aria-current="page"' : ''}>
+      ${SECTIONS.filter(navAllowed).map((sec, i) => `${sec.sep && i ? '<div class="sb-sep" role="separator"></div>' : ''}<a class="nav-item${active?.id === sec.id ? ' active' : ''}" href="${sectionHref(sec)}" title="${esc(sec.tip || '')}" ${active?.id === sec.id ? 'aria-current="page"' : ''}>
         ${icon(sec.icon, 'ico-sm')}<span>${esc(sec.label)}</span></a>`).join('')}
     </nav>
+    <button type="button" class="nav-item sb-help" id="sb-help">${icon('help', 'ico-sm')}<span>Yordam</span></button>
     <div class="sb-foot">
       <button class="user-chip" type="button" id="sb-user">
         <span class="avatar">${esc(initials(u.full_name))}</span>
@@ -344,6 +404,7 @@ function renderNav(p) {
       </button>
     </div>`;
   $('#sidebar').querySelectorAll('.nav-item, .sb-cta').forEach((a) => a.addEventListener('click', () => toggleDrawer(false)));
+  $('#sb-help').addEventListener('click', () => $('#btn-help').click());
   $('#sb-user').addEventListener('click', (e) => openUserMenu(e.currentTarget, 'left'));
   $('#btn-user .avatar').textContent = initials(u.full_name);
   $('#btn-add').hidden = quickActions().length === 0;
@@ -597,7 +658,7 @@ async function route() {
   }
 }
 
-// Bo'lim ichidagi yorliqlar (masalan, Tovarlar: Tovarlar · Yuk keldi · Qoldiq va tarix · Sanash)
+// Bo'lim ichidagi yorliqlar (masalan, Tovar kiritish: Tez kiritish · Ko'p tovar bitta yuk · Kelgan yuklar)
 function renderSubnav(active, p) {
   const el = $('#subnav');
   const tabs = active ? sectionTabs(active, p) : [];

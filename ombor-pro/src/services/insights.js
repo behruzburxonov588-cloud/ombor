@@ -125,7 +125,7 @@ export function periodSentences({ cur, prev }, { label, against, financial }) {
       if (cur.net_profit >= 0) {
         lines.push(`Sof foyda (qo'lingizda qoladigani): ${money(cur.net_profit)}${per100 > 0 ? ` — har 100 so'm savdodan ${per100} so'm` : ''}.`);
       } else {
-        lines.push(`Zarar: ${money(Math.abs(cur.net_profit))} — xarajatlar savdo foydasidan ko'p bo'ldi.`);
+        lines.push(`Zarar: ${money(Math.abs(cur.net_profit))} — xarajatlar sotuvdan foydadan ko'p bo'ldi.`);
       }
     }
     if (cur.expenses > 0) lines.push(`Xarajatlar (ijara, maosh va boshqalar): ${money(cur.expenses)}.`);

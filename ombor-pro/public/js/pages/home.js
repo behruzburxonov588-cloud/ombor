@@ -1,6 +1,6 @@
 // Bosh sahifa («Toza ko'k» dizayni): do'kon egasi 5 soniyada tushunadigan asosiy raqamlar.
-//   1) Tez amallar (Sotish, Yangi tovar, Yuk keldi, ...)
-//   2) Qancha foyda qildingiz? — savdo − kelish narxi = tovardan foyda − xarajatlar = sof foyda (bir qatorda)
+//   1) Tez amallar (Sotuv, Yangi mahsulot, Tovar kiritish, ...)
+//   2) Qancha foyda qildingiz? — savdo − xarid narxi = sotuvdan foyda − xarajatlar = sof foyda (bir qatorda)
 //   3) To'rtta asosiy raqam: savdo, kassadagi naqd, mijozlar qarzi, sizning qarzingiz
 //   4) Savdo grafigi + bildirishnomalar; eng ko'p sotilganlar + so'nggi amallar; dinamika + tugayotgan tovarlar
 //   5) Nima keldi va nima ketdi; ombor holati (qiymati, turlari, kam qolgan, tugagan)
@@ -53,8 +53,8 @@ export async function renderHome(root, ctx, opts) {
       ${opts.actionTiles(ctx)}
       ${onbHtml || ''}
       ${d.cost_missing?.products ? `<div class="alert alert-warn cost-alert">${icon('alert', 'ico-sm')}<div class="grow">
-        <b>Foyda ko'proq chiqib qolgan: ${d.cost_missing.products} ta tovarning kelish narxi yozilmagan</b>
-        <div class="small">${esc(word)} ular ${moneyFull(d.cost_missing.revenue)} so'mga sotilgan va bu summa to'liq foyda deb hisoblandi. Kelish narxini yozing — foyda o'zi to'g'rilanadi.</div></div>
+        <b>Foyda ko'proq chiqib qolgan: ${d.cost_missing.products} ta tovarning xarid narxi yozilmagan</b>
+        <div class="small">${esc(word)} ular ${moneyFull(d.cost_missing.revenue)} so'mga sotilgan va bu summa to'liq foyda deb hisoblandi. Xarid narxini yozing — foyda o'zi to'g'rilanadi.</div></div>
         <a class="btn btn-sm" href="#/products?filter=nocost">${icon('calc', 'ico-sm')} Narxini yozish</a></div>` : ''}
       ${moneySection(ov, word)}
       ${kpiRow(d, cash, range)}
@@ -265,7 +265,7 @@ function lowStockCard(ov, canBuy) {
           <span class="ls-name">${esc(x.name)}</span>
           <span class="ls-qty ${x.status === 'out' ? 'red' : 'amber'}">${esc(qtyText(x.qty, x.unit))}</span>
         </a>`).join('')}</div>
-        ${canBuy ? `<a class="btn btn-sm btn-block" href="#/purchases/new" style="margin-top:12px">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a>` : ''}`
+        ${canBuy ? `<a class="btn btn-sm btn-block" href="#/stockin" style="margin-top:12px">${icon('truck', 'ico-sm')} Tovar kiritish</a>` : ''}`
     : `<div class="ok-state">${icon('check')}<div><b>Hamma tovar yetarli</b><span>${s.products} xil tovar omborda bor</span></div></div>`}
     </section>`;
 }
@@ -273,7 +273,7 @@ function lowStockCard(ov, canBuy) {
 // ---------- So'nggi amallar: savdo, kirim, xarajat, qarz to'lovi ----------
 const KIND = {
   sale: { label: 'Savdo', sign: 1, icon: 'cart', tone: 'blue' },
-  purchase: { label: 'Yuk keldi', sign: -1, icon: 'truck', tone: 'slate' },
+  purchase: { label: 'Tovar kiritildi', sign: -1, icon: 'truck', tone: 'slate' },
   expense: { label: 'Xarajat', sign: -1, icon: 'expense', tone: 'warn' },
   payment: { label: "Qarz to'lovi", sign: 1, icon: 'debt', tone: 'pos' },
 };
@@ -299,7 +299,7 @@ function recentCard(d, canSell) {
     </section>`;
 }
 
-// ---------- Qancha foyda qildingiz? (qadamma-qadam: savdo → kelish narxi → xarajat → sof foyda) ----------
+// ---------- Qancha foyda qildingiz? (qadamma-qadam: savdo → xarid narxi → xarajat → sof foyda) ----------
 function moneySection(d, word) {
   const m = d.money;
   if (!d.access.financial) return '';
@@ -313,16 +313,16 @@ function moneySection(d, word) {
   return `
     <section class="card pchain-card" aria-labelledby="pchain-h">
       <div class="pchain-head">
-        <div><h2 id="pchain-h">Qancha foyda qildingiz?</h2><div class="card-sub">${esc(word)}: savdodan kelish narxi va xarajatlar ayiriladi — qadamma-qadam</div></div>
+        <div><h2 id="pchain-h">Qancha foyda qildingiz?</h2><div class="card-sub">${esc(word)}: savdodan xarid narxi va xarajatlar ayiriladi — qadamma-qadam</div></div>
         <div class="pchain-net ${profit < 0 ? 'neg' : ''}"><span>${profit < 0 ? 'Zarar' : 'Sof foyda'}</span><b>${sum(profit, '+')}<small>so'm</small></b></div>
       </div>
       ${empty ? `<p class="money-sentence">${esc(word)} savdo ham, xarajat ham bo'lmadi.</p>` : `
       <div class="pchain" role="list" aria-label="Foyda hisobi">
         <div class="pc-step" role="listitem"><span>Savdo</span><b>${sum(m.revenue)}</b><small>${num(m.sales_count, 0)} ta chek</small></div>
         <div class="pc-op" aria-hidden="true">−</div>
-        <div class="pc-step" role="listitem"><span>Kelish narxi</span><b>${sum(m.cogs)}</b><small>sotilgan tovarlarniki</small></div>
+        <div class="pc-step" role="listitem"><span>Xarid narxi</span><b>${sum(m.cogs)}</b><small>sotilgan tovarlarniki</small></div>
         <div class="pc-op" aria-hidden="true">=</div>
-        <div class="pc-step ${goods < 0 ? 'bad' : 'good'}" role="listitem"><span>Tovardan foyda</span><b>${sum(goods, '+')}</b><small>${margin !== null ? `marja ${margin}%` : 'sotuv − kelish narxi'}</small></div>
+        <div class="pc-step ${goods < 0 ? 'bad' : 'good'}" role="listitem"><span>Sotuvdan foyda</span><b>${sum(goods, '+')}</b><small>${margin !== null ? `marja ${margin}%` : 'sotuv − xarid narxi'}</small></div>
         <div class="pc-op" aria-hidden="true">−</div>
         <div class="pc-step" role="listitem"><span>Xarajatlar</span><b>${sum(spent)}</b><small>${m.losses > 0 ? `shundan buzilgan tovar ${moneyFull(m.losses)}` : 'obed, suv, ijara… savdo pulidan'}</small></div>
         <div class="pc-op" aria-hidden="true">=</div>
@@ -330,7 +330,7 @@ function moneySection(d, word) {
       </div>`}
       <div class="money-foot">
         <span>${icon('wallet', 'ico-xs')} Savdodan qolgan pul (savdo − xarajat): <b class="${left < 0 ? 'red' : ''}">${sum(left)} so'm</b></span>
-        <span>${icon('truck', 'ico-xs')} Yuk keldi: <b>${m.purchases_count} ta</b>, ${moneyFull(m.purchases_total)} so'm${m.purchases_unpaid > 0 ? ` <span class="amber">(to'lanmagan ${moneyFull(m.purchases_unpaid)})</span>` : ''}</span>
+        <span>${icon('truck', 'ico-xs')} Tovar kiritildi: <b>${m.purchases_count} ta</b>, ${moneyFull(m.purchases_total)} so'm${m.purchases_unpaid > 0 ? ` <span class="amber">(to'lanmagan ${moneyFull(m.purchases_unpaid)})</span>` : ''}</span>
         <span>${icon('wallet', 'ico-xs')} Yetkazib beruvchilarga to'landi: <b>${moneyFull(m.paid_suppliers)} so'm</b></span>
         ${m.debt_collected > 0 ? `<span>${icon('debt', 'ico-xs')} Qarzdorlar to'ladi: <b>${moneyFull(m.debt_collected)} so'm</b> <span class="muted">(savdoga qo'shilmaydi)</span></span>` : ''}
         <a class="link-btn" href="#/reports?tab=pnl&from=${d.range.from}&to=${d.range.to}">Batafsil hisobot ${icon('right', 'ico-xs')}</a>
@@ -361,7 +361,7 @@ function movesSection(d, word, { canBuy, canSell }) {
           <span class="mv-name">${esc(r.name)}</span>
           <span class="mv-qty green">+${esc(qtyText(r.qty, r.unit))}</span>
           ${costs ? `<span class="mv-sum">${moneyFull(r.value)}</span>` : ''}`)
-    : `<div class="empty small">${esc(word)} yuk kelmadi${canBuy ? `<div style="margin-top:10px"><a class="btn btn-sm" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a></div>` : ''}</div>`}
+    : `<div class="empty small">${esc(word)} yuk kelmadi${canBuy ? `<div style="margin-top:10px"><a class="btn btn-sm" href="#/stockin">${icon('truck', 'ico-sm')} Tovar kiritish</a></div>` : ''}</div>`}
       </section>
       <section class="card home-card">
         <div class="hc-head">

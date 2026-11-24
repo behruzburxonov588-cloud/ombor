@@ -52,12 +52,12 @@ export async function render(root, params, ctx) {
 
     <section class="card flush" style="margin-top:14px">
       ${staff.length ? `<div class="table-wrap cards"><table>
-        <thead><tr><th>Xodim</th><th class="right">Cheklar</th><th class="right">Tushum</th>${fin ? '<th class="right">Savdo foydasi</th>' : ''}<th class="right">O'rtacha chek</th><th class="right">Chegirmalar</th><th class="right">Qaytarishlar</th><th>Ulushi</th><th>Tendensiya</th></tr></thead>
+        <thead><tr><th>Xodim</th><th class="right">Cheklar</th><th class="right">Tushum</th>${fin ? '<th class="right">Sotuvdan foyda</th>' : ''}<th class="right">O'rtacha chek</th><th class="right">Chegirmalar</th><th class="right">Qaytarishlar</th><th>Ulushi</th><th>Tendensiya</th></tr></thead>
         <tbody>${staff.map((s) => `<tr class="${ctx.can('history.view') ? 'clickable' : ''}" data-id="${s.id}">
           <td data-label="Xodim"><div class="row" style="gap:10px;flex-wrap:nowrap"><span class="avatar">${esc(initials(s.full_name))}</span><div><b>${esc(s.full_name)}</b><div class="small muted">${esc(ROLE[s.role] || s.role)}${s.is_active ? '' : ' · faol emas'}</div></div></div></td>
           <td data-label="Cheklar" class="right num">${num(s.sales_count, 0)}</td>
           <td data-label="Tushum" class="right num"><b>${moneyFull(s.net_revenue)}</b><div>${deltaPill(s.change, { title: 'oldingi davrga nisbatan' })}</div></td>
-          ${fin ? `<td data-label="Savdo foydasi" class="right num ${s.gross_profit < 0 ? 'neg' : ''}">${moneyFull(s.gross_profit)}</td>` : ''}
+          ${fin ? `<td data-label="Sotuvdan foyda" class="right num ${s.gross_profit < 0 ? 'neg' : ''}">${moneyFull(s.gross_profit)}</td>` : ''}
           <td data-label="O'rtacha chek" class="right num">${moneyFull(s.avg_order)}</td>
           <td data-label="Chegirmalar" class="right num">${s.discounts > 0 ? `${moneyFull(s.discounts)}<div class="small muted">${s.discounted_sales} chekda</div>` : '<span class="muted">—</span>'}</td>
           <td data-label="Qaytarishlar" class="right num">${s.returns > 0 ? `${moneyFull(s.returns)}<div class="small muted">${s.returns_count} ta</div>` : '<span class="muted">—</span>'}</td>

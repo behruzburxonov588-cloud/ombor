@@ -9,7 +9,7 @@ export const PERMISSIONS = [
   { key: 'stock.count', label: 'Tovar sanash' },
   { key: 'stock.approve', label: 'Sanashni tasdiqlash' },
   { key: 'purchases.view', label: "Kelgan yuklarni ko'rish" },
-  { key: 'purchases.create', label: 'Yuk kiritish («Yuk keldi»)' },
+  { key: 'purchases.create', label: 'Tovar kiritish' },
   { key: 'sales.view', label: "Savdolarni ko'rish" },
   { key: 'sales.create', label: "Savdo qilish" },
   { key: 'sales.discount', label: "Chegirma berish" },

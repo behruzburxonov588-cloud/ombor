@@ -144,7 +144,7 @@ async function renderSuppliers(root, params, ctx, tabs) {
       <div><h1>Qarzlar</h1><p class="muted">Siz yetkazib beruvchilarga qancha qarzdorsiz va qachongacha to'lashingiz kerak</p></div>
       <div class="row" style="flex-wrap:wrap">
         ${canAdd ? `<button class="btn" type="button" id="add-sdebt">${icon('plus', 'ico-sm')} Qarz yozish</button>` : ''}
-        ${ctx.can('purchases.create') ? `<a class="btn btn-light" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}
+        ${ctx.can('purchases.create') ? `<a class="btn btn-light" href="#/stockin">${icon('truck', 'ico-sm')} Tovar kiritish</a>` : ''}
       </div>
     </div>
     ${tabs}
@@ -168,7 +168,7 @@ async function renderSuppliers(root, params, ctx, tabs) {
         : `<div class="empty-hero">
           <span class="hero-ico">${icon('check')}</span>
           <h2>Hech kimga qarzingiz yo'q</h2>
-          <p>Yukni qarzga olsangiz («Yuk keldi» → «Qarzga oldim»), qarz shu yerda paydo bo'ladi.</p>
+          <p>Yukni qarzga olsangiz («Tovar kiritish» → «Qarzga oldim»), qarz shu yerda paydo bo'ladi.</p>
         </div>`}
     </section>`;
 

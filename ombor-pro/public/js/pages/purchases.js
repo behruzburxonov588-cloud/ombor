@@ -37,7 +37,7 @@ async function renderList(root, params, ctx) {
       <div><h1>Kelgan yuklar</h1><p class="muted">${esc(word)}: omborga kelgan yuklar va ular uchun to'lovlar</p></div>
       <div class="filterbar">
         ${periodPicker(range)}
-        ${ctx.can('purchases.create') ? `<a class="btn btn-sm" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi</a>` : ''}
+        ${ctx.can('purchases.create') ? `<a class="btn btn-sm" href="#/stockin">${icon('truck', 'ico-sm')} Tovar kiritish</a>` : ''}
       </div>
     </div>
     <div class="sum-row">
@@ -82,8 +82,8 @@ async function renderList(root, params, ctx) {
       : (rows.length ? emptyState("Bu filtr bo'yicha kirim yo'q", 'truck') : `<div class="empty-hero">
           <span class="hero-ico">${icon('truck')}</span>
           <h2>${esc(word)} yuk kelmagan</h2>
-          <p>Omborga tovar kelsa — «Yuk keldi» tugmasini bosing. Qoldiq o'zi ko'payadi.</p>
-          ${ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('truck')} Yuk keldi — kiritish</a>` : ''}
+          <p>Omborga tovar kelsa — «Tovar kiritish» tugmasini bosing. Qoldiq o'zi ko'payadi.</p>
+          ${ctx.can('purchases.create') ? `<a class="btn" href="#/stockin">${icon('truck')} Tovar kiritish</a>` : ''}
         </div>`);
     root.querySelectorAll('#plist tr[data-id]').forEach((tr) => tr.addEventListener('click', () => ctx.go(`#/purchases/${tr.dataset.id}`)));
   };
@@ -125,8 +125,7 @@ async function renderNew(root, ctx, preselect = null) {
 
   root.innerHTML = `
     <div class="page-head">
-      <a class="btn btn-light btn-sm" href="#/purchases">${icon('back', 'ico-sm')} Kirimlar</a>
-      <h1>Yuk keldi</h1>
+      <div><h1>Ko'p tovar bitta yuk qilib</h1><p class="muted">Bir yetkazib beruvchidan ko'p xil tovar kelsa: hammasini tanlab, bir marta saqlaysiz. Yo'l kira va chegirma ham shu yerda</p></div>
     </div>
     <ol class="rcv-steps">
       <li><b>1</b> Kelgan tovarni bosing</li>
@@ -193,7 +192,7 @@ async function renderNew(root, ctx, preselect = null) {
             <label class="field"><span>Sizga chegirma (so'm)</span><input class="input" id="dsc" data-money inputmode="decimal" placeholder="0"></label>
             <label class="field"><span>Izoh</span><input class="input" id="note" maxlength="500" placeholder="Ixtiyoriy"></label>
           </div>
-          <p class="small muted" style="margin-top:6px">Yo'l kira va chegirma tovarlarning kelish narxiga taqsimlanadi.</p>
+          <p class="small muted" style="margin-top:6px">Yo'l kira va chegirma tovarlarning xarid narxiga taqsimlanadi.</p>
         </details>
 
         <div class="rcv-foot">
@@ -305,7 +304,7 @@ async function renderNew(root, ctx, preselect = null) {
             <span class="szr-stock">Omborda: <b>${num(v.stock_qty, 3)}</b></span>
             <span class="qty-ctrl"><button type="button" data-szd="${v.id}" aria-label="Kamaytirish">−</button><input type="text" inputmode="decimal" data-szq="${v.id}" placeholder="0" value="${inCart(v.id) ? esc(String(inCart(v.id).quantity)) : ''}" aria-label="${esc(v.variant_label)}: nechta keldi"><button type="button" data-szi="${v.id}" aria-label="Ko'paytirish">+</button></span>
           </label>`).join('')}</div>
-        <label class="field"><span>1 ${esc(first.base_unit_name)} kelish narxi (hamma o'lchamga)</span>
+        <label class="field"><span>1 ${esc(first.base_unit_name)} xarid narxi (hamma o'lchamga)</span>
           <div class="money-input"><input class="input input-lg" id="szp" data-money inputmode="decimal" value="${esc(formatMoneyInput(price0 ?? ''))}" placeholder="0"><em>so'm</em></div></label>
         <div class="small" id="szsum"></div>
         <div id="szerr"></div>

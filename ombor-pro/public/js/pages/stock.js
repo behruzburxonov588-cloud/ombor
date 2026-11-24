@@ -51,7 +51,7 @@ export async function render(root, params, ctx) {
 
   root.innerHTML = `
     <div class="page-head"><div><h1>${counting ? 'Sanash' : 'Qoldiq va tarix'}</h1><p class="muted">${counting ? "Tovarni qo'lda sanab, dasturdagi qoldiq bilan solishtiring" : "Har bir tovardan qancha qolgani va nima kirib-chiqqani"}</p></div>
-      ${!counting && ctx.can('purchases.create') ? `<a class="btn" href="#/purchases/new">${icon('truck', 'ico-sm')} Yuk keldi — kiritish</a>` : ''}</div>
+      ${!counting && ctx.can('purchases.create') ? `<a class="btn" href="#/stockin">${icon('truck', 'ico-sm')} Tovar kiritish</a>` : ''}</div>
     ${inner.length > 1 ? `<div class="seg" role="tablist" style="margin-bottom:14px;flex-wrap:wrap">
       ${inner.map((t) => `<button type="button" role="tab" data-tab="${t.key}" class="${t.key === tab.key ? 'active' : ''}" aria-selected="${t.key === tab.key}">${t.label}</button>`).join('')}
     </div>` : ''}
@@ -79,7 +79,7 @@ async function tabOverview(body, q, ctx) {
     ${periodCard(range, "«Keldi» va «Sotildi» ustunlari tanlangan davr uchun. «Hozir bor» — bugungi qoldiq.")}
     <div class="kpis">
       <div class="kpi neutral"><div class="label">Ombordagi tovar qiymati</div><div class="value">${money(t.inventory_value)}</div>
-        <div class="hint">kelish narxida hisoblangan</div></div>
+        <div class="hint">xarid narxida hisoblangan</div></div>
       <div class="kpi neutral"><div class="label">Tovar turlari</div><div class="value">${t.products}</div><div class="hint">sotuvdagi tovarlar</div></div>
       <div class="kpi ${t.low ? 'warn' : 'good'}"><div class="label">Kam qolgan</div><div class="value">${t.low}</div><div class="hint">tez orada olib kelish kerak</div></div>
       <div class="kpi ${t.out ? 'bad' : 'good'}"><div class="label">Tugagan</div><div class="value">${t.out}</div><div class="hint">omborda umuman yo'q</div></div>
@@ -141,7 +141,7 @@ async function tabMovements(body, q, ctx) {
           <td data-label="Oldin" class="right num muted">${qty(m.balance_before)}</td>
           <td data-label="O'zgarish" class="right num"><span>${diffHtml(m.quantity)} <span class="small muted">${esc(m.unit || '')}</span></span></td>
           <td data-label="Keyin" class="right num"><b>${qty(m.balance_after)}</b></td>
-          <td data-label="Narx" class="right num">${m.unit_price !== null && m.unit_price !== undefined ? `<div>${money(m.unit_price)}<div class="small muted">${m.movement_type === 'sale' ? 'sotuv narxi' : 'kelish narxi'}</div></div>` : '—'}</td>
+          <td data-label="Narx" class="right num">${m.unit_price !== null && m.unit_price !== undefined ? `<div>${money(m.unit_price)}<div class="small muted">${m.movement_type === 'sale' ? 'sotuv narxi' : 'xarid narxi'}</div></div>` : '—'}</td>
           <td data-label="Kim" class="small">${esc(m.user_name || '—')}</td>
         </tr>`).join('')}</tbody></table></div>`
         : emptyState("Harakatlar yo'q", 'clock')}

@@ -128,7 +128,7 @@ export async function issueStock(client, product, baseQty, opts) {
 // Kirim hujjatlari va yetkazib beruvchiga qarz o'zgarmaydi — faqat foyda (tannarx) hisobi.
 export async function recostProduct(client, productId, newCost, mode = 'missing') {
   const cost = round4(newCost);
-  if (!(cost > 0)) throw new HttpError(400, "Kelish narxi noldan katta bo'lishi kerak");
+  if (!(cost > 0)) throw new HttpError(400, "Xarid narxi noldan katta bo'lishi kerak");
   const { rows: batches } = await client.query(
     `SELECT id FROM stock_batches
       WHERE product_id = $1 AND unit_cost <> $2

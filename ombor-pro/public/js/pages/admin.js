@@ -27,7 +27,7 @@ const ACTION_LABELS = {
 const DETAIL_LABELS = {
   items: 'tovar', total: 'jami', credit: 'nasiya', paid_total: "to'landi", receipt_no: 'chek', name: 'nomi',
   barcode: 'shtrix-kod', opening: "boshlang'ich qoldiq", amount: 'summa', category: 'turkum', method: 'usul',
-  selling_price: 'sotuv narxi', purchase_price: 'kelish narxi', min_stock: 'ogohlantirish chegarasi',
+  selling_price: 'sotuv narxi', purchase_price: 'xarid narxi', min_stock: 'ogohlantirish chegarasi',
   expected: 'kutilgan', counted: 'sanalgan', difference: 'farq', username: 'login', role: 'lavozim',
   is_active: 'faol', count_no: 'sanoq', purchase_no: 'kirim', quantity: 'miqdor', reason: 'sabab', note: 'izoh',
 };
@@ -160,7 +160,7 @@ async function renderEmployees(root, ctx, openNew = false) {
           </tr>`;
         }).join('')}</tbody></table></div>` : emptyState("Xodimlar yo'q", 'users')}
     </div>
-    <p class="small muted" style="margin-top:10px">${icon('info', 'ico-xs')} Har bir lavozimning ruxsatlari bor: masalan, kassir tovar kelish narxini va foydani ko'rmaydi. Xodimni bosib, ruxsatlarini o'zgartirishingiz mumkin.</p>`;
+    <p class="small muted" style="margin-top:10px">${icon('info', 'ico-xs')} Har bir lavozimning ruxsatlari bor: masalan, kassir tovar xarid narxini va foydani ko'rmaydi. Xodimni bosib, ruxsatlarini o'zgartirishingiz mumkin.</p>`;
 
   root.querySelector('#addu').addEventListener('click', () => openUserEditor(ctx, meta, null, () => renderEmployees(root, ctx)));
   if (openNew) openUserEditor(ctx, meta, null, () => renderEmployees(root, ctx));
@@ -308,7 +308,7 @@ async function renderSettings(root, ctx) {
         <label class="field"><span>Foydani hisoblash usuli</span>
           <select class="input" name="costing_method">
             <option value="FIFO" ${s.costing_method === 'FIFO' ? 'selected' : ''}>Avval kelgan tovar avval sotiladi (tavsiya)</option>
-            <option value="WAVG" ${s.costing_method === 'WAVG' ? 'selected' : ''}>O'rtacha kelish narxi bo'yicha</option>
+            <option value="WAVG" ${s.costing_method === 'WAVG' ? 'selected' : ''}>O'rtacha xarid narxi bo'yicha</option>
           </select>
           <small>O'zgartirish faqat keyingi amallarga ta'sir qiladi. Eski tarix o'zgarmaydi.</small></label>
         <label class="field"><span>Qarz ogohlantirish (kun oldin)</span>

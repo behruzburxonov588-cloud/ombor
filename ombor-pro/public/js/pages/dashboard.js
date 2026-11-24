@@ -23,7 +23,7 @@ const WIDGET_SIZE = {
 };
 const KIND = {
   sale: { label: 'Savdo', sign: 1, icon: 'cart' },
-  purchase: { label: 'Yuk keldi', sign: -1, icon: 'truck' },
+  purchase: { label: 'Tovar kiritildi', sign: -1, icon: 'truck' },
   expense: { label: 'Xarajat', sign: -1, icon: 'expense' },
   payment: { label: "Qarz to'lovi", sign: 1, icon: 'debt' },
 };
@@ -31,15 +31,15 @@ const KIND = {
 // Yangi do'kon uchun "Qayerdan boshlash" qadamlari (faqat ruxsat berilganlari ko'rinadi)
 const ONB_STEPS = [
   {
-    perm: 'products.manage', title: "Tovar qo'shing", text: "Do'koningizdagi tovarni kiriting: nomi va sotuv narxi kifoya.",
-    href: '#/products/new', btn: "Tovar qo'shish", icon: 'box', done: (o) => o.products > 0,
+    perm: 'products.manage', title: "Birinchi mahsulotni qo'shing", text: "Nomi va sotuv narxi kifoya. Rasmini telefonda olsangiz bo'ladi.",
+    href: '#/products/new', btn: "Mahsulot qo'shish", icon: 'box', done: (o) => o.products > 0,
   },
   {
-    perm: 'purchases.create', title: 'Kelgan yukni kiriting', text: "Omborga qancha tovar kelganini kiriting. Qoldiq o'zi hisoblanadi.",
-    href: '#/purchases/new', btn: 'Yuk keldi', icon: 'truck', done: (o) => o.purchases > 0 || o.stocked > 0,
+    perm: 'purchases.create', title: 'Kelgan tovarni kiriting', text: "Nomini toping, nechta kelganini yozing, Enter. Qolgan mahsulot o'zi hisoblanadi.",
+    href: '#/stockin', btn: 'Tovar kiritish', icon: 'truck', done: (o) => o.purchases > 0 || o.stocked > 0,
   },
   {
-    perm: 'sales.create', title: 'Birinchi sotuvni qiling', text: "Sotuv bo'limida tovarni tanlang va sotishni yakunlang.",
+    perm: 'sales.create', title: 'Birinchi sotuvni qiling', text: "Tovarni bosing, sonini yozing, «Sotish». Kechqurun bosh sahifada foydani ko'rasiz.",
     href: '#/sales', btn: "Sotuvga o'tish", icon: 'cart', done: (o) => o.sales > 0,
   },
   {
@@ -52,7 +52,7 @@ const ONB_STEPS = [
 const ACTIONS = [
   { label: 'Sotish', hint: 'Xaridorga tovar sotish', icon: 'cart', href: '#/sales', perms: ['sales.create'] },
   { label: 'Yangi tovar', hint: "Tovar va narxini qo'shish", icon: 'box', href: '#/products/new', perms: ['products.manage'] },
-  { label: 'Yuk keldi', hint: 'Kelgan tovarni kiritish', icon: 'truck', href: '#/purchases/new', perms: ['purchases.create'] },
+  { label: 'Tovar kiritish', hint: 'Kelgan tovarni omborga', icon: 'truck', href: '#/stockin', perms: ['purchases.create'] },
   { label: 'Xarajat', hint: 'Obed, suv, ijara, maosh…', icon: 'expense', href: '#/cash?tab=expenses&new=1', perms: ['expenses.manage'] },
   { label: 'Yangi mijoz', hint: 'Doimiy xaridor, nasiya', icon: 'users', href: '#/customers?new=1', perms: ['customers.manage'] },
   { label: "Qarz to'lovi", hint: "Mijoz qarzini to'ladi", icon: 'money', href: '#/debts', perms: ['payments.create', 'customers.manage'] },
@@ -312,7 +312,7 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
       ${sparkline(kpi.spark, { color })}
       <div class="stat-foot">${deltaAmount(kpi.value, kpi.previous, { goodWhenUp, unit, title: snapshot ? startNote : cmp })}<span class="stat-note">${esc(note || (snapshot ? startNote : shortCmp))}</span></div>
     </a>`;
-  // Bosh sahifa: xarajat (obed, suv...) savdo pulidan olinadi — savdo, xarajat, savdodan qolgan pul, tovardan foyda
+  // Bosh sahifa: xarajat (obed, suv...) savdo pulidan olinadi — savdo, xarajat, savdodan qolgan pul, sotuvdan foyda
   if (periodOnly && k.gross_profit && k.sales_left && k.expenses) {
     const sc = k.sales_count.value;
     return `<div class="stats four">${[
@@ -332,7 +332,7 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
       card({
         label: 'Foyda (tovardan)', kpi: k.gross_profit, href: `#/reports?tab=pnl&${q}`, i: 'trendUp', tone: k.gross_profit.value < 0 ? 'neg' : 'pos', color: C.s2,
         note: k.net_profit ? `xarajatdan keyin ${k.net_profit.value < 0 ? '−' : ''}${compact(Math.abs(k.net_profit.value))}` : '',
-        hint: "Sotuv narxi − kelish narxi. Masalan: 5 000 ga kelib 10 000 ga sotilsa — 5 000 foyda",
+        hint: "Sotuv narxi − xarid narxi. Masalan: 5 000 ga kelib 10 000 ga sotilsa — 5 000 foyda",
       }),
     ].join('')}</div>`;
   }
@@ -345,7 +345,7 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
     cards.push(card({
       label: today ? 'Bugungi sof foyda' : 'Sof foyda', kpi: k.net_profit, href: `#/reports?tab=pnl&${q}`, i: 'trendUp', tone: k.net_profit.value < 0 ? 'neg' : 'pos',
       color: k.net_profit.value >= 0 ? C.s2 : C.neg,
-      hint: "Qo'lingizda qoladigan pul: tushum − tovarlarning kelish narxi − xarajatlar − buzilgan tovar",
+      hint: "Qo'lingizda qoladigan pul: tushum − tovarlarning xarid narxi − xarajatlar − buzilgan tovar",
     }));
   }
   if (k.expenses) {
@@ -378,8 +378,8 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
   if (k.inventory_value) {
     cards.push(card({
       label: 'Ombordagi tovar', kpi: k.inventory_value, href: home ? '#/stock' : '#/reports?tab=inventory', snapshot: true, color: C.cost,
-      note: home && d.stock ? `${d.stock.products} xil${d.stock.out ? ` · ${d.stock.out} ta tugagan` : ''}` : 'kelish narxida',
-      hint: "Ombordagi barcha tovarlar kelish narxida qancha turadi",
+      note: home && d.stock ? `${d.stock.products} xil${d.stock.out ? ` · ${d.stock.out} ta tugagan` : ''}` : 'xarid narxida',
+      hint: "Ombordagi barcha tovarlar xarid narxida qancha turadi",
     }));
   }
   if (k.customer_debt) {
@@ -402,7 +402,7 @@ export function kpiCards(d, range, { cash = null, home = false, periodOnly = fal
 
 const METRICS = [
   { key: 'net_revenue', label: 'Tushum', money: true },
-  { key: 'gross_profit', label: 'Savdo foydasi', money: true, financial: true },
+  { key: 'gross_profit', label: 'Sotuvdan foyda', money: true, financial: true },
   { key: 'sales_count', label: 'Cheklar soni', money: false },
   { key: 'avg_order', label: "O'rtacha chek", money: true },
 ];
@@ -493,7 +493,7 @@ function pnlCard(d) {
     <div class="pnl-row ${cls}" ${tip ? `title="${esc(tip)}"` : ''}><span class="lbl">${label}</span><span class="val ${cls.includes('grand') && cur < 0 ? 'neg' : ''}">${moneyFull(cur)}</span>
       <span class="chg">${cls.includes('sub') ? '' : deltaAmount(cur, prev, { goodWhenUp, title: 'oldingi davrga nisbatan' })}</span></div>`;
   const parts = [
-    { label: 'Tovar kelish narxi', value: Math.max(0, c.cogs), color: C.cost },
+    { label: 'Tovar xarid narxi', value: Math.max(0, c.cogs), color: C.cost },
     { label: 'Xarajatlar', value: Math.max(0, c.expenses), color: C.warn },
     { label: 'Buzilgan tovar', value: Math.max(0, c.losses), color: C.neg },
     { label: 'Sof foyda', value: Math.max(0, c.net_profit), color: C.s2 },
@@ -508,8 +508,8 @@ function pnlCard(d) {
         ${row('− Chegirmalar', c.discounts, p.discounts, 'sub')}
         ${row('− Qaytarilgan tovar', c.returns, p.returns, 'sub')}
         ${row('Tushum', c.net_revenue, p.net_revenue, 'total', true, 'Haqiqatda tushgan pul')}
-        ${row('− Tovarlarning kelish narxi', c.cogs, p.cogs, 'sub', true, "Sotilgan tovarlarni o'zingiz necha so'mga olgansiz")}
-        ${row('Savdo foydasi', c.gross_profit, p.gross_profit, 'total', true, 'Tushum minus tovarlarning kelish narxi')}
+        ${row('− Tovarlarning xarid narxi', c.cogs, p.cogs, 'sub', true, "Sotilgan tovarlarni o'zingiz necha so'mga olgansiz")}
+        ${row('Sotuvdan foyda', c.gross_profit, p.gross_profit, 'total', true, 'Tushum minus tovarlarning xarid narxi')}
         ${row('− Xarajatlar', c.expenses, p.expenses, 'sub', false)}
         ${row("− Buzilgan / yo'qolgan tovar", c.losses, p.losses, 'sub', false)}
         ${row(c.net_profit >= 0 ? "Sof foyda (qo'lga qoladi)" : 'Zarar', c.net_profit, p.net_profit, 'grand')}
@@ -518,7 +518,7 @@ function pnlCard(d) {
         <div class="between small" style="margin-bottom:6px"><span class="muted">Tushum qayerga ketdi</span>${per100 ? `<span class="muted">har 100 so'mdan <b style="color:var(--text)">${per100} so'm</b> foyda</span>` : ''}</div>
         ${segbar(parts)}
         <div class="legend" style="margin-top:8px">${parts.map((x) => `<span><i class="box" style="background:${x.color}"></i>${x.label}</span>`).join('')}</div>
-        ${c.net_profit < 0 ? `<div class="note" style="margin-top:10px">${icon('info', 'ico-xs')}<span>Bu davrda xarajatlar savdo foydasidan ${compact(Math.abs(c.net_profit), { unit: true })} ko'p bo'ldi.</span></div>` : ''}
+        ${c.net_profit < 0 ? `<div class="note" style="margin-top:10px">${icon('info', 'ico-xs')}<span>Bu davrda xarajatlar sotuvdan foydadan ${compact(Math.abs(c.net_profit), { unit: true })} ko'p bo'ldi.</span></div>` : ''}
       </div>
     </section>`;
 }
@@ -577,7 +577,7 @@ function forecastCard(f) {
         <span class="badge badge-est">${icon('target2', 'ico-xs')} Taxmin</span></div>
       <div class="kv" style="margin-bottom:12px">
         <span class="k">Kutilayotgan savdo</span><span class="v">${compact(f.totals.low)} – ${compact(f.totals.high)} so'm</span>
-        <span class="k">Taxminiy savdo foydasi</span><span class="v">≈ ${compact(f.totals.gross_profit, { unit: true })}</span>
+        <span class="k">Taxminiy sotuvdan foyda</span><span class="v">≈ ${compact(f.totals.gross_profit, { unit: true })}</span>
         <span class="k">Xarajatlar ayirilgandan keyin</span><span class="v ${f.totals.net_profit < 0 ? 'neg' : ''}">≈ ${compact(f.totals.net_profit, { unit: true })}</span>
         <span class="k">O'tgan 7 kunda haqiqatda</span><span class="v">${compact(f.last7_actual.revenue, { unit: true })}</span>
       </div>
@@ -627,7 +627,7 @@ function inventoryCard(inv, d) {
     <section class="card" style="height:100%">
       <div class="card-head"><div><h2>Ombor holati</h2><div class="card-sub">${t.products} ta tovar, ${t.in_stock} tasi omborda</div></div>
         <a class="link-btn" href="#/reports?tab=inventory">Batafsil ${icon('right', 'ico-xs')}</a></div>
-      <div class="row" style="align-items:baseline;gap:6px"><div class="big-figure">${compact(t.cost_value)}<span class="cur">so'm</span></div><span class="muted small">kelish narxida${t.retail_value !== null ? ` · sotsangiz ≈ ${compact(t.retail_value)}` : ''}</span></div>
+      <div class="row" style="align-items:baseline;gap:6px"><div class="big-figure">${compact(t.cost_value)}<span class="cur">so'm</span></div><span class="muted small">xarid narxida${t.retail_value !== null ? ` · sotsangiz ≈ ${compact(t.retail_value)}` : ''}</span></div>
       <div style="margin-top:12px">${segbar(parts)}</div>
       <div class="health">${parts.map((x) => `<a href="${x.href}"><i style="background:${x.color}"></i>${x.label}<b>${x.value}</b></a>`).join('')}</div>
       ${restock.length ? `<div style="margin-top:14px"><h4 class="muted" style="font-weight:550;margin-bottom:4px">Tez orada olib kelish kerak</h4>

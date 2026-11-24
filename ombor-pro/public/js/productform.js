@@ -1,7 +1,7 @@
 // Yangi tovar qo'shish — iloji boricha oddiy:
-//   odatda faqat: rasm (ixtiyoriy), nomi, qanday sotasiz (dona/kg/litr/metr), sotuv narxi, kelish narxi, nechta bor.
+//   odatda faqat: rasm (ixtiyoriy), nomi, qanday sotasiz (dona/kg/litr/metr), sotuv narxi, xarid narxi, nechta bor.
 //   kerak bo'lsa bir bosishda ochiladi:
-//     - "Qutida, rulonda yoki blokda keladi" (1 rulon ichida 100 metr) — kelish narxi rulon uchun yozilsa, 1 metr narxi o'zi hisoblanadi
+//     - "Qutida, rulonda yoki blokda keladi" (1 rulon ichida 100 metr) — xarid narxi rulon uchun yozilsa, 1 metr narxi o'zi hisoblanadi
 //     - "Har xil hajmi bor" (Pepsi 0,5 L, 1 L, 1,5 L) — har biri alohida tovar bo'lib saqlanadi
 //     - "Shtrix-kod, kategoriya, yetkazib beruvchi"
 // Rasm yuborishdan oldin telefonda kichraytiriladi (har qanday telefon rasmi yuklanadi).
@@ -106,8 +106,8 @@ async function mountWizard(host, opts) {
   const packCodes = generic ? PACK_CODES : union('packs');
   const presetKeys = generic ? SIZE_PRESETS.map((x) => x.key) : union('presets');
   const sizesOn = presetKeys.length > 0;
-  const packText = one?.pack || (generic ? ['Qutida, rulonda yoki blokda keladi', 'Masalan: 1 rulon ichida 100 metr — kelish narxini rulon uchun yozasiz']
-    : ['Qadoqda keladi (quti, rulon, qop...)', 'Masalan: 1 quti ichida 12 dona — kelish narxini qadoq uchun yozasiz']);
+  const packText = one?.pack || (generic ? ['Qutida, rulonda yoki blokda keladi', 'Masalan: 1 rulon ichida 100 metr — xarid narxini rulon uchun yozasiz']
+    : ['Qadoqda keladi (quti, rulon, qop...)', 'Masalan: 1 quti ichida 12 dona — xarid narxini qadoq uchun yozasiz']);
   const variantText = one?.variant || [
     sizesOn ? (colorsOn ? "O'lchami yoki rangi bor" : "Har xil o'lchami bor") : 'Rangi bor',
     sizesOn ? (colorsOn ? "Masalan: S, M, L yoki 38, 39. Ranglarini rasmga olib qo'shasiz — har birining qoldig'i alohida" : "Masalan: S, M, L yoki 38, 39, 40. Har birining qoldig'i alohida ko'rinadi")
@@ -273,7 +273,7 @@ async function mountWizard(host, opts) {
       const profit = sellPerBase(sell) - costPerBase(cost);
       parts.push(profit >= 0
         ? `har 1 ${esc(base())}dan foyda <b class="green">${money(round2(profit))}</b>${packReady() ? `, 1 ${esc(pack())}dan <b class="green">${money(round2(profit * factor()))}</b>` : ''}`
-        : '<b class="red">zarar: sotuv narxi kelish narxidan past</b>');
+        : '<b class="red">zarar: sotuv narxi xarid narxidan past</b>');
     }
     if (q > 0 && rollOpen()) parts.push(`omborga ${num(rollSum(), 4)} ${esc(base())} (${rollCount()} rulon) qo'shiladi`);
     else if (q > 0 && packReady() && st.qtyIn === 'pack') parts.push(`omborga ${num(round4(qtyBase(q)), 4)} ${esc(base())} qo'shiladi`);
@@ -321,12 +321,12 @@ async function mountWizard(host, opts) {
   }
 
   const REQ = '<span class="req" aria-hidden="true">*</span>';
-  const HINT0 = "Kelish narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi";
-  // Qoldiq bor, lekin kelish narxi yo'q — foyda noto'g'ri chiqishini oldindan aytamiz
+  const HINT0 = "Xarid narxini yozsangiz, har biridan qancha foyda qolishi shu yerda ko'rinadi";
+  // Qoldiq bor, lekin xarid narxi yo'q — foyda noto'g'ri chiqishini oldindan aytamiz
   const hint0 = () => {
     const hasQty = st.variants ? st.rows.some((x) => toNum(x.qty) > 0) : toNum(st.single.qty) > 0;
     return hasQty && String(st.single.cost).trim() === ''
-      ? '<span class="amber">Kelish narxini yozing: aks holda sotilganda butun tushum foyda bo\'lib ko\'rinadi</span>'
+      ? '<span class="amber">Xarid narxini yozing: aks holda sotilganda butun tushum foyda bo\'lib ko\'rinadi</span>'
       : HINT0;
   };
 
@@ -338,8 +338,8 @@ async function mountWizard(host, opts) {
         <label class="field"><span>Sotuv narxi ${REQ}${st.variants ? " <small>— hamma o'lchamga</small>" : ''}</span>
           <div class="money-input" data-wrap="sell"><input class="input input-lg" data-f="sell" data-money inputmode="decimal" placeholder="0" value="${esc(r.sell)}" aria-required="true"><em>so'm · 1 ${unitSwitch('sell')}</em></div>
           ${packReady() ? `<div class="conv" data-conv="sell">${convText('sell')}</div>` : ''}</label>
-        <div class="field"><span>Kelish narxi <small>(ixtiyoriy)</small></span>
-          <div class="money-input" data-wrap="cost"><input class="input input-lg" data-f="cost" data-money inputmode="decimal" placeholder="0" value="${esc(r.cost)}" aria-label="Kelish narxi"><em>so'm · 1 ${unitSwitch('cost')}</em></div>
+        <div class="field"><span>Xarid narxi <small>(ixtiyoriy)</small></span>
+          <div class="money-input" data-wrap="cost"><input class="input input-lg" data-f="cost" data-money inputmode="decimal" placeholder="0" value="${esc(r.cost)}" aria-label="Xarid narxi"><em>so'm · 1 ${unitSwitch('cost')}</em></div>
           ${packReady() ? `<div class="conv" data-conv="cost">${convText('cost')}</div>` : ''}</div>
       </div>
       <div class="calc-box" data-hint="single">${calcHint(r) || hint0()}</div>
@@ -446,7 +446,7 @@ async function mountWizard(host, opts) {
         </section>
 
         <section class="fsec">
-          ${secHead(2, 'Narx', "Sotuv va kelish narxi — foyda o'zi hisoblanadi")}
+          ${secHead(2, 'Narx', "Sotuv va xarid narxi — foyda o'zi hisoblanadi")}
           <div class="fsec-body" id="prices">${priceBlock()}</div>
         </section>
 
@@ -722,7 +722,7 @@ async function mountWizard(host, opts) {
     for (const r of rows) {
       const sell = toMoney(r.sell);
       if (String(r.sell).trim() === '' || !(sell >= 0)) return fail(st.variants && st.sizePrice ? `«${r.label}» uchun narx yozing yoki umumiy narxni to'ldiring` : 'Sotuv narxini yozing', '[data-wrap="sell"]');
-      if (String(r.cost).trim() !== '' && !(toMoney(r.cost) >= 0)) return fail("Kelish narxi noto'g'ri", '[data-wrap="cost"]');
+      if (String(r.cost).trim() !== '' && !(toMoney(r.cost) >= 0)) return fail("Xarid narxi noto'g'ri", '[data-wrap="cost"]');
       if (r.qty !== '' && !(toNum(r.qty) >= 0)) return fail(st.variants ? `«${r.label}» uchun son noto'g'ri yozilgan` : "Nechta borligi noto'g'ri yozilgan", st.variants ? '[data-wrap="sizes"]' : '[data-wrap="qty"]');
     }
     if (rollOpen() && toNum(st.single.qty) > 0) {

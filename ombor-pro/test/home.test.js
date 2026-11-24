@@ -59,6 +59,7 @@ test("egasi: savdo, foyda hisobi, kassa va «Diqqat» to'g'ri", async () => {
   assert.equal(a.supplier_due[0].debt, 2000000);
   assert.equal(a.supplier_due[0].late, false);
   assert.deepEqual(a.cost_missing, { products: 1, revenue: 20000 });
+  assert.deepEqual(h.debts, { customers_total: 450000, customers_count: 1 }, "mijozlar qarzi: muddati o'tgan va o'tmagani birga");
 
   const y = (await owner.get(`/api/analytics/home?from=${shift(today, -1)}&to=${shift(today, -1)}`)).body;
   assert.deepEqual(y.sales, { revenue: 0, count: 0 });

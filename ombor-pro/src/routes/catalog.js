@@ -364,7 +364,7 @@ router.post('/products', requirePerm('products.manage'), async (req, res) => {
 const IMPORT_COLUMNS = [
   ['min_stock', /(minimal|min\.?|ogohlantir)/],
   ['expiry_date', /(yaroqlilik|muddat|expir)/],
-  ['purchase_price', /(kelish|tannarx|kirim narx|olish narx|purchase|cost)/],
+  ['purchase_price', /(xarid|kelish|tannarx|kirim narx|olish narx|purchase|cost)/],
   ['selling_price', /(sotuv|sotish|narx|price)/],
   ['opening_qty', /(qoldiq|soni|miqdor|nechta|qty|quantity|ombor)/],
   ['barcode', /(shtrix|barcode|bar ?kod|barkod)/],
@@ -443,7 +443,7 @@ router.get('/products/import/template', requirePerm('products.manage'), async (r
     { key: 'name', header: 'Nomi', type: 'text', width: 30 },
     { key: 'category', header: 'Kategoriya', type: 'text', width: 18 },
     { key: 'unit', header: 'Birlik', type: 'text', width: 10 },
-    { key: 'purchase_price', header: 'Kelish narxi', type: 'number', width: 14 },
+    { key: 'purchase_price', header: 'Xarid narxi', type: 'number', width: 14 },
     { key: 'selling_price', header: 'Sotuv narxi', type: 'number', width: 14 },
     { key: 'opening_qty', header: 'Qoldiq', type: 'number', width: 10 },
     { key: 'min_stock', header: 'Minimal qoldiq', type: 'number', width: 14 },
@@ -493,7 +493,7 @@ router.post('/products/import', requirePerm('products.manage'), (req, res, next)
             const qty = qtyIn(r.opening_qty);
             const min = qtyIn(r.min_stock);
             if (r.selling_price === '' || !(sell >= 0)) { fail("Sotuv narxi yozilmagan yoki noto'g'ri"); continue; }
-            if (!(cost >= 0)) { fail("Kelish narxi noto'g'ri"); continue; }
+            if (!(cost >= 0)) { fail("Xarid narxi noto'g'ri"); continue; }
             if (!(qty >= 0)) { fail("Qoldiq noto'g'ri"); continue; }
             if (!(min >= 0)) { fail("Minimal qoldiq noto'g'ri"); continue; }
             const uid = unitId(r.unit);
@@ -590,7 +590,7 @@ router.put('/products/:id', requirePerm('products.manage'), async (req, res) => 
 router.post('/products/:id/recost', requirePerm('products.manage'), async (req, res) => {
   const id = Number(req.params.id);
   const body = req.body || {};
-  const price = round2(num(body.purchase_price, 'Kelish narxi', { positive: true }));
+  const price = round2(num(body.purchase_price, 'Xarid narxi', { positive: true }));
   const mode = body.mode === 'all' ? 'all' : 'missing';
   const result = await withTransaction(async (client) => {
     const { rows } = await client.query('SELECT id, name FROM products WHERE id = $1 FOR UPDATE', [id]);

@@ -375,7 +375,7 @@ export async function quickAnswer(topic, user) {
     const word = s.sof_foyda < 0 ? 'Zarar' : 'Sof foyda';
     return {
       answer: `${word}: **${s.sof_foyda < 0 ? '−' : '+'}${som(Math.abs(s.sof_foyda))}**\n`
-        + `Sotdingiz ${som(s.savdo)} − olgan narxingiz ${som(s.olgan_narx)} = tovardan foyda ${som(s.tovardan_foyda)}`
+        + `Sotdingiz ${som(s.savdo)} − xarid narxi ${som(s.olgan_narx)} = sotuvdan foyda ${som(s.tovardan_foyda)}`
         + `${s.xarajatlar ? ` − xarajatlar ${som(s.xarajatlar)}` : ''}${s.buzilgan_tovar ? ` − buzilgan tovar ${som(s.buzilgan_tovar)}` : ''}.`,
       link: { href: '#/reports', label: 'Batafsil hisobot' },
     };
@@ -386,7 +386,7 @@ export async function quickAnswer(topic, user) {
     const lines = [];
     if (l.tugagan.length) lines.push(`**Tugagan (${l.tugagan.length}):** ${l.tugagan.slice(0, 8).map((x) => x.nomi).join(', ')}${l.tugagan.length > 8 ? '…' : ''}`);
     if (l.kam_qolgan.length) lines.push(`**Kam qolgan (${l.kam_qolgan.length}):** ${l.kam_qolgan.slice(0, 8).map((x) => `${x.nomi} — ${fmt(x.qoldiq)} ${x.birlik}`).join(', ')}${l.kam_qolgan.length > 8 ? '…' : ''}`);
-    return { answer: lines.join('\n'), link: { href: '#/purchases/new', label: 'Yuk keldi — kiritish' } };
+    return { answer: lines.join('\n'), link: { href: '#/stockin', label: 'Tovar kiritish' } };
   }
   if (topic === 'debts') {
     const d = await debts(user, { who: 'customers' });
@@ -421,22 +421,27 @@ Qanday javob berasiz:
 - Doim o'zbek tilida (lotin yozuvida), juda sodda so'zlar bilan, qisqa: odatda 1–5 qator.
 - Raqamlarni faqat vositalardan (tools) olasiz — hech qachon o'zingizdan to'qimang yoki taxmin qilmang. Ma'lumot kerak bo'lsa, avval vositani chaqiring.
 - Pulni shunday yozing: 1 250 000 so'm. Muhim raqamni **qalin** qiling.
-- «Tannarx», «marja», «tushum» kabi murakkab so'zlar o'rniga: «olgan narxingiz», «foyda», «savdo».
+- «Tannarx», «marja», «tushum» kabi murakkab so'zlar o'rniga: «xarid narxi», «sotuvdan foyda», «sotuv», «qolgan mahsulot», «mijozlar qarzi».
 - Vosita «xato» yoki «ruxsat yo'q» desa — shuni oddiy tilda ayting, boshqa yo'l bilan topishga urinmang.
 - Siz hech narsani o'zgartira olmaysiz (sotish, o'chirish, narx yozish). Bunday so'rovda qaysi bo'limda qanday qilinishini qisqa ayting.
 - Do'kon va dasturga aloqasi yo'q savolga bir jumla bilan javob bering va do'kon ishiga qaytaring.
 - Maslahat berishda aniq bo'ling: qaysi tovar, qancha, nima uchun (raqam bilan).
 
 Dastur bo'limlari (yo'l ko'rsatish uchun):
-- Bosh sahifa — bugun qancha sotildi, foyda, kassadagi pul, nima tugayapti.
-- Sotish → «Sotish» (xaridorga sotish: tovarni bosing, metr/kg bo'lsa miqdorni yozing, rulonni tanlash mumkin; pastda to'lov turi va «Sotish» tugmasi) va «Cheklar» (barcha cheklar, qaytarish shu yerda).
-- Tovarlar → «Tovarlar» (yangi tovar qo'shish: «Yangi tovar» tugmasi; Excel'dan yuklash; nusxa olish), «Yuk keldi» (kelgan tovarni kiritish: tovarni bosing, nechta keldi va olgan narxini yozing, «Saqlash»; rulonlar har xil uzunlikda bo'lsa har birini yozasiz; «Oxirgi kirimni takrorlash»), «Qoldiq va tarix», «Sanash» (inventarizatsiya).
-- Pul → «Kassadagi pul» (smena, naqd/karta), «Xarajatlar» (obed, suv, ijara... — savdo pulidan ayiriladi), «Qarzlar» (menga qarzdorlar va men qarzdorman, to'lov qabul qilish), «Mijozlar».
-- Hisobot → «Hisobotlar» (foyda va zarar, Excel/PDF), «Grafiklar», «Maslahatlar», «Xodimlar natijasi».
-- Sozlamalar → «Do'kon», «Xodimlar» (sotuvchiga login berish), «Amallar tarixi», «Bildirishnomalar».
-- Har sahifada yuqorida «+» tugmasi bor: tez qo'shish (yangi tovar, yuk keldi, xarajat, qarz yozish, mijoz).
+- Bosh sahifa — bugun qancha sotildi, qancha foyda qoldi, kassadagi pul, nima tugayapti, bugun nima qilish kerak.
+- Sotuv — xaridorga sotish: tovarni bosing, metr/kg bo'lsa miqdorni yozing, rulonni tanlash mumkin; pastda to'lov turi va «Sotish» tugmasi.
+- Sotuvlar tarixi — barcha cheklar, qaytarish shu yerda.
+- Tovar kiritish — kelgan tovarni omborga: tepadagi qatorga nomini yozing, nechta kelgani va xarid narxini yozing, Enter. Har biri darhol omborga tushadi; xato bo'lsa o'ngdagi ro'yxatda «Bekor qilish». Rulonda kelsa — nechta rulon va uzunligi; kiyimda — har bir o'lchamdan nechta. Ichida «Ko'p tovar bitta yuk» (yo'l kira, chegirma bilan) va «Kelgan yuklar».
+- Mahsulotlar — ro'yxat, narxlar, rasmlar; «Yangi mahsulot» tugmasi; Excel'dan yuklash.
+- Ombor — «Qolgan mahsulot» (qoldiq va harakatlar tarixi, «Zarar / tuzatish») va «Mahsulotlarni sanash».
+- Xarajatlar — obed, suv, ijara... (sotuv pulidan ayriladi) va «Kassadagi pul» (smena, naqd/karta).
+- Mijozlar va qarzlar — kim qancha qarz (menga qarzdorlar va men qarzdorman), to'lov qabul qilish, mijozlar ro'yxati.
+- Yetkazib beruvchilar — tovar kimdan keladi, ularga qarz.
+- Hisobotlar — foyda va zarar (Excel/PDF), «Grafiklar», «Maslahatlar», «Xodimlar natijasi».
+- Sozlamalar — «Do'kon», «Xodimlar» (sotuvchiga login berish), «Amallar tarixi», «Bildirishnomalar».
+- Har sahifada yuqorida «+» tugmasi bor: tez qo'shish (sotuv, tovar kiritish, yangi mahsulot, xarajat, qarz yozish, mijoz).
 
-Foyda qanday hisoblanadi: sof foyda = savdo − sotilgan tovarlarning olgan narxi − xarajatlar − buzilgan tovar. Kassir (sotuvchi) olgan narx va foydani ko'rmaydi.`;
+Foyda qanday hisoblanadi: sotuvdan foyda = sotuv − sotilgan tovarlarning xarid narxi; sof foyda = sotuvdan foyda − xarajatlar − buzilgan tovar. Kassir (sotuvchi) xarid narxi va foydani ko'rmaydi.`;
 
 let defaultFactory = () => (process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null);
 let clientFactory = defaultFactory;
