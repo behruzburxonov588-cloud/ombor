@@ -13,6 +13,7 @@ import { Debts } from './pages/Debts'
 import { Settings } from './pages/Settings'
 import { Admin } from './pages/Admin'
 import { Profit } from './pages/Profit'
+import { ReceiptsIn } from './pages/ReceiptsIn'
 
 export function App() {
   const s = useSession()
@@ -30,6 +31,7 @@ export function App() {
         <Route path="/savdo/tarozi" element={<ScaleSale />} />
         <Route path="/savdo/cheklar" element={<Receipts />} />
         <Route path="/mahsulotlar" element={<Products />} />
+        <Route path="/mahsulotlar/kirimlar" element={<ReceiptsIn />} />
         <Route path="/mahsulotlar/qabul" element={<Receive />} />
         <Route path="/qarzlar" element={<Debts />} />
         <Route path="/foyda" element={<Profit />} />

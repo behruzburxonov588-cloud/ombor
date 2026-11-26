@@ -10,6 +10,8 @@ import { PhotoPicker } from '../components/PhotoPicker'
 import { useToast } from '../components/Toast'
 import { ProductHistory } from '../components/ProductHistory'
 
+const blank: Product = { id: '', name: '', barcode: null, category: null, unit: 'dona', is_weighed: false, buy_price: 0, sell_price: 0, stock: 0, min_stock: 0, photo_url: null, size: null, color: null }
+
 export function Products() {
   const { shop, role } = useShop()
   const toast = useToast()
@@ -33,11 +35,12 @@ export function Products() {
       <div className="row" style={{ alignItems: 'center' }}>
         <input className="fld" style={{ flex: '1 1 260px' }} placeholder="Nomi yoki shtrix-kod" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Qidirish" />
         <button className={'chip' + (onlyLow ? ' on' : '')} style={{ minHeight: 48 }} onClick={() => setOnlyLow(!onlyLow)} aria-pressed={onlyLow}>Kam qolganlar{low ? ` (${low})` : ''}</button>
+        {owner && <button className="btn sec" style={{ minHeight: 48 }} onClick={() => setEdit(blank)}><Icon name="plus" size={18} />Yangi mahsulot</button>}
       </div>
       <div className="card scroll-x">
         {!shown.length ? <div className="empty"><Icon name="box" size={32} />{items.length ? 'Hech narsa topilmadi' : "Hali mahsulot yo'q. \"+ Tovar qabul qilish\" bo'limidan kiriting."}</div> : (
           <table className="tbl">
-            <thead><tr><th>Mahsulot</th><th>Shtrix-kod</th><th>Qoldiq</th>{owner && <th style={{ textAlign: 'right' }}>Kirim narxi</th>}<th style={{ textAlign: 'right' }}>Sotuv narxi</th></tr></thead>
+            <thead><tr><th>Mahsulot</th><th>Shtrix-kod</th><th>Qoldiq</th>{owner && <th style={{ textAlign: 'right' }}>Kirim narxi</th>}<th style={{ textAlign: 'right' }}>Sotuv narxi</th><th /></tr></thead>
             <tbody>
               {shown.map((p) => {
                 const st = p.stock <= 0 ? 'bad' : p.stock <= p.min_stock ? 'warn' : 'ok'
@@ -53,6 +56,7 @@ export function Products() {
                     <td><span className={'tag ' + st + ' num'}>{qty(p.stock, p.unit)}</span></td>
                     {owner && <td className="num muted" style={{ textAlign: 'right' }}>{money(p.buy_price)}</td>}
                     <td className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{money(p.sell_price)}{p.is_weighed ? ' / kg' : ''}</td>
+                    <td style={{ textAlign: 'right' }}><button className="btn soft" style={{ minHeight: 36 }} onClick={() => setEdit(p)}>{owner ? <><Icon name="edit" size={16} />Tahrirlash</> : 'Tarix'}</button></td>
                   </tr>
                 )
               })}
@@ -67,6 +71,7 @@ export function Products() {
 
 function EditDrawer({ p, owner, onClose, onSaved }: { p: Product; owner: boolean; onClose: () => void; onSaved: () => void }) {
   const { shop } = useShop()
+  const isNew = !p.id
   const [tab, setTab] = useState<'edit' | 'history'>(owner ? 'edit' : 'history')
   const toast = useToast()
   const [f, setF] = useState({ ...p, buy: money(p.buy_price), sell: money(p.sell_price), stockTxt: qty(p.stock), minTxt: qty(p.min_stock) })
@@ -76,7 +81,7 @@ function EditDrawer({ p, owner, onClose, onSaved }: { p: Product; owner: boolean
   async function save() {
     if (!f.name.trim()) return toast('Nomini kiriting', 'err')
     try {
-      await api.saveProduct(shop.id, { id: p.id, name: f.name.trim(), barcode: f.barcode || null, unit: f.unit, buy_price: parseMoney(f.buy), sell_price: parseMoney(f.sell),
+      await api.saveProduct(shop.id, { ...(isNew ? {} : { id: p.id }), name: f.name.trim(), barcode: f.barcode || null, unit: f.unit, buy_price: parseMoney(f.buy), sell_price: parseMoney(f.sell),
         stock: parseNum(f.stockTxt), min_stock: parseNum(f.minTxt), size: f.size || null, color: f.color || null, photo_url: f.photo_url })
       toast('Saqlandi'); onSaved()
     } catch (e) { toast(errText(e), 'err') }
@@ -89,9 +94,9 @@ function EditDrawer({ p, owner, onClose, onSaved }: { p: Product; owner: boolean
   return (
     <div className="overlay" onClick={onClose}>
       <div className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Mahsulotni tahrirlash">
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}><h2>{p.name}</h2><button className="qb" aria-label="Yopish" onClick={onClose}><Icon name="x" size={16} /></button></div>
-        <div className="muted num">Hozirgi qoldiq: <b style={{ color: 'var(--ink)' }}>{qty(p.stock, p.unit)}</b></div>
-        {owner && <nav className="tabs" aria-label="Mahsulot bo'limlari"><button className={tab === 'edit' ? 'on' : ''} onClick={() => setTab('edit')}>Tahrirlash</button><button className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>Tarix</button></nav>}
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}><h2>{isNew ? 'Yangi mahsulot' : p.name}</h2><button className="qb" aria-label="Yopish" onClick={onClose}><Icon name="x" size={16} /></button></div>
+        {!isNew && <div className="muted num">Hozirgi qoldiq: <b style={{ color: 'var(--ink)' }}>{qty(p.stock, p.unit)}</b></div>}
+        {owner && !isNew && <nav className="tabs" aria-label="Mahsulot bo'limlari"><button className={tab === 'edit' ? 'on' : ''} onClick={() => setTab('edit')}>Tahrirlash</button><button className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>Tarix</button></nav>}
         {tab === 'history' ? <ProductHistory shopId={shop.id} p={p} showBuy={owner} /> : <>
         <div className="row" style={{ alignItems: 'center', flexWrap: 'nowrap' }}>
           <PhotoPicker url={f.photo_url} name={f.name} onChange={(u) => set('photo_url', u)} />
@@ -109,7 +114,7 @@ function EditDrawer({ p, owner, onClose, onSaved }: { p: Product; owner: boolean
         </div>
         <div className={'banner' + (profit < 0 ? ' err' : '')} style={profit >= 0 ? { background: 'var(--teal-l)', color: 'var(--teal-d)' } : {}}>Bir {f.unit === 'kg' ? 'kilodan' : 'donadan'} foyda: {profit < 0 ? '−' : ''}{money(Math.abs(profit))} so'm</div>
         <div className="row" style={{ marginTop: 'auto' }}>
-          <button className="btn danger" onClick={archive}><Icon name="trash" size={18} />O'chirish</button>
+          {!isNew && <button className="btn danger" onClick={archive}><Icon name="trash" size={18} />O'chirish</button>}
           <button className="btn" style={{ flex: 1 }} onClick={save}>Saqlash</button>
         </div>
         </>}

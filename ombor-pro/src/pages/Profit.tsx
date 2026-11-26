@@ -64,6 +64,7 @@ export function Profit() {
 
   const byCat = exps.reduce<Record<string, number>>((a, x) => ({ ...a, [x.category]: (a[x.category] ?? 0) + x.amount }), {})
   const net = rep?.net ?? 0
+  const left = (rep?.revenue ?? 0) - (rep?.expenses ?? 0)
 
   return (
     <>
@@ -73,13 +74,17 @@ export function Profit() {
       </div>
       {err && <div className="banner err">{err}</div>}
 
+      {rep && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+        <div className="card pad"><div className="muted">Savdo</div><b className="num" style={{ fontSize: 26 }}>{money(rep.revenue)}</b><div className="muted num" style={{ fontSize: 13 }}>{rep.count} ta chek</div></div>
+        <div className="card pad"><div className="muted">Xarajatlar</div><b className="num" style={{ fontSize: 26, color: 'var(--red)' }}>−{money(rep.expenses)}</b></div>
+        <div className="card pad" style={{ border: '2.5px solid var(--blue)' }}><div className="muted">Savdodan qolgan pul</div><b className="num" style={{ fontSize: 26, color: 'var(--blue)' }}>{left < 0 ? '−' : ''}{money(Math.abs(left))}</b><div className="muted" style={{ fontSize: 13 }}>savdo − xarajat</div></div>
+      </div>}
+
       <section className="card pad" style={{ display: 'flex', flexDirection: 'column', gap: 6, borderLeft: `6px solid ${net >= 0 ? 'var(--teal)' : 'var(--red)'}` }}>
         <div className="muted">Sof foyda</div>
         <div className="num" style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.1, color: net >= 0 ? 'var(--teal-d)' : 'var(--red)' }}>{net < 0 ? '−' : ''}{money(Math.abs(net))} <span style={{ fontSize: 20 }}>so'm</span></div>
-        {rep && <div className="num" style={{ fontSize: 15, color: 'var(--ink2)', marginTop: 6, lineHeight: 1.9 }}>
-          Sotuv <b>{money(rep.revenue)}</b> − tovar tannarxi <b>{money(rep.cost)}</b> = tovardan foyda <b style={{ color: 'var(--teal-d)' }}>{money(rep.profit)}</b>
-          <br />Tovardan foyda <b>{money(rep.profit)}</b> − xarajatlar <b style={{ color: 'var(--red)' }}>{money(rep.expenses)}</b> = sof foyda <b>{net < 0 ? '−' : ''}{money(Math.abs(net))}</b>
-          <span className="muted"> · {rep.count} ta chek</span>
+        {rep && <div className="num" style={{ fontSize: 15, color: 'var(--ink2)', marginTop: 6 }}>
+          Savdodan qolgan pul <b>{money(left)}</b> − sotilgan tovarning kelish narxi <b>{money(rep.cost)}</b> = sof foyda <b>{net < 0 ? '−' : ''}{money(Math.abs(net))}</b>
         </div>}
       </section>
 

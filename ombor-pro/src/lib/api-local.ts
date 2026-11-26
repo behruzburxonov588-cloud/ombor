@@ -167,15 +167,28 @@ export function createLocalApi(): Api {
     },
     async todayStats(shopId) {
       const d = new Date().toISOString().slice(0, 10)
-      const s = db.sales.filter((x) => x.shop_id === shopId && x.created_at.slice(0, 10) === d)
+      const s = db.sales.filter((x) => x.shop_id === shopId && !x.returned_at && x.created_at.slice(0, 10) === d)
       return { total: s.reduce((a, x) => a + x.total, 0), count: s.length }
     },
+
+    async returnSale(saleId) {
+      const s = db.sales.find((x) => x.id === saleId); if (!s || s.returned_at) throw new Error('Bu chek allaqachon qaytarilgan')
+      for (const i of s.items) { const p = db.products.find((x) => x.shop_id === s.shop_id && x.name === i.name); if (p) { p.stock += i.qty; log(s.shop_id, p, 'qaytdi', i.qty, i.price, 'Chek #' + s.number + ' qaytarildi') } }
+      if (s.pay_method === 'debt' && s.contact_id) { const c = db.contacts.find((x) => x.id === s.contact_id); if (c) c.balance -= s.total }
+      s.returned_at = now(); save()
+    },
+    async receiptsList(shopId) {
+      return db.receipts.filter((r) => r.shop_id === shopId).map((r, i) => ({ id: String(i), created_at: r.at, total: r.total, paid: r.paid, canceled_at: null,
+        supplier_name: db.contacts.find((c) => c.id === r.supplier_id)?.name ?? null, items: [] })).reverse()
+    },
+    async receiptUpdateItem() { throw new Error("Namuna rejimida kirimni tahrirlab bo'lmaydi") },
+    async receiptCancel() { throw new Error("Namuna rejimida kirimni bekor qilib bo'lmaydi") },
 
     async productHistory(shopId, pid) {
       return (db.logs ?? []).filter((l) => l.shop_id === shopId && l.product_id === pid).sort((a, b) => b.created_at.localeCompare(a.created_at))
     },
     async profitReport(shopId, from, to) {
-      const ss = db.sales.filter((x) => x.shop_id === shopId && new Date(x.created_at) >= from && new Date(x.created_at) < to)
+      const ss = db.sales.filter((x) => x.shop_id === shopId && !x.returned_at && new Date(x.created_at) >= from && new Date(x.created_at) < to)
       const map = new Map<string, { name: string; unit: string; qty: number; revenue: number; cost: number; profit: number }>()
       let cost = 0
       for (const s of ss) {
@@ -233,6 +246,13 @@ export function createLocalApi(): Api {
       if (ok && s) { if (r.kind === 'device') s.device_limit += r.amount; else { const d = new Date(Math.max(Date.now(), new Date(s.paid_until).getTime())); d.setMonth(d.getMonth() + r.amount); s.paid_until = d.toISOString().slice(0, 10) } }
       r.status = ok ? 'approved' : 'rejected'; save()
     },
+    async adminUpdateShop(shopId, p) {
+      const s = db.shops.find((x) => x.id === shopId); if (!s) return
+      if (p.plan) s.plan = p.plan; if (p.device_limit) s.device_limit = Math.max(1, p.device_limit); if (p.paid_until) s.paid_until = p.paid_until
+      if (p.note != null) s.admin_note = p.note || null; save()
+    },
+    async adminCodes() { return [] },
+    async adminDeleteCode() {},
     async adminMakeCode() { return 'OMB-' + Math.random().toString(16).slice(2, 6).toUpperCase() + '-' + Math.random().toString(16).slice(2, 6).toUpperCase() },
     async adminExtend(shopId, months) {
       const s = db.shops.find((x) => x.id === shopId)!

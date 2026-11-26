@@ -1,5 +1,5 @@
 import type {
-  AdminShop, CartLine, Contact, ContactKind, Device, HistoryRow, Member, Membership, PayMethod,
+  AdminCode, AdminShop, ReceiptDoc, CartLine, Contact, ContactKind, Device, HistoryRow, Member, Membership, PayMethod,
   Product, ProfitReport, ReceiveRow, Sale, Shop, StockLog, Expense, ShopRequest, TodayStats, User,
 } from './types'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../config'
@@ -30,10 +30,14 @@ export interface Api {
   archiveProduct(shopId: string, id: string): Promise<void>
   uploadPhoto(shopId: string, file: Blob): Promise<string>
   receive(shopId: string, rows: ReceiveRow[], supplierId: string | null, paid: number): Promise<void>
+  receiptsList(shopId: string): Promise<ReceiptDoc[]>
+  receiptUpdateItem(itemId: string, qty: number, buy: number): Promise<void>
+  receiptCancel(receiptId: string): Promise<void>
   // savdo
   sell(shopId: string, lines: CartLine[], method: PayMethod, contactId: string | null, given: number | null): Promise<{ number: number; total: number }>
   sales(shopId: string, day: string): Promise<Sale[]>
   todayStats(shopId: string): Promise<TodayStats>
+  returnSale(saleId: string): Promise<void>
   productHistory(shopId: string, productId: string): Promise<StockLog[]>
   // foyda va xarajatlar
   profitReport(shopId: string, from: Date, to: Date): Promise<ProfitReport>
@@ -50,6 +54,9 @@ export interface Api {
   // admin
   adminRequests(): Promise<ShopRequest[]>
   adminDecide(id: string, ok: boolean): Promise<void>
+  adminUpdateShop(shopId: string, patch: { plan?: number; device_limit?: number; paid_until?: string; note?: string }): Promise<void>
+  adminCodes(): Promise<AdminCode[]>
+  adminDeleteCode(code: string): Promise<void>
   isAdmin(): Promise<boolean>
   adminShops(): Promise<AdminShop[]>
   adminMakeCode(months: number): Promise<string>

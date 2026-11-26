@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { Contact, Device, Expense, HistoryRow, Member, Product, ProfitReport, Sale, Shop, ShopRequest, StockLog } from './types'
+import type { AdminCode, AdminShop, ReceiptDoc, Contact, Device, Expense, HistoryRow, Member, Product, ProfitReport, Sale, Shop, ShopRequest, StockLog } from './types'
 import { phoneDigits } from './format'
 
 const emailOf = (phone: string) => phoneDigits(phone) + '@ombor.pro'
@@ -112,21 +112,37 @@ export function createSupabaseApi(url: string, key: string): Api {
     async sales(shopId, day) {
       const from = new Date(day + 'T00:00:00'), to = new Date(from.getTime() + 86400000)
       const rows = must(await sb.from('sales')
-        .select('id, number, pay_method, total, given, created_at, contacts(name), sale_items(name, unit, qty, price, total)')
+        .select('id, number, pay_method, total, given, created_at, returned_at, contacts(name), sale_items(name, unit, qty, price, total)')
         .eq('shop_id', shopId).gte('created_at', from.toISOString()).lt('created_at', to.toISOString())
         .order('created_at', { ascending: false }))
       return (rows ?? []).map((r: Record<string, unknown>) => ({
         id: r.id as string, number: r.number as number, pay_method: r.pay_method as Sale['pay_method'],
         total: num(r.total), given: r.given == null ? null : num(r.given), created_at: r.created_at as string,
-        contact_name: (r.contacts as { name: string } | null)?.name ?? null, seller_name: null,
+        contact_name: (r.contacts as { name: string } | null)?.name ?? null, seller_name: null, returned_at: (r.returned_at as string) ?? null,
         items: ((r.sale_items as Record<string, unknown>[]) ?? []).map((i) => ({ name: i.name as string, unit: i.unit as string, qty: num(i.qty), price: num(i.price), total: num(i.total) })),
       }))
     },
     async todayStats(shopId) {
       const from = new Date(); from.setHours(0, 0, 0, 0)
-      const rows = must(await sb.from('sales').select('total').eq('shop_id', shopId).gte('created_at', from.toISOString()))
+      const rows = must(await sb.from('sales').select('total').eq('shop_id', shopId).is('returned_at', null).gte('created_at', from.toISOString()))
       return { total: (rows ?? []).reduce((a: number, r: { total: unknown }) => a + num(r.total), 0), count: rows?.length ?? 0 }
     },
+
+    async returnSale(saleId) { must(await sb.rpc('return_sale', { p_sale: saleId })) },
+    async receiptsList(shopId) {
+      const rows = must(await sb.from('receipts').select('id, created_at, total, paid, canceled_at, contacts(name), receipt_items(id, product_id, qty, buy_price, products(name, unit))')
+        .eq('shop_id', shopId).order('created_at', { ascending: false }).limit(100))
+      return (rows ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id as string, created_at: r.created_at as string, total: num(r.total), paid: num(r.paid), canceled_at: (r.canceled_at as string) ?? null,
+        supplier_name: (r.contacts as { name: string } | null)?.name ?? null,
+        items: ((r.receipt_items as Record<string, unknown>[]) ?? []).map((i) => {
+          const pr = i.products as { name: string; unit: string } | null
+          return { id: i.id as string, product_id: i.product_id as string, name: pr?.name ?? '—', unit: pr?.unit ?? 'dona', qty: num(i.qty), buy_price: num(i.buy_price) }
+        }),
+      })) as ReceiptDoc[]
+    },
+    async receiptUpdateItem(itemId, q, buy) { must(await sb.rpc('receipt_update_item', { p_item: itemId, p_qty: q, p_buy: buy })) },
+    async receiptCancel(rid) { must(await sb.rpc('receipt_cancel', { p_receipt: rid })) },
 
     async productHistory(shopId, productId) {
       const rows = must(await sb.from('stock_logs').select('id, kind, delta, stock_after, price, note, created_at')
@@ -189,13 +205,14 @@ export function createSupabaseApi(url: string, key: string): Api {
       return !!data
     },
     async adminShops() {
-      const shops = must(await sb.from('shops').select('*, devices(count), members(phone, role)').order('created_at', { ascending: false }))
-      return (shops ?? []).map((s: Record<string, unknown>) => ({
-        ...(s as unknown as Shop),
-        device_count: ((s.devices as { count: number }[]) ?? [])[0]?.count ?? 0,
-        owner_phone: ((s.members as { phone: string; role: string }[]) ?? []).find((m) => m.role === 'owner')?.phone ?? null,
-      }))
+      const rows = must(await sb.rpc('admin_overview')) as Record<string, unknown>[]
+      return (rows ?? []).map((r) => ({ ...(r as unknown as AdminShop), today_total: num(r.today_total), month_total: num(r.month_total), today_count: num(r.today_count), device_count: num(r.device_count) }))
     },
+    async adminUpdateShop(shopId, p) {
+      must(await sb.rpc('admin_update_shop', { p_shop: shopId, p_plan: p.plan ?? null, p_device_limit: p.device_limit ?? null, p_paid_until: p.paid_until ?? null, p_note: p.note ?? null }))
+    },
+    async adminCodes() { return (must(await sb.rpc('admin_codes')) ?? []) as AdminCode[] },
+    async adminDeleteCode(code) { must(await sb.rpc('admin_delete_code', { p_code: code })) },
     async requestMore(shopId, kind, amount, note) {
       must(await sb.rpc('request_more', { p_shop: shopId, p_kind: kind, p_amount: amount, p_note: note }))
     },

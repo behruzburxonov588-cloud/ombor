@@ -9,6 +9,7 @@ const KIND: Record<string, [string, string]> = {
   sotuv: ['Sotildi', 'info'],
   tuzatish: ["Qo'lda o'zgartirildi", 'warn'],
   yangi: ["Qo'shildi", 'ok'],
+  qaytdi: ['Qaytarildi', 'warn'],
 }
 
 const when = (iso: string) => {

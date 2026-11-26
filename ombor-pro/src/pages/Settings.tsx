@@ -7,6 +7,7 @@ import { useShop } from '../session'
 import { useScale, serialSupported } from '../lib/scale'
 import { Icon } from '../components/Icon'
 import { RequestBox } from '../components/RequestBox'
+import { VERSIONS, planOf } from '../lib/plan'
 import { useToast } from '../components/Toast'
 
 const SECS = ["Do'kon", 'Xodimlar', 'Uskunalar', 'Tarif va qurilmalar'] as const
@@ -154,7 +155,7 @@ function PlanSec() {
       <section style={{ borderRadius: 16, background: 'var(--blue)', color: '#fff', padding: 22, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: '1 1 240px' }}>
           <div style={{ fontSize: 14, color: '#C9D5F2' }}>Tarif</div>
-          <div style={{ fontSize: 24, fontWeight: 800 }}>{shop.device_limit} ta qurilma</div>
+          <div style={{ fontSize: 24, fontWeight: 800 }}>{VERSIONS.find((v) => v.n === planOf(shop))?.name} · {shop.device_limit} ta qurilma</div>
           <div style={{ fontSize: 15, color: active ? '#C9D5F2' : '#FFD3CF', marginTop: 4 }}>{active ? `${dateOf(shop.paid_until)} gacha faol` : 'Muddati tugagan'}</div>
         </div>
         <div style={{ fontSize: 14, color: '#C9D5F2', maxWidth: 320 }}>3 ta qurilma tarifga kiradi. Har bir qo'shimcha qurilma 2$ / oy. So'rov yuboring, admin tasdiqlagach darhol qo'shiladi.</div>
