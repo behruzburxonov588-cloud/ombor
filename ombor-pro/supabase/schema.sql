@@ -175,7 +175,7 @@ alter table public.debt_payments enable row level security;
 alter table public.devices enable row level security;
 
 drop policy if exists admins_self on public.admins;
-create policy admins_self on public.admins for select using (user_id = auth.uid());
+create policy admins_self on public.admins for select using (user_id = (select auth.uid()));
 
 drop policy if exists shops_read on public.shops;
 create policy shops_read on public.shops for select using (is_member(id) or is_admin());
@@ -343,7 +343,7 @@ end $$;
 
 -- Admin: aktivatsiya kodi yaratish
 create or replace function public.make_code(p_months int)
-returns text language plpgsql security definer set search_path = public as $$
+returns text language plpgsql security definer set search_path = public, extensions as $$
 declare v_code text;
 begin
   if not is_admin() then raise exception 'Faqat admin'; end if;
@@ -387,7 +387,39 @@ drop policy if exists "photos read" on storage.objects;
 create policy "photos read" on storage.objects for select using (bucket_id = 'product-photos');
 drop policy if exists "photos write" on storage.objects;
 create policy "photos write" on storage.objects for insert to authenticated
-  with check (bucket_id = 'product-photos' and is_member(((storage.foldername(name))[1])::uuid));
+  with check (bucket_id = 'product-photos' and public.is_member(((storage.foldername(name))[1])::uuid));
+
+-- ============ Funksiyalarni faqat tizimga kirganlarga ochish ============
+do $do$
+declare f record;
+begin
+  for f in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname in
+           ('is_member','is_owner','is_admin','create_shop','register_device','create_sale','receive_goods',
+            'pay_debt','add_seller','make_code','admin_extend','admin_block','admin_add_device_slot')
+  loop
+    execute format('revoke execute on function %s from public, anon', f.sig);
+    execute format('grant execute on function %s to authenticated', f.sig);
+  end loop;
+end $do$;
+
+-- ============ Indekslar ============
+create index if not exists activation_codes_used_by_idx on public.activation_codes(used_by);
+create index if not exists debt_payments_contact_idx on public.debt_payments(contact_id);
+create index if not exists debt_payments_shop_idx on public.debt_payments(shop_id, created_at desc);
+create index if not exists debt_payments_created_by_idx on public.debt_payments(created_by);
+create index if not exists devices_user_idx on public.devices(user_id);
+create index if not exists members_user_idx on public.members(user_id);
+create index if not exists receipt_items_product_idx on public.receipt_items(product_id);
+create index if not exists receipt_items_receipt_idx on public.receipt_items(receipt_id);
+create index if not exists receipts_created_by_idx on public.receipts(created_by);
+create index if not exists receipts_shop_idx on public.receipts(shop_id, created_at desc);
+create index if not exists receipts_supplier_idx on public.receipts(supplier_id);
+create index if not exists sale_items_product_idx on public.sale_items(product_id);
+create index if not exists sale_items_sale_idx on public.sale_items(sale_id);
+create index if not exists sales_contact_idx on public.sales(contact_id);
+create index if not exists sales_seller_idx on public.sales(seller_id);
+create index if not exists shops_owner_idx on public.shops(owner_id);
 
 -- ============ Birinchi aktivatsiya kodi (sinov uchun) ============
 insert into public.activation_codes(code, months) values ('OMB-TEST-0001', 1) on conflict do nothing;
