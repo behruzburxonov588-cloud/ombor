@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { Contact, Device, HistoryRow, Member, Product, Sale, Shop } from './types'
+import type { Contact, Device, Expense, HistoryRow, Member, Product, ProfitReport, Sale, Shop, ShopRequest, StockLog } from './types'
 import { phoneDigits } from './format'
 
 const emailOf = (phone: string) => phoneDigits(phone) + '@ombor.pro'
@@ -128,6 +128,33 @@ export function createSupabaseApi(url: string, key: string): Api {
       return { total: (rows ?? []).reduce((a: number, r: { total: unknown }) => a + num(r.total), 0), count: rows?.length ?? 0 }
     },
 
+    async productHistory(shopId, productId) {
+      const rows = must(await sb.from('stock_logs').select('id, kind, delta, stock_after, price, note, created_at')
+        .eq('shop_id', shopId).eq('product_id', productId).order('created_at', { ascending: false }).limit(200))
+      return (rows ?? []).map((r: Record<string, unknown>) => ({
+        id: String(r.id), kind: r.kind as StockLog['kind'], delta: num(r.delta), stock_after: num(r.stock_after),
+        price: r.price == null ? null : num(r.price), note: (r.note as string) ?? null, created_at: r.created_at as string,
+      }))
+    },
+    async profitReport(shopId, from, to) {
+      const r = must(await sb.rpc('profit_report', { p_shop: shopId, p_from: from.toISOString(), p_to: to.toISOString() })) as Record<string, unknown>
+      return {
+        revenue: num(r.revenue), cost: num(r.cost), profit: num(r.profit), expenses: num(r.expenses), net: num(r.net), count: num(r.count),
+        items: ((r.items as Record<string, unknown>[]) ?? []).map((i) => ({ name: i.name as string, unit: i.unit as string, qty: num(i.qty), revenue: num(i.revenue), cost: num(i.cost), profit: num(i.profit) })),
+      } as ProfitReport
+    },
+    async expenses(shopId, from, to) {
+      const rows = must(await sb.from('expenses').select('id, amount, category, note, created_at').eq('shop_id', shopId)
+        .gte('created_at', from.toISOString()).lt('created_at', to.toISOString()).order('created_at', { ascending: false }))
+      return (rows ?? []).map((r: Record<string, unknown>) => ({ id: r.id as string, amount: num(r.amount), category: r.category as string, note: (r.note as string) ?? null, created_at: r.created_at as string })) as Expense[]
+    },
+    async addExpense(shopId, amount, category, note) {
+      must(await sb.from('expenses').insert({ shop_id: shopId, amount, category, note }))
+    },
+    async deleteExpense(shopId, eid) {
+      must(await sb.from('expenses').delete().eq('shop_id', shopId).eq('id', eid))
+    },
+
     async contacts(shopId, kind) {
       const rows = must(await sb.from('contacts').select('*').eq('shop_id', shopId).eq('kind', kind).order('balance', { ascending: false }))
       return (rows ?? []).map((r: Record<string, unknown>) => ({ ...(r as unknown as Contact), balance: num(r.balance) }))
@@ -169,6 +196,20 @@ export function createSupabaseApi(url: string, key: string): Api {
         owner_phone: ((s.members as { phone: string; role: string }[]) ?? []).find((m) => m.role === 'owner')?.phone ?? null,
       }))
     },
+    async requestMore(shopId, kind, amount, note) {
+      must(await sb.rpc('request_more', { p_shop: shopId, p_kind: kind, p_amount: amount, p_note: note }))
+    },
+    async myRequests(shopId) {
+      return must(await sb.from('shop_requests').select('*').eq('shop_id', shopId).order('created_at', { ascending: false }).limit(10)) as ShopRequest[]
+    },
+    async adminRequests() {
+      const rows = must(await sb.from('shop_requests').select('*, shops(name, members(phone, role))').order('created_at', { ascending: false }).limit(100))
+      return (rows ?? []).map((r: Record<string, unknown>) => {
+        const sh = r.shops as { name: string; members: { phone: string; role: string }[] } | null
+        return { ...(r as unknown as ShopRequest), shop_name: sh?.name ?? '', owner_phone: sh?.members?.find((m) => m.role === 'owner')?.phone ?? null }
+      })
+    },
+    async adminDecide(rid, ok) { must(await sb.rpc('admin_decide', { p_req: rid, p_ok: ok })) },
     async adminMakeCode(months) { return must(await sb.rpc('make_code', { p_months: months })) as string },
     async adminExtend(shopId, months) { must(await sb.rpc('admin_extend', { p_shop: shopId, p_months: months })) },
     async adminBlock(shopId, blocked) { must(await sb.rpc('admin_block', { p_shop: shopId, p_blocked: blocked })) },

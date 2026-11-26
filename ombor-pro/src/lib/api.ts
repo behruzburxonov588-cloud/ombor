@@ -1,6 +1,6 @@
 import type {
   AdminShop, CartLine, Contact, ContactKind, Device, HistoryRow, Member, Membership, PayMethod,
-  Product, ReceiveRow, Sale, Shop, TodayStats, User,
+  Product, ProfitReport, ReceiveRow, Sale, Shop, StockLog, Expense, ShopRequest, TodayStats, User,
 } from './types'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../config'
 import { createSupabaseApi } from './api-supabase'
@@ -34,12 +34,22 @@ export interface Api {
   sell(shopId: string, lines: CartLine[], method: PayMethod, contactId: string | null, given: number | null): Promise<{ number: number; total: number }>
   sales(shopId: string, day: string): Promise<Sale[]>
   todayStats(shopId: string): Promise<TodayStats>
+  productHistory(shopId: string, productId: string): Promise<StockLog[]>
+  // foyda va xarajatlar
+  profitReport(shopId: string, from: Date, to: Date): Promise<ProfitReport>
+  expenses(shopId: string, from: Date, to: Date): Promise<Expense[]>
+  addExpense(shopId: string, amount: number, category: string, note: string | null): Promise<void>
+  deleteExpense(shopId: string, id: string): Promise<void>
   // qarzlar
   contacts(shopId: string, kind: ContactKind): Promise<Contact[]>
   saveContact(shopId: string, c: { id?: string; kind: ContactKind; name: string; phone: string | null }): Promise<Contact>
   payDebt(shopId: string, contactId: string, amount: number, method: 'cash' | 'card'): Promise<void>
   history(shopId: string, contact: Contact): Promise<HistoryRow[]>
+  requestMore(shopId: string, kind: 'device' | 'extend', amount: number, note: string | null): Promise<void>
+  myRequests(shopId: string): Promise<ShopRequest[]>
   // admin
+  adminRequests(): Promise<ShopRequest[]>
+  adminDecide(id: string, ok: boolean): Promise<void>
   isAdmin(): Promise<boolean>
   adminShops(): Promise<AdminShop[]>
   adminMakeCode(months: number): Promise<string>

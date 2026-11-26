@@ -1,6 +1,6 @@
 // Namuna rejimi: Supabase ulanmaguncha ilova shu brauzerning xotirasida ishlaydi.
 import type { Api } from './api'
-import type { Contact, Device, Member, Product, Sale, Shop, User } from './types'
+import type { Contact, Device, Expense, Member, Product, Sale, Shop, StockLog, ShopRequest, User } from './types'
 import { phoneDigits } from './format'
 
 interface Db {
@@ -14,6 +14,10 @@ interface Db {
   payments: { shop_id: string; contact_id: string; amount: number; method: string; at: string }[]
   receipts: { shop_id: string; supplier_id: string | null; total: number; paid: number; at: string }[]
   devices: (Device & { shop_id: string })[]
+  logs?: (StockLog & { shop_id: string; product_id: string })[]
+  expenses?: (Expense & { shop_id: string })[]
+  costs?: Record<string, number>
+  requests?: ShopRequest[]
   nextNo: Record<string, number>
 }
 
@@ -49,6 +53,9 @@ export function createLocalApi(): Api {
   const listeners = new Set<() => void>()
   const emit = () => listeners.forEach((f) => f())
   const me = () => db.users.find((u) => u.id === db.session) ?? null
+  const log = (shopId: string, p: Product, kind: StockLog['kind'], delta: number, price: number | null, note: string | null) => {
+    (db.logs ??= []).push({ id: id(), shop_id: shopId, product_id: p.id, kind, delta, stock_after: p.stock, price, note, created_at: now() })
+  }
   const need = () => { const u = me(); if (!u) throw new Error('Avval tizimga kiring'); return u }
 
   return {
@@ -113,7 +120,7 @@ export function createLocalApi(): Api {
     async products(shopId) { return db.products.filter((p) => p.shop_id === shopId).sort((a, b) => a.name.localeCompare(b.name)) },
     async saveProduct(shopId, p) {
       const ex = p.id ? db.products.find((x) => x.id === p.id) : undefined
-      if (ex) { Object.assign(ex, p, { is_weighed: (p.unit ?? ex.unit) === 'kg' }); save(); return ex }
+      if (ex) { const before = ex.stock; Object.assign(ex, p, { is_weighed: (p.unit ?? ex.unit) === 'kg' }); if (ex.stock !== before) log(shopId, ex, 'tuzatish', ex.stock - before, null, null); save(); return ex }
       const np = { id: id(), shop_id: shopId, barcode: null, category: null, unit: 'dona', buy_price: 0, sell_price: 0, stock: 0, min_stock: 0, photo_url: null, size: null, color: null, ...p, is_weighed: (p.unit ?? 'dona') === 'kg' } as Product & { shop_id: string }
       db.products.push(np); save(); return np
     },
@@ -135,6 +142,7 @@ export function createLocalApi(): Api {
           if (r.photo_url) p.photo_url = r.photo_url
         }
         p.stock += r.qty; total += r.qty * r.buy
+        log(shopId, p, 'kirim', r.qty, r.buy, null)
       }
       db.receipts.push({ shop_id: shopId, supplier_id: supplierId, total, paid, at: now() })
       if (supplierId) { const c = db.contacts.find((x) => x.id === supplierId); if (c) c.balance += total - paid }
@@ -146,10 +154,12 @@ export function createLocalApi(): Api {
       const no = (db.nextNo[shopId] ?? 1); db.nextNo[shopId] = no + 1
       const items = lines.map((l) => ({ name: l.product.name, unit: l.product.unit, qty: l.qty, price: l.price, total: Math.round(l.qty * l.price) }))
       const total = items.reduce((a, i) => a + i.total, 0)
-      for (const l of lines) { const p = db.products.find((x) => x.id === l.product.id); if (p) p.stock -= l.qty }
+      let cost = 0
+      for (const l of lines) { const p = db.products.find((x) => x.id === l.product.id); if (p) { p.stock -= l.qty; cost += l.qty * p.buy_price; log(shopId, p, 'sotuv', -l.qty, l.price, 'Chek #' + no) } }
       const c = contactId ? db.contacts.find((x) => x.id === contactId) : undefined
       if (method === 'debt' && c) c.balance += total
       db.sales.push({ id: id(), shop_id: shopId, number: no, pay_method: method, total, given, created_at: now(), contact_id: contactId, contact_name: c?.name ?? null, seller_name: me()?.name ?? null, items })
+      const sid = db.sales[db.sales.length - 1].id; (db.costs ??= {})[sid] = cost
       save(); return { number: no, total }
     },
     async sales(shopId, day) {
@@ -160,6 +170,33 @@ export function createLocalApi(): Api {
       const s = db.sales.filter((x) => x.shop_id === shopId && x.created_at.slice(0, 10) === d)
       return { total: s.reduce((a, x) => a + x.total, 0), count: s.length }
     },
+
+    async productHistory(shopId, pid) {
+      return (db.logs ?? []).filter((l) => l.shop_id === shopId && l.product_id === pid).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async profitReport(shopId, from, to) {
+      const ss = db.sales.filter((x) => x.shop_id === shopId && new Date(x.created_at) >= from && new Date(x.created_at) < to)
+      const map = new Map<string, { name: string; unit: string; qty: number; revenue: number; cost: number; profit: number }>()
+      let cost = 0
+      for (const s of ss) {
+        const c = db.costs?.[s.id] ?? 0; cost += c
+        const share = s.total ? c / s.total : 0
+        for (const i of s.items) {
+          const m = map.get(i.name) ?? { name: i.name, unit: i.unit, qty: 0, revenue: 0, cost: 0, profit: 0 }
+          m.qty += i.qty; m.revenue += i.total; m.cost += Math.round(i.total * share); m.profit = m.revenue - m.cost; map.set(i.name, m)
+        }
+      }
+      const revenue = ss.reduce((a, x) => a + x.total, 0)
+      const expenses = (db.expenses ?? []).filter((e) => e.shop_id === shopId && new Date(e.created_at) >= from && new Date(e.created_at) < to).reduce((a, e) => a + e.amount, 0)
+      return { revenue, cost: Math.round(cost), profit: revenue - Math.round(cost), expenses, net: revenue - Math.round(cost) - expenses, count: ss.length, items: [...map.values()].sort((a, b) => b.profit - a.profit) }
+    },
+    async expenses(shopId, from, to) {
+      return (db.expenses ?? []).filter((e) => e.shop_id === shopId && new Date(e.created_at) >= from && new Date(e.created_at) < to).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async addExpense(shopId, amount, category, note) {
+      (db.expenses ??= []).push({ id: id(), shop_id: shopId, amount, category, note, created_at: now() }); save()
+    },
+    async deleteExpense(_s, eid) { db.expenses = (db.expenses ?? []).filter((e) => e.id !== eid); save() },
 
     async contacts(shopId, kind) { return db.contacts.filter((c) => c.shop_id === shopId && c.kind === kind).sort((a, b) => b.balance - a.balance) },
     async saveContact(shopId, c) {
@@ -183,6 +220,18 @@ export function createLocalApi(): Api {
     async adminShops() {
       return db.shops.map((s) => ({ ...s, device_count: db.devices.filter((d) => d.shop_id === s.id).length,
         owner_phone: db.members.find((m) => m.shop_id === s.id && m.role === 'owner')?.phone ?? null }))
+    },
+    async requestMore(shopId, kind, amount, note) {
+      if ((db.requests ?? []).some((r) => r.shop_id === shopId && r.kind === kind && r.status === 'pending')) throw new Error("So'rov allaqachon yuborilgan. Admin javobini kuting")
+      ;(db.requests ??= []).unshift({ id: id(), shop_id: shopId, kind, amount, note, status: 'pending', created_at: now() }); save()
+    },
+    async myRequests(shopId) { return (db.requests ?? []).filter((r) => r.shop_id === shopId) },
+    async adminRequests() { return (db.requests ?? []).map((r) => ({ ...r, shop_name: db.shops.find((s) => s.id === r.shop_id)?.name ?? '' })) },
+    async adminDecide(rid, ok) {
+      const r = (db.requests ?? []).find((x) => x.id === rid); if (!r || r.status !== 'pending') return
+      const s = db.shops.find((x) => x.id === r.shop_id)
+      if (ok && s) { if (r.kind === 'device') s.device_limit += r.amount; else { const d = new Date(Math.max(Date.now(), new Date(s.paid_until).getTime())); d.setMonth(d.getMonth() + r.amount); s.paid_until = d.toISOString().slice(0, 10) } }
+      r.status = ok ? 'approved' : 'rejected'; save()
     },
     async adminMakeCode() { return 'OMB-' + Math.random().toString(16).slice(2, 6).toUpperCase() + '-' + Math.random().toString(16).slice(2, 6).toUpperCase() },
     async adminExtend(shopId, months) {

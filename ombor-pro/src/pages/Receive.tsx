@@ -20,11 +20,23 @@ export function Receive() {
   const scale = useScale()
   const [products, setProducts] = useState<Product[]>([])
   const [suppliers, setSuppliers] = useState<Contact[]>([])
-  const [sup, setSup] = useState('')
-  const [newSup, setNewSup] = useState('')
-  const [paid, setPaid] = useState('')
-  const [d, setD] = useState(empty)
-  const [rows, setRows] = useState<(ReceiveRow & { photo_url: string | null })[]>([])
+  // Qoralama: boshqa sahifaga o'tib qaytsa ham yozilganlar yo'qolmaydi
+  const draftKey = 'ombor-qabul-' + shop.id
+  const draft = useMemo(() => { try { return JSON.parse(localStorage.getItem(draftKey) || 'null') } catch { return null } }, [draftKey])
+  const [sup, setSup] = useState<string>(draft?.sup ?? '')
+  const [newSup, setNewSup] = useState<string>(draft?.newSup ?? '')
+  const [paid, setPaid] = useState<string>(draft?.paid ?? '')
+  const [d, setD] = useState<typeof empty>(draft?.d ?? empty)
+  const [rows, setRows] = useState<(ReceiveRow & { photo_url: string | null })[]>(draft?.rows ?? [])
+  useEffect(() => {
+    const dirty = rows.length || d.name || newSup || sup || paid
+    if (dirty) localStorage.setItem(draftKey, JSON.stringify({ sup, newSup, paid, d, rows }))
+    else localStorage.removeItem(draftKey)
+  }, [draftKey, sup, newSup, paid, d, rows])
+  function clearDraft() {
+    if (!confirm("Yozilgan qatorlar o'chirilsinmi?")) return
+    setRows([]); setD(empty); setSup(''); setNewSup(''); setPaid('')
+  }
   const [busy, setBusy] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
@@ -65,6 +77,8 @@ export function Receive() {
       if (newSup.trim()) supplierId = (await api.saveContact(shop.id, { kind: 'supplier', name: newSup.trim(), phone: null })).id
       await api.receive(shop.id, rows, supplierId, supplierId ? parseMoney(paid) : 0)
       toast(`${rows.length} ta qator saqlandi`)
+      localStorage.removeItem(draftKey)
+      setRows([]); setD(empty); setSup(''); setNewSup(''); setPaid('')
       nav('/mahsulotlar')
     } catch (e) { toast(errText(e), 'err') } finally { setBusy(false) }
   }
@@ -130,8 +144,12 @@ export function Receive() {
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'var(--blue-ll)', borderTop: '1px solid var(--line)' }}>
           <div><b className="num">{rows.length}</b> ta qator. Kirim summasi: <b className="num" style={{ fontSize: 18 }}>{money(total)} so'm</b>
             {(sup || newSup) && <span className="muted num"> · qarzga yoziladi: {money(Math.max(0, total - parseMoney(paid)))}</span>}</div>
+          <span className="row" style={{ alignItems: 'center' }}>
+          {rows.length > 0 && <button className="btn sec" onClick={clearDraft}>Tozalash</button>}
           <button className="btn ok big" disabled={!rows.length || busy} onClick={saveAll}>{busy ? 'Saqlanmoqda…' : 'Hammasini saqlash'}</button>
+          </span>
         </div>
+        {rows.length > 0 && <div className="muted" style={{ fontSize: 13, padding: '0 20px 14px', background: 'var(--blue-ll)' }}>Qatorlar avtomatik eslab qolinadi. Boshqa sahifaga o'tib qaytsangiz ham yo'qolmaydi. Omborga faqat "Hammasini saqlash" bosilganda qo'shiladi.</div>}
       </section>
     </>
   )

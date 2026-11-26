@@ -8,6 +8,7 @@ import { Thumb } from '../components/Thumb'
 import { ProductsHeader } from '../components/ProductsTabs'
 import { PhotoPicker } from '../components/PhotoPicker'
 import { useToast } from '../components/Toast'
+import { ProductHistory } from '../components/ProductHistory'
 
 export function Products() {
   const { shop, role } = useShop()
@@ -43,7 +44,7 @@ export function Products() {
                 return (
                   <tr key={p.id} className={edit?.id === p.id ? 'sel' : ''}>
                     <td>
-                      <button onClick={() => owner && setEdit(p)} style={{ display: 'flex', alignItems: 'center', gap: 12, border: 0, background: 'none', padding: 0, textAlign: 'left', cursor: owner ? 'pointer' : 'default' }}>
+                      <button onClick={() => setEdit(p)} title={owner ? 'Tahrirlash va tarix' : 'Tarixni ko\'rish'} style={{ display: 'flex', alignItems: 'center', gap: 12, border: 0, background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}>
                         <Thumb p={p} size={44} />
                         <span><b style={{ display: 'block', fontSize: 15 }}>{p.name}</b><span className="muted" style={{ fontSize: 13 }}>{[p.size, p.color].filter(Boolean).join(', ') || (p.is_weighed ? 'Tarozida sotiladi' : '')}</span></span>
                       </button>
@@ -59,13 +60,14 @@ export function Products() {
           </table>
         )}
       </div>
-      {edit && <EditDrawer p={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+      {edit && <EditDrawer p={edit} owner={owner} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
     </>
   )
 }
 
-function EditDrawer({ p, onClose, onSaved }: { p: Product; onClose: () => void; onSaved: () => void }) {
+function EditDrawer({ p, owner, onClose, onSaved }: { p: Product; owner: boolean; onClose: () => void; onSaved: () => void }) {
   const { shop } = useShop()
+  const [tab, setTab] = useState<'edit' | 'history'>(owner ? 'edit' : 'history')
   const toast = useToast()
   const [f, setF] = useState({ ...p, buy: money(p.buy_price), sell: money(p.sell_price), stockTxt: qty(p.stock), minTxt: qty(p.min_stock) })
   const set = (k: string, v: string | null) => setF({ ...f, [k]: v })
@@ -87,7 +89,10 @@ function EditDrawer({ p, onClose, onSaved }: { p: Product; onClose: () => void; 
   return (
     <div className="overlay" onClick={onClose}>
       <div className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Mahsulotni tahrirlash">
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}><h2>Mahsulotni tahrirlash</h2><button className="qb" aria-label="Yopish" onClick={onClose}><Icon name="x" size={16} /></button></div>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}><h2>{p.name}</h2><button className="qb" aria-label="Yopish" onClick={onClose}><Icon name="x" size={16} /></button></div>
+        <div className="muted num">Hozirgi qoldiq: <b style={{ color: 'var(--ink)' }}>{qty(p.stock, p.unit)}</b></div>
+        {owner && <nav className="tabs" aria-label="Mahsulot bo'limlari"><button className={tab === 'edit' ? 'on' : ''} onClick={() => setTab('edit')}>Tahrirlash</button><button className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>Tarix</button></nav>}
+        {tab === 'history' ? <ProductHistory shopId={shop.id} p={p} showBuy={owner} /> : <>
         <div className="row" style={{ alignItems: 'center', flexWrap: 'nowrap' }}>
           <PhotoPicker url={f.photo_url} name={f.name} onChange={(u) => set('photo_url', u)} />
           <label className="lb" style={{ flex: 1 }}>Nomi<input className="fld" value={f.name} onChange={(e) => set('name', e.target.value)} /></label>
@@ -107,6 +112,7 @@ function EditDrawer({ p, onClose, onSaved }: { p: Product; onClose: () => void; 
           <button className="btn danger" onClick={archive}><Icon name="trash" size={18} />O'chirish</button>
           <button className="btn" style={{ flex: 1 }} onClick={save}>Saqlash</button>
         </div>
+        </>}
       </div>
     </div>
   )

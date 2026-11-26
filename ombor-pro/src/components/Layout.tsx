@@ -25,6 +25,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/savdo" className={() => (loc.pathname.startsWith('/savdo') ? 'active' : '')}><Icon name="cart" /><span className="lbl">Savdo</span></NavLink>
           <NavLink to="/mahsulotlar" className={() => (loc.pathname.startsWith('/mahsulotlar') ? 'active' : '')}><Icon name="box" /><span className="lbl">Mahsulotlar</span>{low > 0 && <span className="badge">{low}</span>}</NavLink>
           <NavLink to="/qarzlar"><Icon name="users" /><span className="lbl">Qarzlar</span></NavLink>
+          {role === 'owner' && <NavLink to="/foyda"><Icon name="chart" /><span className="lbl">Foyda</span></NavLink>}
         </nav>
         <div className="me">
           <div className="avatar">{initials(user.name || 'U')}</div>

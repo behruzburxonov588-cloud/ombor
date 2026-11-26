@@ -5,6 +5,7 @@ import { useSession } from '../session'
 import { Icon } from '../components/Icon'
 import { deviceName } from '../lib/device'
 import { dateOf } from '../lib/format'
+import { RequestBox } from '../components/RequestBox'
 
 export function DeviceLimit() {
   const { membership, reload } = useSession()
@@ -37,18 +38,8 @@ export function DeviceLimit() {
             </div>
           ))}
         </div>
-        <div className="grid2">
-          <div className="card pad" style={{ border: '2.5px solid var(--blue)' }}>
-            <b style={{ fontSize: 17 }}>Qo'shimcha qurilma</b>
-            <div className="num" style={{ fontSize: 28, fontWeight: 800, color: 'var(--blue)', margin: '6px 0' }}>2$ <span className="muted" style={{ fontSize: 15 }}>/ oy</span></div>
-            <div className="muted" style={{ fontSize: 14 }}>Click yoki Payme orqali to'lov tez orada. Hozircha Ombor Pro admini bilan bog'laning, u qurilmani darhol qo'shadi.</div>
-          </div>
-          <div className="card pad">
-            <b style={{ fontSize: 17 }}>Eski qurilmani o'chirish</b>
-            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--teal-d)', margin: '6px 0' }}>Bepul</div>
-            <div className="muted" style={{ fontSize: 14 }}>{isOwner ? "Yuqoridagi ro'yxatdan keraksizini o'chiring." : "Buni faqat do'kon egasi qila oladi."}</div>
-          </div>
-        </div>
+        {isOwner ? <RequestBox shopId={shop.id} kinds={['device']} /> : <div className="banner">Qo'shimcha qurilmani do'kon egasi so'raydi.</div>}
+        {isOwner && <div className="muted" style={{ fontSize: 14 }}>Yoki yuqoridagi ro'yxatdan keraksiz qurilmani o'chiring, bu bepul.</div>}
         {err && <div className="banner err">{err}</div>}
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <button className="btn ghost" onClick={() => api.signOut()}>Chiqish</button>

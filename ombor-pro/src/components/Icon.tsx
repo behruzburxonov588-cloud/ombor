@@ -19,6 +19,7 @@ const P: Record<string, string> = {
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
   device: 'M3 5h18v11H3zM8 20h8M12 16v4',
   edit: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
+  chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
   alert: 'M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
 }
 

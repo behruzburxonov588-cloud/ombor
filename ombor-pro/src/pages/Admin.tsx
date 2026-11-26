@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, errText } from '../lib/api'
-import type { AdminShop } from '../lib/types'
+import type { AdminShop, ShopRequest } from '../lib/types'
+import { reqText } from '../components/RequestBox'
 import { dateOf, formatPhone, shopTypeName } from '../lib/format'
 import { Icon } from '../components/Icon'
 import { useToast } from '../components/Toast'
@@ -14,7 +15,11 @@ export function Admin() {
   const [q, setQ] = useState('')
   const [codes, setCodes] = useState<string[]>([])
   const [months, setMonths] = useState(1)
-  const load = () => api.adminShops().then(setList).catch((e) => toast(errText(e), 'err'))
+  const [reqs, setReqs] = useState<ShopRequest[]>([])
+  const load = () => {
+    api.adminShops().then(setList).catch((e) => toast(errText(e), 'err'))
+    api.adminRequests().then(setReqs).catch(() => {})
+  }
   useEffect(() => { load() }, [])
 
   const today = new Date(new Date().toDateString())
@@ -42,6 +47,19 @@ export function Admin() {
             <button className="btn" onClick={() => act(async () => { const c = await api.adminMakeCode(months); setCodes((x) => [c, ...x]) }, 'Kod yaratildi')}>Aktivatsiya kodi yaratish</button>
           </div>
         </div>
+        {reqs.some((r) => r.status === 'pending') && (
+          <section className="card" style={{ overflow: 'hidden', border: '2.5px solid var(--gold)' }}>
+            <div style={{ padding: '14px 20px', background: 'var(--gold-l)', color: 'var(--gold-d)', fontWeight: 700 }}>Yangi so'rovlar: {reqs.filter((r) => r.status === 'pending').length} ta</div>
+            {reqs.filter((r) => r.status === 'pending').map((r) => (
+              <div key={r.id} className="line" style={{ padding: '12px 20px', borderTop: '1px solid var(--line)', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ flex: '1 1 220px' }}><b>{r.shop_name}</b> <span className="muted num">{formatPhone(r.owner_phone ?? null)}</span>
+                  <div style={{ marginTop: 2 }}>{reqText(r)}{r.kind === 'device' && <span className="muted num"> · {2 * r.amount}$ / oy</span>} <span className="muted num">· {dateOf(r.created_at)}</span></div></div>
+                <button className="btn ok" style={{ minHeight: 40 }} onClick={() => act(() => api.adminDecide(r.id, true), 'Tasdiqlandi')}><Icon name="check" size={18} />Tasdiqlash</button>
+                <button className="btn danger" style={{ minHeight: 40 }} onClick={() => act(() => api.adminDecide(r.id, false), 'Rad etildi')}>Rad etish</button>
+              </div>
+            ))}
+          </section>
+        )}
         {codes.length > 0 && <div className="card pad row" style={{ alignItems: 'center' }}><b>Yangi kodlar:</b>{codes.map((c) => <button key={c} className="chip num" onClick={() => { navigator.clipboard?.writeText(c); toast('Nusxa olindi') }}>{c}</button>)}</div>}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           <div className="card pad"><div className="muted">Jami do'konlar</div><b className="num" style={{ fontSize: 28 }}>{list.length}</b></div>

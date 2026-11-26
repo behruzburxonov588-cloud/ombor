@@ -6,6 +6,7 @@ import { deviceKey } from '../lib/device'
 import { useShop } from '../session'
 import { useScale, serialSupported } from '../lib/scale'
 import { Icon } from '../components/Icon'
+import { RequestBox } from '../components/RequestBox'
 import { useToast } from '../components/Toast'
 
 const SECS = ["Do'kon", 'Xodimlar', 'Uskunalar', 'Tarif va qurilmalar'] as const
@@ -156,8 +157,9 @@ function PlanSec() {
           <div style={{ fontSize: 24, fontWeight: 800 }}>{shop.device_limit} ta qurilma</div>
           <div style={{ fontSize: 15, color: active ? '#C9D5F2' : '#FFD3CF', marginTop: 4 }}>{active ? `${dateOf(shop.paid_until)} gacha faol` : 'Muddati tugagan'}</div>
         </div>
-        <div style={{ fontSize: 14, color: '#C9D5F2', maxWidth: 320 }}>Muddatni uzaytirish va qo'shimcha qurilma (2$ / oy) uchun Ombor Pro admini bilan bog'laning. Onlayn to'lov tez orada.</div>
+        <div style={{ fontSize: 14, color: '#C9D5F2', maxWidth: 320 }}>3 ta qurilma tarifga kiradi. Har bir qo'shimcha qurilma 2$ / oy. So'rov yuboring, admin tasdiqlagach darhol qo'shiladi.</div>
       </section>
+      <RequestBox shopId={shop.id} />
       <section className="card" style={{ overflow: 'hidden' }}>
         <div className="pad row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}><h2>Qurilmalar: {list.length} / {shop.device_limit}</h2></div>
         <table className="tbl">

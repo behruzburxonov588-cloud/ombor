@@ -12,6 +12,7 @@ import { Receive } from './pages/Receive'
 import { Debts } from './pages/Debts'
 import { Settings } from './pages/Settings'
 import { Admin } from './pages/Admin'
+import { Profit } from './pages/Profit'
 
 export function App() {
   const s = useSession()
@@ -31,6 +32,7 @@ export function App() {
         <Route path="/mahsulotlar" element={<Products />} />
         <Route path="/mahsulotlar/qabul" element={<Receive />} />
         <Route path="/qarzlar" element={<Debts />} />
+        <Route path="/foyda" element={<Profit />} />
         <Route path="/sozlamalar" element={<Settings />} />
         <Route path="*" element={<Navigate to={start} replace />} />
       </Routes>
