@@ -8,3 +8,6 @@ backups/
 # Cloudflare (mahalliy)
 .wrangler/
 .dev.vars
+
+# Supabase ochiq kalitlari (anon) — saytga kerak, maxfiy emas
+!ombor-pro/.env.production
