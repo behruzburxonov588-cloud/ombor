@@ -107,7 +107,7 @@ function StaffSec() {
 function DevicesHw() {
   const scale = useScale()
   const [startScale, setStartScale] = useState(localStorage.getItem('ombor-start-scale') === '1')
-  const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ombor-auto-print') === '1')
+  const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ombor-auto-print') !== '0')
   const [baud, setBaud] = useState(localStorage.getItem('ombor-scale-baud') || '9600')
   const flag = (k: string, v: boolean) => localStorage.setItem(k, v ? '1' : '0')
   const Row = ({ t, s, st, ok, children }: { t: string; s: string; st: string; ok: boolean; children?: React.ReactNode }) => (

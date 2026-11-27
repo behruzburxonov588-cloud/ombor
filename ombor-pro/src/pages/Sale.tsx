@@ -96,7 +96,7 @@ export function Sale() {
         <button className="cart-bar" onClick={() => document.getElementById('savat')?.scrollIntoView({ behavior: 'smooth' })}>
           <span><Icon name="cart" /> {lines.length} ta tovar</span>
           <b className="num">{money(lines.reduce((a, l) => a + Math.round(l.qty * l.price), 0))} so'm</b>
-          <span>To'lash ›</span>
+          <span>Sotish ›</span>
         </button>
       )}
       {weigh && <WeighDialog p={weigh} onClose={() => setWeigh(null)} onAdd={(kg) => { add(weigh, kg); setWeigh(null) }} />}

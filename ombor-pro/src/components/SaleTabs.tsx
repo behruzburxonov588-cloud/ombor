@@ -13,8 +13,8 @@ export function SaleHeader({ refreshKey = 0 }: { refreshKey?: number }) {
   return (
     <div className="head">
       <h1>Savdo</h1>
-      <span className="tag info num" style={{ fontSize: 14, padding: '8px 12px' }}>Bugun: {money(st.total)} so'm</span>
-      <span className="tag info num" style={{ fontSize: 14, padding: '8px 12px' }}>{st.count} ta chek</span>
+      <span className="tag info num only-sm" style={{ fontSize: 14, padding: '8px 12px' }}>Bugun: {money(st.total)} so'm</span>
+      <span className="tag info num only-sm" style={{ fontSize: 14, padding: '8px 12px' }}>{st.count} ta chek</span>
       <nav className="tabs sp" aria-label="Savdo bo'limlari">{t('/savdo', 'Sotish')}{t('/savdo/tarozi', 'Tarozi')}{t('/savdo/cheklar', 'Cheklar')}</nav>
     </div>
   )

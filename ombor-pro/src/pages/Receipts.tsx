@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api, errText } from '../lib/api'
 import type { Sale } from '../lib/types'
-import { money, qty, timeOf } from '../lib/format'
+import { money, timeOf } from '../lib/format'
 import { useShop } from '../session'
 import { SaleHeader } from '../components/SaleTabs'
-import { printSale } from '../components/Receipt'
+import { printSale, receiptHtml } from '../components/Receipt'
 import { Icon } from '../components/Icon'
 import { useToast } from '../components/Toast'
 
@@ -71,11 +71,8 @@ export function Receipts() {
         <div className="modal-wrap" onClick={() => setOpen(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Chek #${open.number}`}>
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}><h2>Chek #{open.number}</h2><button className="qb" aria-label="Yopish" onClick={() => setOpen(null)}><Icon name="x" size={16} /></button></div>
-            {open.items.map((i, k) => (
-              <div key={k} className="line"><div style={{ flex: 1 }}><div className="nm">{i.name}</div><div className="muted num" style={{ fontSize: 13 }}>{qty(i.qty, i.unit)} × {money(i.price)}</div></div><b className="num">{money(i.total)}</b></div>
-            ))}
-            <div className="total"><span>Jami</span><b className="num">{money(open.total)}</b></div>
-            <button className="btn wide" onClick={() => printSale(open, shop)}><Icon name="printer" />Chop etish</button>
+            <div className="rc-paper"><div className="rc-preview" dangerouslySetInnerHTML={{ __html: receiptHtml(open, shop) }} /></div>
+            <button className="btn wide" onClick={() => printSale(open, shop)}><Icon name="printer" />Chekni chiqarish</button>
             {open.returned_at ? <div className="banner err">Bu chek qaytarilgan</div> : <button className="btn danger wide" onClick={() => giveBack(open)}>Chekni qaytarish (vozvrat)</button>}
           </div>
         </div>

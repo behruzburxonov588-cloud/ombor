@@ -154,11 +154,7 @@ kbd { font: 600 12px 'Onest Variable', sans-serif; border: 1px solid currentColo
   @page { size: 80mm auto; margin: 4mm }
   body * { visibility: hidden }
   .receipt, .receipt * { visibility: visible }
-  .receipt { display: block; position: absolute; left: 0; top: 0; width: 72mm; font: 12px/1.4 'Courier New', monospace; color: #000 }
-  .receipt h3 { text-align: center; margin: 0 0 4px; font-size: 15px }
-  .receipt .r { display: flex; justify-content: space-between; gap: 6px }
-  .receipt hr { border: 0; border-top: 1px dashed #000; margin: 6px 0 }
-  .receipt .c { text-align: center }
+  .receipt { display: block; position: absolute; left: 0; top: 0 }
 }
 
 /* Phone */
@@ -500,3 +496,31 @@ h1 { font-size: 30px; letter-spacing: -0.02em }
 .type { background: var(--card2); transition: border-color .15s, background-color .15s }
 .type:hover:not(.on) { border-color: var(--line2); background: var(--card) }
 @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr !important } }
+/* Chek almashtirgich */
+.print-sw { display: flex; align-items: center; gap: 10px; font-size: 14.5px; font-weight: 600; color: var(--ink2); cursor: pointer; user-select: none; padding: 2px 2px }
+.sw { position: relative; width: 42px; height: 24px; flex: 0 0 auto }
+.sw input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer }
+.sw i { position: absolute; inset: 0; border-radius: 99px; background: var(--line2); transition: background-color .15s; pointer-events: none }
+.sw i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s }
+.sw input:checked + i { background: var(--teal) }
+.sw input:checked + i::after { transform: translateX(18px) }
+.sw input:focus-visible + i { outline: 3px solid var(--blue-l); outline-offset: 2px }
+
+/* Chek ko'rinishi (chop etish va namunada bir xil) */
+.receipt, .rc-preview { width: 72mm; box-sizing: border-box; padding: 2mm 1mm 4mm; font: 500 12.5px/1.4 'Onest Variable', Arial, sans-serif; color: #000; background: #fff; font-variant-numeric: tabular-nums }
+.receipt .r, .rc-preview .r { display: flex; justify-content: space-between; gap: 8px }
+.receipt .r.b, .rc-preview .r.b { font-weight: 800; font-size: 13.5px }
+.rc-head { text-align: center; padding-bottom: 6px; border-bottom: 1.5px solid #000; margin-bottom: 6px }
+.rc-shop { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 2px }
+.rc-meta { padding-bottom: 6px; border-bottom: 1px dashed #000; margin-bottom: 6px }
+.rc-items { padding-bottom: 6px; border-bottom: 1px dashed #000; margin-bottom: 6px; display: flex; flex-direction: column; gap: 5px }
+.rc-nm { font-weight: 700 }
+.rc-item .r span:last-child { font-weight: 700 }
+.rc-total { display: flex; justify-content: space-between; font-size: 19px; font-weight: 800; padding: 6px 0; margin: 6px 0; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000 }
+.rc-foot { text-align: center; margin-top: 10px; font-weight: 600 }
+.rc-bc { height: 11mm; margin: 6px 6mm 0 } .rc-bc svg { width: 100%; height: 100% }
+.rc-by { text-align: center; font-size: 10px; margin-top: 2px }
+.rc-paper { background: var(--card2); border-radius: 12px; padding: 16px; display: flex; justify-content: center; flex: 0 0 auto }
+.rc-paper .rc-preview { box-shadow: 0 2px 10px rgba(0,0,0,.12); padding: 4mm 3mm 5mm; width: 76mm; max-width: 100% }
+[data-theme="tun"] .rc-paper { background: #0B1018 }
+@media (min-width: 861px) { .only-sm { display: none !important } }

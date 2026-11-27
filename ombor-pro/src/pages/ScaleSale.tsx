@@ -14,7 +14,7 @@ import { useCart } from '../lib/cart'
 import type { Sale as SaleT } from '../lib/types'
 
 export function ScaleSale() {
-  const { shop } = useShop()
+  const { shop, user } = useShop()
   const toast = useToast()
   const scale = useScale()
   const [items, setItems] = useState<Product[]>([])
@@ -37,11 +37,11 @@ export function ScaleSale() {
     try {
       const total = Math.round(w * p.sell_price)
       const r = await api.sell(shop.id, [{ product: p, qty: w, price: p.sell_price }], 'cash', null, total)
-      const sale: SaleT = { id: '', number: r.number, pay_method: 'cash', total: r.total, given: total, created_at: new Date().toISOString(), contact_name: null, seller_name: null,
+      const sale: SaleT = { id: '', number: r.number, pay_method: 'cash', total: r.total, given: total, created_at: new Date().toISOString(), contact_name: null, seller_name: user?.name || null,
         items: [{ name: p.name, unit: 'kg', qty: w, price: p.sell_price, total }] }
       setLast(sale)
       toast(`Sotildi: ${p.name}, ${qty(w, 'kg')}, ${money(total)} so'm`)
-      if (localStorage.getItem('ombor-auto-print') === '1') printSale(sale, shop)
+      if (localStorage.getItem('ombor-auto-print') !== '0') printSale(sale, shop)
       setPid(null); setTick((t) => t + 1); window.dispatchEvent(new Event('ombor-sold'))
       if (!scale.connected) scale.setManual(0)
     } catch (e) { toast(errText(e), 'err') } finally { setBusy(false) }

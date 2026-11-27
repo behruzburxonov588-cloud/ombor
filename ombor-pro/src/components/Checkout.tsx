@@ -8,7 +8,7 @@ import { Icon } from './Icon'
 import { printSale } from './Receipt'
 
 export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLines: (l: CartLine[]) => void; onSold: () => void }) {
-  const { shop } = useShop()
+  const { shop, user } = useShop()
   const toast = useToast()
   const [method, setMethod] = useState<PayMethod>('cash')
   const [given, setGiven] = useState<number | null>(null)
@@ -18,6 +18,9 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
   const [newCust, setNewCust] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<{ sale: Sale; change: number } | null>(null)
+  // Sotuv bilan birga chek chiqishi (odatda yoqiq). Har bir qurilma o'zi eslab qoladi
+  const [autoPrint, setAutoPrintS] = useState(localStorage.getItem('ombor-auto-print') !== '0')
+  const setAutoPrint = (v: boolean) => { setAutoPrintS(v); localStorage.setItem('ombor-auto-print', v ? '1' : '0') }
   // Yangi tovar qo'shilishi bilan muvaffaqiyat oynasi yopiladi
   useEffect(() => { if (lines.length) setDone(null) }, [lines.length])
   const total = useMemo(() => lines.reduce((a, l) => a + Math.round(l.qty * l.price), 0), [lines])
@@ -53,12 +56,12 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
       const r = await api.sell(shop.id, lines, method, contactId, giv)
       const sale: Sale = {
         id: '', number: r.number, pay_method: method, total: r.total, given: giv, created_at: new Date().toISOString(),
-        contact_name: method === 'debt' ? (newCust.trim() || customers.find((c) => c.id === contactId)?.name || null) : null, seller_name: null,
+        contact_name: method === 'debt' ? (newCust.trim() || customers.find((c) => c.id === contactId)?.name || null) : null, seller_name: user.name || null,
         items: lines.map((l) => ({ name: l.product.name, unit: l.product.unit, qty: l.qty, price: l.price, total: Math.round(l.qty * l.price) })),
       }
       setDone({ sale, change: giv && giv > total ? giv - total : 0 })
       setLines([]); setNewCust(''); setCust(''); setMethod('cash')
-      if (localStorage.getItem('ombor-auto-print') === '1') printSale(sale, shop)
+      if (autoPrint) printSale(sale, shop)
       onSold(); window.dispatchEvent(new Event('ombor-sold'))
     } catch (e) { toast(errText(e), 'err') } finally { setBusy(false) }
   }
@@ -78,7 +81,7 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
         ? <div className="done-change"><small>Mijozga qaytaring</small><b className="num">{money(done.change)} <span>so'm</span></b><small className="num">berdi {money(done.sale.given ?? 0)}</small></div>
         : done.sale.pay_method !== 'debt' && <div className="done-change"><small>To'landi</small><b className="num">{money(done.sale.total)} <span>so'm</span></b></div>}
       {done.sale.pay_method === 'debt' && <div className="banner err">{done.sale.contact_name} qarziga yozildi</div>}
-      <button className="btn sec big wide" onClick={() => printSale(done.sale, shop)}><Icon name="printer" />Chek chiqarish</button>
+      <button className="btn sec big wide" onClick={() => printSale(done.sale, shop)}><Icon name="printer" />{autoPrint ? 'Chekni qayta chiqarish' : 'Chek chiqarish'}</button>
       <button className="btn big wide" autoFocus onClick={() => setDone(null)}>Keyingi xaridor</button>
       <div className="muted" style={{ textAlign: 'center', fontSize: 13 }}>Yoki shunchaki keyingi tovarni skanerlang</div>
     </aside>
@@ -91,7 +94,7 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
       {!lines.length && <ol className="steps">
         <li><b>Tovarni tanlang</b><span>Chapdagi tovarni bosing yoki shtrix-kodni skanerlang</span></li>
         <li><b>To'lov turini tanlang</b><span>Naqd, karta yoki qarzga</span></li>
-        <li><b>To'lash tugmasini bosing</b><span>Qaytim o'zi hisoblanadi</span></li>
+        <li><b>Sotish tugmasini bosing</b><span>Chek o'zi chiqadi, qaytim hisoblanadi</span></li>
       </ol>}
       {lines.map((l, i) => (
         <div className={'line' + (i === lines.length - 1 ? ' just' : '')} key={l.product.id + i}>
@@ -122,7 +125,7 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
       </div>}
       {method === 'cash' && total > 0 && lines.length > 0 && (
         <div className="card cash-box" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink2)' }}>Qaytim kerakmi? Mijoz bergan pulni tanlang <span className="muted" style={{ fontWeight: 500 }}>(shart emas)</span></div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink2)' }}>Mijoz bergan pul <span className="muted" style={{ fontWeight: 500 }}>(qaytim uchun, shart emas)</span></div>
           <div className="seg" style={{ gridTemplateColumns: `repeat(${Math.max(1, opts.length)},1fr)` }}>
             {opts.map((v) => (
               <button key={v} className={'num ' + (given === v ? 'on' : '')} style={{ minHeight: 42, fontSize: 14 }} onClick={() => { setGiven(given === v ? null : v); setGivenTxt('') }}>
@@ -148,8 +151,12 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
           <input className="fld" placeholder="yoki yangi mijoz ismi" value={newCust} onChange={(e) => { setNewCust(e.target.value); setCust('') }} />
         </div>
       )}
+      {lines.length > 0 && <label className="print-sw">
+        <span className="sw"><input type="checkbox" checked={autoPrint} onChange={(e) => setAutoPrint(e.target.checked)} /><i /></span>
+        <Icon name="printer" size={18} />Sotilganda chek chiqsin
+      </label>}
       <button className="btn ok big wide" disabled={!lines.length || busy || (method === 'cash' && g < total)} onClick={pay} style={{ justifyContent: 'space-between', padding: '0 20px' }}>
-        <span>{busy ? 'Saqlanmoqda…' : lines.length ? `To'lash · ${money(total)} so'm` : "To'lash"}</span><kbd>F8</kbd>
+        <span>{busy ? 'Saqlanmoqda…' : lines.length ? `${autoPrint ? 'Sotish va chek' : 'Sotish'} · ${money(total)} so'm` : 'Sotish'}</span><kbd>F8</kbd>
       </button>
 
     </aside>
