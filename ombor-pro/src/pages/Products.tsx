@@ -42,33 +42,33 @@ export function Products() {
   return (
     <>
       <ProductsHeader sub={`${items.length} ta mahsulot${low ? `, ${low} tasi kam qolgan` : ''}`} />
-      <div className="row" style={{ alignItems: 'center' }}>
-        <input className="fld" style={{ flex: '1 1 260px' }} placeholder="Nomi yoki shtrix-kod" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Qidirish" />
+      <div className="toolbar">
+        <div className="grow search"><Icon name="search" /><input className="fld" placeholder="Nomi yoki shtrix-kod" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Qidirish" /></div>
         <button className={'chip' + (onlyLow ? ' on' : '')} style={{ minHeight: 48 }} onClick={() => setOnlyLow(!onlyLow)} aria-pressed={onlyLow}>Kam qolganlar{low ? ` (${low})` : ''}</button>
         <button className="btn sec" style={{ minHeight: 48 }} onClick={() => setLabels(true)}><Icon name="printer" size={18} />Etiketka{sel.size ? ` (${sel.size})` : ''}</button>
-        {owner && <button className="btn sec" style={{ minHeight: 48 }} onClick={() => setEdit(blank)}><Icon name="plus" size={18} />Yangi mahsulot</button>}
+        {owner && <button className="btn sec" style={{ minHeight: 48 }} onClick={() => setEdit(blank)}><Icon name="plus" size={18} />Yangi</button>}
       </div>
       <div className="card scroll-x">
         {!shown.length ? <div className="empty"><Icon name="box" size={32} />{items.length ? 'Hech narsa topilmadi' : "Hali mahsulot yo'q. \"+ Tovar qabul qilish\" bo'limidan kiriting."}</div> : (
-          <table className="tbl">
+          <table className="tbl stack">
             <thead><tr><th style={{ width: 40 }}><input type="checkbox" aria-label="Hammasini tanlash" checked={!!shown.length && shown.every((p) => sel.has(p.id))} onChange={(e) => setSel(e.target.checked ? new Set(shown.map((p) => p.id)) : new Set())} /></th><th>Mahsulot</th><th>Shtrix-kod</th><th>Qoldiq</th>{owner && <th style={{ textAlign: 'right' }}>Kirim narxi</th>}<th style={{ textAlign: 'right' }}>Sotuv narxi</th><th /></tr></thead>
             <tbody>
               {shown.map((p) => {
                 const st = p.stock <= 0 ? 'bad' : p.stock <= p.min_stock ? 'warn' : 'ok'
                 return (
                   <tr key={p.id} className={edit?.id === p.id ? 'sel' : ''}>
-                    <td><input type="checkbox" aria-label={p.name + ' tanlash'} checked={sel.has(p.id)} onChange={() => { const n = new Set(sel); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); setSel(n) }} /></td>
-                    <td>
+                    <td className="c-hide"><input type="checkbox" aria-label={p.name + ' tanlash'} checked={sel.has(p.id)} onChange={() => { const n = new Set(sel); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); setSel(n) }} /></td>
+                    <td className="c-main">
                       <button onClick={() => setEdit(p)} title={owner ? 'Tahrirlash va tarix' : 'Tarixni ko\'rish'} style={{ display: 'flex', alignItems: 'center', gap: 12, border: 0, background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}>
                         <Thumb p={p} size={44} />
                         <span><b style={{ display: 'block', fontSize: 15 }}>{p.name}</b><span className="muted" style={{ fontSize: 13 }}>{[p.size, p.color].filter(Boolean).join(', ') || (p.is_weighed ? 'Tarozida sotiladi' : '')}</span></span>
                       </button>
                     </td>
-                    <td className="num muted">{p.barcode ?? '—'}</td>
+                    <td className="num muted c-hide">{p.barcode ?? '—'}</td>
                     <td><span className={'tag ' + st + ' num'}>{qty(p.stock, p.unit)}</span></td>
-                    {owner && <td className="num muted" style={{ textAlign: 'right' }}>{money(p.buy_price)}</td>}
+                    {owner && <td className="num muted c-hide" style={{ textAlign: 'right' }}>{money(p.buy_price)}</td>}
                     <td className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{money(p.sell_price)}{p.is_weighed ? ' / kg' : ''}</td>
-                    <td style={{ textAlign: 'right' }}><button className="btn soft" style={{ minHeight: 36 }} onClick={() => setEdit(p)}>{owner ? <><Icon name="edit" size={16} />Tahrirlash</> : 'Tarix'}</button></td>
+                    <td className="c-end" style={{ textAlign: 'right' }}><button className="btn soft" style={{ minHeight: 36 }} onClick={() => setEdit(p)}>{owner ? <><Icon name="edit" size={16} />Tahrirlash</> : 'Tarix'}</button></td>
                   </tr>
                 )
               })}

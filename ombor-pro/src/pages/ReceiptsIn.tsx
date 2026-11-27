@@ -32,16 +32,16 @@ export function ReceiptsIn() {
       <ProductsHeader sub="Kelgan yuklar. Xato kiritilgan bo'lsa, ochib tuzating." />
       <div className="card scroll-x">
         {!list ? <div className="empty">Yuklanmoqda…</div> : !list.length ? <div className="empty"><Icon name="box" size={32} />Hali yuk kiritilmagan</div> : (
-          <table className="tbl">
+          <table className="tbl stack">
             <thead><tr><th>Sana</th><th>Yetkazib beruvchi</th><th>Tovarlar</th><th style={{ textAlign: 'right' }}>Summa</th><th style={{ textAlign: 'right' }}>To'langan</th><th /></tr></thead>
             <tbody>{list.map((r) => (
               <tr key={r.id} style={r.canceled_at ? { opacity: 0.55 } : {}}>
-                <td className="num">{when(r.created_at)}</td>
-                <td>{r.supplier_name ?? '—'}</td>
-                <td style={{ maxWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.items.map((i) => i.name).join(', ') || '—'}</td>
+                <td className="num c-top muted">{when(r.created_at)}</td>
+                <td className={'c-top ' + (r.supplier_name ? '' : 'c-hide')}>{r.supplier_name ?? '—'}</td>
+                <td className="c-main" style={{ maxWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.items.map((i) => i.name).join(', ') || '—'}</td>
                 <td className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{money(r.total)}</td>
-                <td className="num muted" style={{ textAlign: 'right' }}>{money(r.paid)}</td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{r.canceled_at ? <span className="tag bad">Bekor qilingan</span> : <button className="btn soft" style={{ minHeight: 36 }} onClick={() => setOpen(r)}>{owner ? 'Ochish / tahrirlash' : 'Ochish'}</button>}</td>
+                <td className="num muted" data-l="to'langan" style={{ textAlign: 'right' }}>{money(r.paid)}</td>
+                <td className="c-end" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{r.canceled_at ? <span className="tag bad">Bekor qilingan</span> : <button className="btn soft" style={{ minHeight: 36 }} onClick={() => setOpen(r)}>{owner ? 'Ochish / tahrirlash' : 'Ochish'}</button>}</td>
               </tr>
             ))}</tbody>
           </table>

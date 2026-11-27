@@ -91,12 +91,12 @@ export function Profit() {
       <section className="card" style={{ overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)' }}><h2 style={{ margin: 0 }}>Qaysi tovardan qancha foyda</h2></div>
         {!rep?.items.length ? <div className="empty"><Icon name="box" size={28} />Bu davrda sotuv yo'q</div> : (
-          <div className="scroll-x"><table className="tbl">
+          <div className="scroll-x"><table className="tbl stack">
             <thead><tr><th>Mahsulot</th><th style={{ textAlign: 'right' }}>Sotildi</th><th style={{ textAlign: 'right' }}>Sotuv</th><th style={{ textAlign: 'right' }}>Tannarx</th><th style={{ textAlign: 'right' }}>Foyda</th></tr></thead>
             <tbody>{rep.items.map((i) => (
-              <tr key={i.name + i.unit}><td><b>{i.name}</b></td><td className="num" style={{ textAlign: 'right' }}>{qty(i.qty, i.unit)}</td>
-                <td className="num" style={{ textAlign: 'right' }}>{money(i.revenue)}</td><td className="num muted" style={{ textAlign: 'right' }}>{money(i.cost)}</td>
-                <td className="num" style={{ textAlign: 'right', fontWeight: 700, color: i.profit < 0 ? 'var(--red)' : 'var(--teal-d)' }}>{i.profit < 0 ? '−' : ''}{money(Math.abs(i.profit))}</td></tr>
+              <tr key={i.name + i.unit}><td className="c-main"><b>{i.name}</b></td><td className="num" data-l="sotildi" style={{ textAlign: 'right' }}>{qty(i.qty, i.unit)}</td>
+                <td className="num" data-l="sotuv" style={{ textAlign: 'right' }}>{money(i.revenue)}</td><td className="num muted c-hide" style={{ textAlign: 'right' }}>{money(i.cost)}</td>
+                <td className="num c-end" data-l="foyda" style={{ textAlign: 'right', fontWeight: 700, color: i.profit < 0 ? 'var(--red)' : 'var(--teal-d)' }}>{i.profit < 0 ? '−' : ''}{money(Math.abs(i.profit))}</td></tr>
             ))}</tbody>
           </table></div>
         )}

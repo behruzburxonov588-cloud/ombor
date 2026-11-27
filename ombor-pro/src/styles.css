@@ -442,3 +442,61 @@ h1 { font-size: 30px; letter-spacing: -0.02em }
   .main:has(.cart-bar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)) }
   .toasts { bottom: calc(150px + env(safe-area-inset-bottom)) !important }
 }
+
+/* Telefonda jadval kartochkalarga aylanadi: .tbl.stack */
+@media (max-width: 640px) {
+  .tbl.stack thead { display: none }
+  .tbl.stack, .tbl.stack tbody { display: block; width: 100% }
+  .tbl.stack tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 14px 16px; border-bottom: 1px solid var(--line-soft) }
+  .tbl.stack tbody tr:last-child { border-bottom: 0 }
+  .tbl.stack td { display: block; padding: 0 !important; border: 0 !important; text-align: left !important; max-width: none !important; white-space: normal !important }
+  .tbl.stack td.c-top { order: -2 }
+  .tbl.stack td.c-main { order: -1; flex: 1 1 100% }
+  .tbl.stack td.c-hide { display: none }
+  .tbl.stack td.c-end { margin-left: auto }
+  .tbl.stack td[data-l]::before { content: attr(data-l) ' '; color: var(--muted); font-weight: 500; font-size: 12.5px }
+  .tbl.stack tbody tr:hover td { background: transparent }
+  .scroll-x:has(.tbl.stack) { overflow: visible }
+}
+.head-acts { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.head-acts .btn { min-height: 48px; text-decoration: none }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
+.toolbar .grow { flex: 1 1 260px }
+@media (max-width: 860px) {
+  .head-acts { margin-left: 0; width: 100% }
+  .head-acts .tabs { flex: 1 1 100% }
+  .head-acts .btn { flex: 1 1 100% }
+  .toolbar .grow { flex: 1 1 100% }
+  .toolbar > .chip, .toolbar > .btn { flex: 1 1 0; min-width: 0; padding: 0 10px; white-space: nowrap }
+}
+.search { position: relative }
+.search > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none }
+.search > .fld { padding-left: 44px; width: 100% }
+/* Tovar qabul qilish */
+.photo-mini { position: relative }
+.photo-mini .thumb { border: 2px dashed #9FB0DA; background: var(--blue-ll); color: var(--blue); cursor: pointer; padding: 0 }
+.photo-mini .thumb:has(img) { border: 1px solid var(--line) }
+.photo-mini .thumb:hover { border-color: var(--blue) }
+.photo-x { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--red); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0 }
+.recv-sup { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap }
+.recv-step { width: 32px; height: 32px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font-weight: 800; flex: 0 0 auto; align-self: center }
+.recv-sup .recv-step { align-self: flex-end; margin-bottom: 8px }
+.recv-form { border: 2px solid var(--blue); display: flex; flex-direction: column; gap: 14px }
+.recv-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+.recv-head b { font-size: 16px }
+.recv-head .muted { font-size: 13px; margin-left: auto }
+.recv-grid { display: grid; grid-template-columns: minmax(260px, 2.8fr) 1fr .8fr .9fr 1fr 1fr auto; gap: 10px; align-items: end }
+.rg-pn { display: flex; gap: 10px; align-items: flex-end } .rg-pn .rg-name { flex: 1; min-width: 0 }
+.recv-grid .rg-name .fld { border-color: var(--blue); font-size: 16px }
+.rg-add { min-height: 48px }
+.recv-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 20px; background: var(--blue-ll); border-top: 1px solid var(--line) }
+.recv-btns { display: flex; gap: 10px; align-items: center }
+@media (max-width: 1100px) { .recv-grid { grid-template-columns: repeat(4, 1fr) } .rg-pn { grid-column: span 3 } .rg-add { grid-column: span 2 } }
+@media (max-width: 640px) {
+  .recv-grid { grid-template-columns: 1fr 1fr } .rg-pn, .recv-grid .rg-var, .rg-add { grid-column: 1 / -1 }
+  .recv-head .muted { margin-left: 0 }
+  .recv-btns { width: 100% } .recv-btns .btn { flex: 1 }
+}
+.type { background: var(--card2); transition: border-color .15s, background-color .15s }
+.type:hover:not(.on) { border-color: var(--line2); background: var(--card) }
+@media (max-width: 560px) { .grid2 { grid-template-columns: 1fr !important } }

@@ -90,69 +90,73 @@ export function Receive() {
   return (
     <>
       <ProductsHeader sub="Kelgan yukni qatorma-qator yozing. Hammasi bitta tugma bilan saqlanadi." />
-      <section className="card pad row">
-        <label className="lb" style={{ flex: '1.4 1 240px' }}>Yetkazib beruvchi (ixtiyoriy)
+      <section className="card pad recv-sup">
+        <div className="recv-step">1</div>
+        <label className="lb" style={{ flex: '1.4 1 220px' }}><span>Kimdan keldi? <span className="muted" style={{ fontWeight: 500 }}>(shart emas)</span></span>
           <select className="fld" value={sup} onChange={(e) => { setSup(e.target.value); setNewSup('') }}>
-            <option value="">Tanlanmagan</option>
+            <option value="">Yetkazib beruvchi tanlanmagan</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </label>
-        <label className="lb" style={{ flex: '1 1 200px' }}>yoki yangisi<input className="fld" value={newSup} onChange={(e) => { setNewSup(e.target.value); setSup('') }} placeholder="Yetkazib beruvchi nomi" /></label>
-        {(sup || newSup) && <label className="lb" style={{ flex: '1 1 180px' }}>Hozir to'landi<input className="fld num" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value)} placeholder="0" /></label>}
+        <label className="lb" style={{ flex: '1 1 200px' }}>yoki yangi yetkazib beruvchi<input className="fld" value={newSup} onChange={(e) => { setNewSup(e.target.value); setSup('') }} placeholder="Nomini yozing" /></label>
+        {(sup || newSup) && <label className="lb" style={{ flex: '1 1 160px' }}>Hozir to'landi<input className="fld num" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value)} placeholder="0" /></label>}
       </section>
 
-      <form className="card pad" onSubmit={add} style={{ border: '2px solid var(--blue)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div className="row">
-          <PhotoPicker url={d.photo} name={d.name} onChange={(u) => setD({ ...d, photo: u })} size={50} />
-          <label className="lb" style={{ flex: '2.2 1 220px' }}>Nomi yoki shtrix-kod
-            <input ref={nameRef} className="fld" list="prod-names" autoFocus value={d.name} onChange={(e) => setName(e.target.value)} placeholder="Skanerlang yoki yozing" style={{ borderColor: 'var(--blue)', fontSize: 17 }} />
+      <form className="card pad recv-form" onSubmit={add}>
+        <div className="recv-head"><div className="recv-step">2</div><b>Tovarni yozing va <kbd>Enter</kbd> bosing</b><span className="muted">Faqat nomi va sotuv narxi majburiy</span></div>
+        <div className="recv-grid">
+          <div className="rg-pn">
+          <PhotoPicker url={d.photo} name={d.name} onChange={(u) => setD({ ...d, photo: u })} size={48} compact />
+          <label className="lb rg-name">Nomi yoki shtrix-kod
+            <input ref={nameRef} className="fld" list="prod-names" autoFocus value={d.name} onChange={(e) => setName(e.target.value)} placeholder="Skanerlang yoki yozing" />
             <datalist id="prod-names">{products.map((p) => <option key={p.id} value={p.name} />)}</datalist>
           </label>
-          <label className="lb" style={{ flex: '1.1 1 120px' }}>O'lcham / rang<input className="fld" value={d.var} onChange={(e) => setD({ ...d, var: e.target.value })} placeholder="M, oq" /></label>
-          <label className="lb" style={{ flex: '0.7 1 90px' }}>{isKg ? 'Necha kilo' : 'Soni'}
+          </div>
+          <label className="lb rg-var">O'lcham / rang<input className="fld" value={d.var} onChange={(e) => setD({ ...d, var: e.target.value })} placeholder="M, oq" /></label>
+          <label className="lb rg-q">{isKg ? 'Necha kilo' : 'Soni'}
             <span style={{ display: 'flex', gap: 6 }}><input className="fld num" inputMode="decimal" value={d.q} onChange={(e) => setD({ ...d, q: e.target.value })} />
               {isKg && scale.weight > 0 && <button type="button" className="btn soft" onClick={() => setD({ ...d, q: qty(scale.weight) })}>Tarozi</button>}</span>
           </label>
-          <label className="lb" style={{ flex: '0.8 1 96px' }}>Birlik<select className="fld" value={d.unit} onChange={(e) => setD({ ...d, unit: e.target.value })}>{UNITS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}</select></label>
-          <label className="lb" style={{ flex: '1 1 110px' }}>{isKg ? 'Kirim, 1 kg' : 'Kirim narxi'}<input className="fld num" inputMode="numeric" value={d.buy} onChange={(e) => setD({ ...d, buy: e.target.value })} /></label>
-          <label className="lb" style={{ flex: '1 1 110px' }}>{isKg ? 'Sotuv, 1 kg' : 'Sotuv narxi'}<input className="fld num" inputMode="numeric" value={d.sell} onChange={(e) => setD({ ...d, sell: e.target.value })} /></label>
-          <button className="btn" style={{ minHeight: 48 }}><Icon name="plus" size={18} />Qo'shish</button>
+          <label className="lb rg-unit">Birlik<select className="fld" value={d.unit} onChange={(e) => setD({ ...d, unit: e.target.value })}>{UNITS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}</select></label>
+          <label className="lb rg-buy">{isKg ? 'Kirim, 1 kg' : 'Kirim narxi'}<input className="fld num" inputMode="numeric" value={d.buy} onChange={(e) => setD({ ...d, buy: e.target.value })} placeholder="0" /></label>
+          <label className="lb rg-sell">{isKg ? 'Sotuv, 1 kg' : 'Sotuv narxi'}<input className="fld num" inputMode="numeric" value={d.sell} onChange={(e) => setD({ ...d, sell: e.target.value })} placeholder="0" /></label>
+          <button className="btn rg-add"><Icon name="plus" size={18} />Qo'shish</button>
         </div>
         {match && <div className="banner" style={{ background: 'var(--teal-l)', color: 'var(--teal-d)' }}><Icon name="check" />"{match.name}" bazada bor. Narx o'zi to'ldirildi, faqat sonini yozing.</div>}
-        <div className="muted" style={{ fontSize: 13, display: 'flex', gap: 16, flexWrap: 'wrap' }}><span><kbd>Enter</kbd> qo'shish</span><span><kbd>Tab</kbd> keyingi maydon</span><span>Faqat nomi va sotuv narxi majburiy</span></div>
+        {parseMoney(d.buy) > 0 && parseMoney(d.sell) > 0 && <div className="muted num" style={{ fontSize: 13 }}>Bittasidan foyda: <b style={{ color: parseMoney(d.sell) >= parseMoney(d.buy) ? 'var(--teal-d)' : 'var(--red)' }}>{money(parseMoney(d.sell) - parseMoney(d.buy))} so'm</b></div>}
       </form>
 
       <section className="card" style={{ overflow: 'hidden' }}>
         {!rows.length ? <div className="empty"><Icon name="box" size={32} />Qo'shilgan qatorlar shu yerda ko'rinadi</div> : (
           <div className="scroll-x">
-            <table className="tbl">
+            <table className="tbl stack">
               <thead><tr><th style={{ width: 60 }}>Rasm</th><th>Mahsulot</th><th>O'lcham / rang</th><th style={{ textAlign: 'right' }}>Soni</th><th style={{ textAlign: 'right' }}>Kirim</th><th style={{ textAlign: 'right' }}>Sotuv</th><th style={{ textAlign: 'right' }}>Summa</th><th /></tr></thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i}>
-                    <td><Thumb p={{ name: r.name, photo_url: r.photo_url }} /></td>
-                    <td><b>{r.name}</b> <span className={'tag ' + (r.product_id ? 'info' : 'warn')}>{r.product_id ? "Qoldiqqa qo'shiladi" : 'Yangi'}</span></td>
-                    <td className="muted">{[r.size, r.color].filter(Boolean).join(', ') || '—'}</td>
+                    <td className="c-top"><Thumb p={{ name: r.name, photo_url: r.photo_url }} /></td>
+                    <td className="c-top" style={{ flex: 1 }}><b>{r.name}</b> <span className={'tag ' + (r.product_id ? 'info' : 'warn')}>{r.product_id ? "Qoldiqqa qo'shiladi" : 'Yangi'}</span></td>
+                    <td className={'muted ' + (r.size || r.color ? '' : 'c-hide')}>{[r.size, r.color].filter(Boolean).join(', ') || '—'}</td>
                     <td className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{qty(r.qty, r.unit)}</td>
-                    <td className="num muted" style={{ textAlign: 'right' }}>{r.buy ? money(r.buy) : '—'}</td>
-                    <td className="num" style={{ textAlign: 'right' }}>{money(r.sell)}</td>
-                    <td className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{money(r.qty * r.buy)}</td>
-                    <td><button className="qb" style={{ border: 0, color: 'var(--red)' }} aria-label="O'chirish" onClick={() => setRows(rows.filter((_, j) => j !== i))}><Icon name="x" size={16} /></button></td>
+                    <td className="num muted" data-l="kirim" style={{ textAlign: 'right' }}>{r.buy ? money(r.buy) : '—'}</td>
+                    <td className="num" data-l="sotuv" style={{ textAlign: 'right' }}>{money(r.sell)}</td>
+                    <td className="num c-end" style={{ textAlign: 'right', fontWeight: 700 }}>{money(r.qty * r.buy)}</td>
+                    <td className="c-top"><button className="qb" style={{ border: 0, color: 'var(--red)' }} aria-label="O'chirish" onClick={() => setRows(rows.filter((_, j) => j !== i))}><Icon name="x" size={16} /></button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'var(--blue-ll)', borderTop: '1px solid var(--line)' }}>
+        <div className="recv-foot">
           <div><b className="num">{rows.length}</b> ta qator. Kirim summasi: <b className="num" style={{ fontSize: 18 }}>{money(total)} so'm</b>
             {(sup || newSup) && <span className="muted num"> · qarzga yoziladi: {money(Math.max(0, total - parseMoney(paid)))}</span>}</div>
-          <span className="row" style={{ alignItems: 'center' }}>
+          <span className="recv-btns">
           {rows.length > 0 && <button className="btn sec" onClick={clearDraft}>Tozalash</button>}
-          <button className="btn ok big" disabled={!rows.length || busy} onClick={saveAll}>{busy ? 'Saqlanmoqda…' : 'Hammasini saqlash'}</button>
+          <button className="btn ok big" disabled={!rows.length || busy} onClick={saveAll}>{busy ? 'Saqlanmoqda…' : <><Icon name="check" />Omborga saqlash</>}</button>
           </span>
         </div>
-        {rows.length > 0 && <div className="muted" style={{ fontSize: 13, padding: '0 20px 14px', background: 'var(--blue-ll)' }}>Qatorlar avtomatik eslab qolinadi. Boshqa sahifaga o'tib qaytsangiz ham yo'qolmaydi. Omborga faqat "Hammasini saqlash" bosilganda qo'shiladi.</div>}
+        {rows.length > 0 && <div className="muted" style={{ fontSize: 13, padding: '0 20px 14px', background: 'var(--blue-ll)' }}>Qatorlar avtomatik eslab qolinadi. Boshqa sahifaga o'tib qaytsangiz ham yo'qolmaydi. Omborga faqat "Omborga saqlash" bosilganda qo'shiladi.</div>}
       </section>
     </>
   )

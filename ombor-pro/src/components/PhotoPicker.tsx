@@ -5,7 +5,7 @@ import { useShop } from '../session'
 import { Icon } from './Icon'
 import { useToast } from './Toast'
 
-export function PhotoPicker({ url, name, onChange, size = 96 }: { url: string | null; name: string; onChange: (u: string | null) => void; size?: number }) {
+export function PhotoPicker({ url, name, onChange, size = 96, compact = false }: { url: string | null; name: string; onChange: (u: string | null) => void; size?: number; compact?: boolean }) {
   const { shop } = useShop()
   const toast = useToast()
   const cam = useRef<HTMLInputElement>(null)
@@ -16,6 +16,16 @@ export function PhotoPicker({ url, name, onChange, size = 96 }: { url: string | 
     setBusy(true)
     try { onChange(await api.uploadPhoto(shop.id, await shrinkPhoto(f))) } catch (e) { toast(errText(e), 'err') } finally { setBusy(false) }
   }
+  // Ixcham: bitta kvadrat tugma (telefonda kamera yoki galereyani o'zi taklif qiladi)
+  if (compact) return (
+    <div className="photo-mini" style={{ width: size, height: size }}>
+      <button type="button" className="thumb" style={{ width: size, height: size }} aria-label={url ? 'Rasmni almashtirish' : "Rasm qo'shish"} title={url ? 'Rasmni almashtirish' : "Rasm qo'shish"} onClick={() => gal.current?.click()}>
+        {busy ? <span className="muted" style={{ fontSize: 11 }}>…</span> : url ? <img src={url} alt={name} /> : <Icon name="camera" size={20} />}
+      </button>
+      {url && !busy && <button type="button" className="photo-x" aria-label="Rasmni olib tashlash" onClick={() => onChange(null)}><Icon name="x" size={12} /></button>}
+      <input ref={gal} type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files?.[0])} />
+    </div>
+  )
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
       <div className="thumb" style={{ width: size, height: size, background: url ? '#fff' : 'var(--blue-ll)', border: url ? '1px solid var(--line)' : '2px dashed #9FB0DA' }}>

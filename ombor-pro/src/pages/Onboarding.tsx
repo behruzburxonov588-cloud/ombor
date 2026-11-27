@@ -26,7 +26,7 @@ export function Onboarding() {
 
   return (
     <form className="center-page" onSubmit={submit}>
-      <div className="brand" style={{ color: 'var(--ink)' }}><div className="brand-ic" style={{ background: 'var(--blue)', color: 'var(--gold)' }}><Icon name="logo" /></div><b style={{ fontSize: 20, display: 'block' }}>Ombor Pro</b></div>
+      <div className="brand" style={{ color: 'var(--ink)' }}><div className="brand-ic"><Icon name="logo" size={20} stroke={2.4} /></div><b style={{ fontSize: 20, display: 'block' }}>Ombor Pro</b></div>
       <div className="card pad" style={{ width: '100%', maxWidth: 980, display: 'flex', flexDirection: 'column', gap: 20, padding: 32 }}>
         <div>
           <h1>Yangi do'kon ochish</h1>
