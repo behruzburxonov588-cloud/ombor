@@ -10,6 +10,7 @@ import { Thumb } from '../components/Thumb'
 import { ProductsHeader } from '../components/ProductsTabs'
 import { PhotoPicker } from '../components/PhotoPicker'
 import { useToast } from '../components/Toast'
+import { useScanner, beep } from '../lib/scanner'
 
 const empty = { name: '', var: '', q: '1', unit: 'dona', buy: '', sell: '', photo: null as string | null, pid: null as string | null }
 
@@ -66,6 +67,8 @@ export function Receive() {
     setD({ ...empty, unit: d.unit })
     nameRef.current?.focus()
   }
+
+  useScanner((c) => { beep(); setName(c); nameRef.current?.focus() })
 
   const total = rows.reduce((a, r) => a + r.qty * r.buy, 0)
 

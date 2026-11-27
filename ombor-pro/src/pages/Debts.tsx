@@ -61,6 +61,11 @@ export function Debts() {
         </nav>
         <button className="btn" onClick={() => setAdding({ name: '', phone: '' })}><Icon name="plus" size={18} />Qo'shish</button>
       </div>
+      <div className="stats">
+        <div className={'stat ' + (cust ? 'red' : '')}><small>{cust ? 'Mijozlar bizga qarz' : 'Biz yetkazib beruvchilarga qarz'}</small><b className="num">{money(total)} so'm</b></div>
+        <div className="stat"><small>Qarzdorlar soni</small><b className="num">{list.filter((c) => c.balance > 0).length} ta</b></div>
+        <div className="stat"><small>Eng katta qarz</small><b className="num">{money(Math.max(0, ...list.map((c) => c.balance)))}</b></div>
+      </div>
       <div className="cols">
         <section className="col-main">
           <div className="row" style={{ alignItems: 'center' }}>
@@ -89,10 +94,6 @@ export function Debts() {
                 </tbody>
               </table>
             )}
-          </div>
-          <div className="card pad row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <b>{cust ? 'Mijozlarning jami qarzi' : 'Yetkazib beruvchilarga jami qarzimiz'}</b>
-            <b className="num" style={{ fontSize: 22, color: 'var(--red)' }}>{money(total)} so'm</b>
           </div>
         </section>
 

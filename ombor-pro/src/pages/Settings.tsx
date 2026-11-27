@@ -9,26 +9,28 @@ import { Icon } from '../components/Icon'
 import { RequestBox } from '../components/RequestBox'
 import { VERSIONS, planOf } from '../lib/plan'
 import { useToast } from '../components/Toast'
+import { THEMES, getTheme, setTheme, type ThemeId } from '../lib/theme'
 
-const SECS = ["Do'kon", 'Xodimlar', 'Uskunalar', 'Tarif va qurilmalar'] as const
+const SECS = ["Do'kon", 'Xodimlar', 'Uskunalar', "Ko'rinish", 'Tarif va qurilmalar'] as const
 
 export function Settings() {
   const { shop, role } = useShop()
   const [sec, setSec] = useState<(typeof SECS)[number]>(role === 'owner' ? "Do'kon" : 'Uskunalar')
-  const secs = role === 'owner' ? SECS : (['Uskunalar'] as const)
+  const secs = role === 'owner' ? SECS : (['Uskunalar', "Ko'rinish"] as const)
   return (
     <>
       <div className="head"><h1>Sozlamalar</h1><span className="muted">{shop.name}</span></div>
       <div className="cols">
         <nav style={{ flex: '1 1 200px', maxWidth: 240, display: 'flex', flexDirection: 'column', gap: 4 }} aria-label="Sozlamalar bo'limlari">
           {secs.map((s) => (
-            <button key={s} onClick={() => setSec(s)} className="btn" style={{ justifyContent: 'flex-start', background: sec === s ? '#fff' : 'transparent', color: sec === s ? 'var(--blue)' : 'var(--ink2)', boxShadow: sec === s ? '0 0 0 1.5px var(--line2)' : 'none', fontWeight: sec === s ? 700 : 500 }}>{s}</button>
+            <button key={s} onClick={() => setSec(s)} className="btn" style={{ justifyContent: 'flex-start', background: sec === s ? 'var(--card)' : 'transparent', color: sec === s ? 'var(--blue)' : 'var(--ink2)', boxShadow: sec === s ? '0 0 0 1.5px var(--line2)' : 'none', fontWeight: sec === s ? 700 : 500 }}>{s}</button>
           ))}
         </nav>
         <div style={{ flex: '999 1 520px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
           {sec === "Do'kon" && <ShopSec />}
           {sec === 'Xodimlar' && <StaffSec />}
           {sec === 'Uskunalar' && <DevicesHw />}
+          {sec === "Ko'rinish" && <ThemeSec />}
           {sec === 'Tarif va qurilmalar' && <PlanSec />}
         </div>
       </div>
@@ -178,5 +180,26 @@ function PlanSec() {
         <div className="pad muted" style={{ fontSize: 13 }}>Yangi qurilmadan kirilganda, joy bo'lmasa, eski qurilmani o'chirish so'raladi.</div>
       </section>
     </>
+  )
+}
+
+function ThemeSec() {
+  const [cur, setCur] = useState<ThemeId>(getTheme())
+  return (
+    <section className="card pad" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div><h2>Ko'rinish</h2><div className="sub">Shu qurilmada saytning ranglari. Har bir kompyuter yoki telefon o'zi tanlaydi.</div></div>
+      <div className="themes">
+        {THEMES.map((t) => (
+          <button key={t.id} className={'theme-pick' + (cur === t.id ? ' on' : '')} onClick={() => { setTheme(t.id); setCur(t.id) }} aria-pressed={cur === t.id}>
+            <span className="theme-mini" style={{ background: t.bg }}>
+              <i style={{ background: t.side, borderRight: t.side === '#ffffff' ? '1px solid #E6E9F0' : 0 }}><em style={{ background: t.acc }} /><em /><em /></i>
+              <span><b style={{ background: t.card }}><u style={{ background: t.acc }} /></b><b style={{ background: t.card }} /><b style={{ background: t.card }} /></span>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span className="radio" />{t.name}</span>
+            <small className="muted">{t.desc}</small>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }

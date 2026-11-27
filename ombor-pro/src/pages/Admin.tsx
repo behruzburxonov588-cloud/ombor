@@ -68,7 +68,7 @@ export function Admin() {
         </div>
       </aside>
       <main className="main">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
+        <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
           <div className="card pad"><div className="muted">Do'konlar</div><b className="num" style={{ fontSize: 28 }}>{list.length}</b></div>
           <div className="card pad"><div className="muted">Faol</div><b className="num" style={{ fontSize: 28, color: 'var(--teal-d)' }}>{list.filter((s) => status(s)[1] === 'ok').length}</b></div>
           <div className="card pad" style={{ background: 'var(--gold-l)', color: 'var(--gold-d)' }}><div>7 kunda tugaydi</div><b className="num" style={{ fontSize: 28 }}>{soon}</b></div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, errText } from '../lib/api'
-import type { CartLine, Product } from '../lib/types'
+import type { Product } from '../lib/types'
 import { money, parseMoney, parseNum, qty } from '../lib/format'
 import { useShop } from '../session'
 import { useScale, serialSupported } from '../lib/scale'
@@ -10,6 +10,7 @@ import { Checkout } from '../components/Checkout'
 import { SaleHeader } from '../components/SaleTabs'
 import { useToast } from '../components/Toast'
 import { printSale } from '../components/Receipt'
+import { useCart } from '../lib/cart'
 import type { Sale as SaleT } from '../lib/types'
 
 export function ScaleSale() {
@@ -18,7 +19,7 @@ export function ScaleSale() {
   const scale = useScale()
   const [items, setItems] = useState<Product[]>([])
   const [pid, setPid] = useState<string | null>(null)
-  const [lines, setLines] = useState<CartLine[]>([])
+  const [lines, setLines] = useCart()
   const [tick, setTick] = useState(0)
   const [nf, setNf] = useState<{ name: string; price: string; kg: string } | null>(null)
   const [last, setLast] = useState<SaleT | null>(null)
@@ -41,7 +42,7 @@ export function ScaleSale() {
       setLast(sale)
       toast(`Sotildi: ${p.name}, ${qty(w, 'kg')}, ${money(total)} so'm`)
       if (localStorage.getItem('ombor-auto-print') === '1') printSale(sale, shop)
-      setPid(null); setTick((t) => t + 1)
+      setPid(null); setTick((t) => t + 1); window.dispatchEvent(new Event('ombor-sold'))
       if (!scale.connected) scale.setManual(0)
     } catch (e) { toast(errText(e), 'err') } finally { setBusy(false) }
   }

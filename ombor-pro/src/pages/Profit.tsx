@@ -74,9 +74,9 @@ export function Profit() {
       </div>
       {err && <div className="banner err">{err}</div>}
 
-      {rep && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+      {rep && <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
         <div className="card pad"><div className="muted">Savdo</div><b className="num" style={{ fontSize: 26 }}>{money(rep.revenue)}</b><div className="muted num" style={{ fontSize: 13 }}>{rep.count} ta chek</div></div>
-        <div className="card pad"><div className="muted">Xarajatlar</div><b className="num" style={{ fontSize: 26, color: 'var(--red)' }}>−{money(rep.expenses)}</b></div>
+        <div className="card pad"><div className="muted">Xarajatlar</div><b className="num" style={{ fontSize: 26, color: rep.expenses ? 'var(--red)' : 'var(--ink)' }}>{rep.expenses ? '−' : ''}{money(rep.expenses)}</b></div>
         <div className="card pad" style={{ border: '2.5px solid var(--blue)' }}><div className="muted">Savdodan qolgan pul</div><b className="num" style={{ fontSize: 26, color: 'var(--blue)' }}>{left < 0 ? '−' : ''}{money(Math.abs(left))}</b><div className="muted" style={{ fontSize: 13 }}>savdo − xarajat</div></div>
       </div>}
 

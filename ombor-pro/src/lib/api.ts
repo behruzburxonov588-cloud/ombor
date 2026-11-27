@@ -1,6 +1,6 @@
 import type {
   AdminCode, AdminShop, ReceiptDoc, CartLine, Contact, ContactKind, Device, HistoryRow, Member, Membership, PayMethod,
-  Product, ProfitReport, ReceiveRow, Sale, Shop, StockLog, Expense, ShopRequest, TodayStats, User,
+  Product, ProfitReport, ReceiveRow, Sale, Shop, StockLog, Expense, ShopRequest, ProductStat, TodayStats, User,
 } from './types'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../config'
 import { createSupabaseApi } from './api-supabase'
@@ -39,6 +39,7 @@ export interface Api {
   todayStats(shopId: string): Promise<TodayStats>
   returnSale(saleId: string): Promise<void>
   productHistory(shopId: string, productId: string): Promise<StockLog[]>
+  productStats(shopId: string, days: number): Promise<ProductStat[]>
   // foyda va xarajatlar
   profitReport(shopId: string, from: Date, to: Date): Promise<ProfitReport>
   expenses(shopId: string, from: Date, to: Date): Promise<Expense[]>

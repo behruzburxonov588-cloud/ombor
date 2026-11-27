@@ -187,6 +187,19 @@ export function createLocalApi(): Api {
     async productHistory(shopId, pid) {
       return (db.logs ?? []).filter((l) => l.shop_id === shopId && l.product_id === pid).sort((a, b) => b.created_at.localeCompare(a.created_at))
     },
+    async productStats(shopId, days) {
+      const from = Date.now() - days * 86400000
+      const ss = db.sales.filter((x) => x.shop_id === shopId && !x.returned_at)
+      return db.products.filter((p) => p.shop_id === shopId).map((p) => {
+        let sold = 0, revenue = 0, last: string | null = null, ever: string | null = null
+        for (const s of ss) for (const i of s.items) if (i.name === p.name) {
+          if (!ever || s.created_at > ever) ever = s.created_at
+          if (Date.parse(s.created_at) >= from) { sold += i.qty; revenue += i.total; if (!last || s.created_at > last) last = s.created_at }
+        }
+        return { id: p.id, name: p.name, unit: p.unit, stock: p.stock, min_stock: p.min_stock, sell_price: p.sell_price, buy_price: p.buy_price, photo_url: p.photo_url,
+          sold, revenue, profit: Math.round(revenue - sold * p.buy_price), last_sold: last, last_sold_ever: ever }
+      })
+    },
     async profitReport(shopId, from, to) {
       const ss = db.sales.filter((x) => x.shop_id === shopId && !x.returned_at && new Date(x.created_at) >= from && new Date(x.created_at) < to)
       const map = new Map<string, { name: string; unit: string; qty: number; revenue: number; cost: number; profit: number }>()

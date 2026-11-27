@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import type { CartLine, Product } from '../lib/types'
+import type { Product } from '../lib/types'
 import { money, qty } from '../lib/format'
 import { useShop } from '../session'
 import { Icon } from '../components/Icon'
@@ -9,6 +9,10 @@ import { Checkout } from '../components/Checkout'
 import { SaleHeader } from '../components/SaleTabs'
 import { useToast } from '../components/Toast'
 import { useNavigate } from 'react-router-dom'
+import { resolveScan } from '../lib/barcode'
+import { beep, useScanner } from '../lib/scanner'
+import { useCart } from '../lib/cart'
+import { WeighDialog } from '../components/WeighDialog'
 
 export function Sale() {
   const { shop } = useShop()
@@ -16,7 +20,8 @@ export function Sale() {
   const nav = useNavigate()
   const [items, setItems] = useState<Product[]>([])
   const [q, setQ] = useState('')
-  const [lines, setLines] = useState<CartLine[]>([])
+  const [lines, setLines] = useCart()
+  const [weigh, setWeigh] = useState<Product | null>(null)
   const [tick, setTick] = useState(0)
   const search = useRef<HTMLInputElement>(null)
 
@@ -31,17 +36,29 @@ export function Sale() {
     return s ? items.filter((p) => p.name.toLowerCase().includes(s) || p.barcode === s) : items
   }, [q, items])
 
-  function add(p: Product) {
-    if (p.is_weighed) { nav('/savdo/tarozi'); return }
-    const i = lines.findIndex((l) => l.product.id === p.id)
-    if (i >= 0) { const n = [...lines]; n[i] = { ...n[i], qty: n[i].qty + 1 }; setLines(n) }
-    else setLines([...lines, { product: p, qty: 1, price: p.sell_price }])
+  const [unknown, setUnknown] = useState<string | null>(null)
+
+  function add(p: Product, w: number | null = null) {
+    if (p.is_weighed && w == null) { setWeigh(p); return }
+    setLines((cur) => {
+      const i = cur.findIndex((l) => l.product.id === p.id && !p.is_weighed)
+      if (i >= 0) { const n = [...cur]; n[i] = { ...n[i], qty: n[i].qty + 1 }; return [...n.slice(0, i), ...n.slice(i + 1), n[i]] }
+      return [...cur, { product: p, qty: w ?? 1, price: p.sell_price }]
+    })
   }
+
+  // Skaner: kod kelishi bilan savatga tushadi (maydonni bosish shart emas)
+  function scan(code: string) {
+    const r = resolveScan(code, items)
+    if (r) { beep(); add(r.product, r.qty); setQ('') }
+    else { beep(false); setUnknown(code); setQ('') }
+  }
+  useScanner(scan, !unknown && !weigh)
 
   function onEnter() {
     const s = q.trim(); if (!s) return
-    const exact = items.find((p) => p.barcode === s) ?? (shown.length === 1 ? shown[0] : undefined)
-    if (exact) { add(exact); setQ('') } else toast(`"${s}" topilmadi`, 'err')
+    if (/^\d{4,}$/.test(s)) return scan(s)
+    if (shown.length === 1) { add(shown[0]); setQ('') } else toast(`"${s}" topilmadi`, 'err')
   }
 
   return (
@@ -51,15 +68,15 @@ export function Sale() {
         <section className="col-main">
           <div style={{ position: 'relative' }}>
             <span style={{ position: 'absolute', left: 14, top: 14, color: 'var(--muted)' }}><Icon name="search" size={22} /></span>
-            <input ref={search} className="fld" autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onEnter(); if (e.key === 'Escape') setQ('') }}
-              placeholder="Shtrix-kodni skanerlang yoki nomini yozing" aria-label="Mahsulot qidirish" style={{ paddingLeft: 46, paddingRight: 56, minHeight: 54, fontSize: 17, borderColor: 'var(--blue)' }} />
-            <kbd style={{ position: 'absolute', right: 14, top: 16 }}>F2</kbd>
+            <input ref={search} autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onEnter(); if (e.key === 'Escape') setQ('') }}
+              data-scan="1" placeholder="Shtrix-kodni skanerlang yoki nomini yozing" aria-label="Mahsulot qidirish" className="fld scan-input" style={{ paddingLeft: 46, minHeight: 54, fontSize: 17, borderColor: 'var(--blue)' }} />
+            <span className="scan-ready" title="Skaner ulangan bo'lsa, istalgan payt skanerlang"><i />Skaner tayyor <kbd>F2</kbd></span>
           </div>
           {!items.length && <div className="card empty"><Icon name="box" size={32} />Hali mahsulot yo'q. Mahsulotlar › Tovar qabul qilish bo'limidan kiriting.</div>}
           <div className="tiles">
             {shown.map((p) => (
               <button key={p.id} className={'tile' + (p.stock <= p.min_stock ? ' low' : '')} onClick={() => add(p)}>
-                <Thumb p={p} size={-1} h={70} />
+                {p.photo_url ? <Thumb p={p} size={-1} h={80} /> : <Thumb p={p} size={34} />}
                 <span className="nm">{p.name}{p.size || p.color ? <span className="muted" style={{ fontWeight: 500 }}> · {[p.size, p.color].filter(Boolean).join(', ')}</span> : null}</span>
                 <span style={{ display: 'flex', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap', marginTop: 'auto' }}>
                   <span className="pr num">{money(p.sell_price)}{p.is_weighed ? ' / kg' : ''}</span>
@@ -71,6 +88,25 @@ export function Sale() {
         </section>
         <Checkout lines={lines} setLines={setLines} onSold={() => setTick((t) => t + 1)} />
       </div>
+      {lines.length > 0 && (
+        <button className="cart-bar" onClick={() => document.getElementById('savat')?.scrollIntoView({ behavior: 'smooth' })}>
+          <span><Icon name="cart" /> {lines.length} ta tovar</span>
+          <b className="num">{money(lines.reduce((a, l) => a + Math.round(l.qty * l.price), 0))} so'm</b>
+          <span>To'lash ›</span>
+        </button>
+      )}
+      {weigh && <WeighDialog p={weigh} onClose={() => setWeigh(null)} onAdd={(kg) => { add(weigh, kg); setWeigh(null) }} />}
+      {unknown && (
+        <div className="modal-wrap" onClick={() => setUnknown(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Kod topilmadi">
+            <h2>Bu kod bazada yo'q</h2>
+            <div className="num" style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1 }}>{unknown}</div>
+            <div className="muted">Bu tovar hali kiritilmagan. Hozir qo'shib qo'ysangiz, keyingi safar skaner darhol taniydi.</div>
+            <button className="btn big wide" autoFocus onClick={() => nav('/mahsulotlar', { state: { newBarcode: unknown } })}><Icon name="plus" />Yangi mahsulot sifatida qo'shish</button>
+            <button className="btn ghost wide" onClick={() => setUnknown(null)}>Yopish</button>
+          </div>
+        </div>
+      )}
     </>
   )
 }

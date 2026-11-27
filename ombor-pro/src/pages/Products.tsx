@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api, errText } from '../lib/api'
 import type { Product } from '../lib/types'
 import { money, parseMoney, parseNum, qty, UNITS } from '../lib/format'
@@ -9,6 +10,7 @@ import { ProductsHeader } from '../components/ProductsTabs'
 import { PhotoPicker } from '../components/PhotoPicker'
 import { useToast } from '../components/Toast'
 import { ProductHistory } from '../components/ProductHistory'
+import { LabelsDialog } from '../components/Labels'
 
 const blank: Product = { id: '', name: '', barcode: null, category: null, unit: 'dona', is_weighed: false, buy_price: 0, sell_price: 0, stock: 0, min_stock: 0, photo_url: null, size: null, color: null }
 
@@ -19,8 +21,16 @@ export function Products() {
   const [q, setQ] = useState('')
   const [onlyLow, setOnlyLow] = useState(false)
   const [edit, setEdit] = useState<Product | null>(null)
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const [labels, setLabels] = useState(false)
   const load = () => api.products(shop.id).then(setItems).catch((e) => toast(errText(e), 'err'))
   useEffect(() => { load() }, [shop.id])
+  // Savdoda topilmagan kod bilan kelinsa: yangi mahsulot oynasi kod bilan ochiladi
+  const loc = useLocation(), nav = useNavigate()
+  useEffect(() => {
+    const code = (loc.state as { newBarcode?: string } | null)?.newBarcode
+    if (code && owner) { setEdit({ ...blank, barcode: code }); nav('.', { replace: true, state: null }) }
+  }, [loc.state])
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -35,17 +45,19 @@ export function Products() {
       <div className="row" style={{ alignItems: 'center' }}>
         <input className="fld" style={{ flex: '1 1 260px' }} placeholder="Nomi yoki shtrix-kod" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Qidirish" />
         <button className={'chip' + (onlyLow ? ' on' : '')} style={{ minHeight: 48 }} onClick={() => setOnlyLow(!onlyLow)} aria-pressed={onlyLow}>Kam qolganlar{low ? ` (${low})` : ''}</button>
+        <button className="btn sec" style={{ minHeight: 48 }} onClick={() => setLabels(true)}><Icon name="printer" size={18} />Etiketka{sel.size ? ` (${sel.size})` : ''}</button>
         {owner && <button className="btn sec" style={{ minHeight: 48 }} onClick={() => setEdit(blank)}><Icon name="plus" size={18} />Yangi mahsulot</button>}
       </div>
       <div className="card scroll-x">
         {!shown.length ? <div className="empty"><Icon name="box" size={32} />{items.length ? 'Hech narsa topilmadi' : "Hali mahsulot yo'q. \"+ Tovar qabul qilish\" bo'limidan kiriting."}</div> : (
           <table className="tbl">
-            <thead><tr><th>Mahsulot</th><th>Shtrix-kod</th><th>Qoldiq</th>{owner && <th style={{ textAlign: 'right' }}>Kirim narxi</th>}<th style={{ textAlign: 'right' }}>Sotuv narxi</th><th /></tr></thead>
+            <thead><tr><th style={{ width: 40 }}><input type="checkbox" aria-label="Hammasini tanlash" checked={!!shown.length && shown.every((p) => sel.has(p.id))} onChange={(e) => setSel(e.target.checked ? new Set(shown.map((p) => p.id)) : new Set())} /></th><th>Mahsulot</th><th>Shtrix-kod</th><th>Qoldiq</th>{owner && <th style={{ textAlign: 'right' }}>Kirim narxi</th>}<th style={{ textAlign: 'right' }}>Sotuv narxi</th><th /></tr></thead>
             <tbody>
               {shown.map((p) => {
                 const st = p.stock <= 0 ? 'bad' : p.stock <= p.min_stock ? 'warn' : 'ok'
                 return (
                   <tr key={p.id} className={edit?.id === p.id ? 'sel' : ''}>
+                    <td><input type="checkbox" aria-label={p.name + ' tanlash'} checked={sel.has(p.id)} onChange={() => { const n = new Set(sel); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); setSel(n) }} /></td>
                     <td>
                       <button onClick={() => setEdit(p)} title={owner ? 'Tahrirlash va tarix' : 'Tarixni ko\'rish'} style={{ display: 'flex', alignItems: 'center', gap: 12, border: 0, background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}>
                         <Thumb p={p} size={44} />
@@ -64,6 +76,7 @@ export function Products() {
           </table>
         )}
       </div>
+      {labels && <LabelsDialog shop={shop} products={sel.size ? items.filter((p) => sel.has(p.id)) : shown} onClose={() => setLabels(false)} onChanged={load} />}
       {edit && <EditDrawer p={edit} owner={owner} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
     </>
   )

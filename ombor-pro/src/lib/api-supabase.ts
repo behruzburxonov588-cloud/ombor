@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Api } from './api'
-import type { AdminCode, AdminShop, ReceiptDoc, Contact, Device, Expense, HistoryRow, Member, Product, ProfitReport, Sale, Shop, ShopRequest, StockLog } from './types'
+import type { AdminCode, AdminShop, ReceiptDoc, Contact, Device, Expense, HistoryRow, Member, Product, ProfitReport, ProductStat, Sale, Shop, ShopRequest, StockLog } from './types'
 import { phoneDigits } from './format'
 
 const emailOf = (phone: string) => phoneDigits(phone) + '@ombor.pro'
@@ -151,6 +151,11 @@ export function createSupabaseApi(url: string, key: string): Api {
         id: String(r.id), kind: r.kind as StockLog['kind'], delta: num(r.delta), stock_after: num(r.stock_after),
         price: r.price == null ? null : num(r.price), note: (r.note as string) ?? null, created_at: r.created_at as string,
       }))
+    },
+    async productStats(shopId, days) {
+      const rows = (must(await sb.rpc('product_stats', { p_shop: shopId, p_days: days })) ?? []) as Record<string, unknown>[]
+      return rows.map((r) => ({ ...(r as unknown as ProductStat), stock: num(r.stock), min_stock: num(r.min_stock), sell_price: num(r.sell_price), buy_price: r.buy_price == null ? null : num(r.buy_price),
+        sold: num(r.sold), revenue: num(r.revenue), profit: r.profit == null ? null : num(r.profit) }))
     },
     async profitReport(shopId, from, to) {
       const r = must(await sb.rpc('profit_report', { p_shop: shopId, p_from: from.toISOString(), p_to: to.toISOString() })) as Record<string, unknown>

@@ -58,7 +58,7 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
       toast(`Sotildi: chek #${r.number}, ${money(r.total)} so'm` + (giv && giv > total ? `. Qaytim ${money(giv - total)}` : ''))
       setLines([]); setNewCust(''); setCust(''); setMethod('cash')
       if (localStorage.getItem('ombor-auto-print') === '1') printSale(sale, shop)
-      onSold()
+      onSold(); window.dispatchEvent(new Event('ombor-sold'))
     } catch (e) { toast(errText(e), 'err') } finally { setBusy(false) }
   }
 
@@ -68,26 +68,31 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
   })
 
   return (
-    <aside className="card pad col-side sticky">
+    <aside className="card pad col-side sticky checkout" id="savat">
       <div className="head"><h2>Savat</h2>{lines.length > 0 && <button className="btn ghost sp" style={{ minHeight: 36, color: 'var(--red)' }} onClick={() => setLines([])}>Tozalash</button>}</div>
+      <div className="cart-lines">
       {!lines.length && <div className="empty"><Icon name="cart" size={32} />Tovarni bosing yoki shtrix-kodni skanerlang</div>}
       {lines.map((l, i) => (
-        <div className="line" key={l.product.id + i}>
+        <div className={'line' + (i === lines.length - 1 ? ' just' : '')} key={l.product.id + i}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="nm">{l.product.name}</div>
-            <div className="muted num" style={{ fontSize: 13 }}>{[l.product.size, l.product.color].filter(Boolean).join(', ')}{l.product.size || l.product.color ? ' · ' : ''}{money(l.price)} so'm</div>
+            <div className="muted num" style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[l.product.size, l.product.color].filter(Boolean).join(', ')}{l.product.size || l.product.color ? ' · ' : ''}{money(l.price)}{l.product.is_weighed ? ' / kg' : ''}</div>
+            {l.qty > l.product.stock
+              ? <div className="num" style={{ fontSize: 12, color: 'var(--red)', fontWeight: 700 }}>⚠ omborda {qty(Math.max(0, l.product.stock), l.product.unit)} bor</div>
+              : <div className="num" style={{ fontSize: 12, color: 'var(--teal-d)' }}>qoladi {qty(l.product.stock - l.qty, l.product.unit)}</div>}
           </div>
           {l.product.is_weighed
             ? <span className="num" style={{ fontWeight: 700 }}>{qty(l.qty, 'kg')}</span>
             : <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button className="qb" aria-label="Kamaytirish" onClick={() => setQty(i, l.qty - 1)}><Icon name="minus" size={16} /></button>
-                <input className="num" aria-label="Soni" value={qty(l.qty)} onChange={(e) => setQty(i, parseNum(e.target.value))} style={{ width: 44, textAlign: 'center', border: 0, fontWeight: 700, fontSize: 16 }} />
+                <input className="num" aria-label="Soni" value={qty(l.qty)} onChange={(e) => setQty(i, parseNum(e.target.value))} style={{ width: 44, textAlign: 'center', border: 0, fontWeight: 700, fontSize: 16, background: 'transparent' }} />
                 <button className="qb" aria-label="Ko'paytirish" onClick={() => setQty(i, l.qty + 1)}><Icon name="plus" size={16} /></button>
               </span>}
           <div className="num" style={{ minWidth: 84, textAlign: 'right', fontWeight: 700 }}>{money(l.qty * l.price)}</div>
           <button className="qb" style={{ border: 0 }} aria-label="Olib tashlash" onClick={() => setQty(i, 0)}><Icon name="x" size={16} /></button>
         </div>
       ))}
+      </div>
       <div className="total"><span style={{ fontWeight: 600 }}>Jami</span><b className="num">{money(total)} <small className="muted" style={{ fontSize: 16 }}>so'm</small></b></div>
       <div className="seg" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
         {(['cash', 'card', 'debt'] as PayMethod[]).map((m) => (

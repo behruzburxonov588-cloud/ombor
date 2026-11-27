@@ -7,6 +7,7 @@ const r = (a: string, b: string) => `<div class="r"><span>${esc(a)}</span><span>
 
 // Chekni 80 mm printerga chiqaradi (brauzerning chop etish oynasi orqali)
 export function printSale(sale: Sale, shop: Shop) {
+  document.getElementById('label-area')?.replaceChildren()
   let el = document.getElementById('print-area')
   if (!el) { el = document.createElement('div'); el.id = 'print-area'; el.className = 'receipt'; document.body.appendChild(el) }
   el.innerHTML = [
