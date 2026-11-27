@@ -25,7 +25,10 @@ export function Sale() {
   const [tick, setTick] = useState(0)
   const search = useRef<HTMLInputElement>(null)
 
+  const [rank, setRank] = useState<Record<string, number>>({})
   useEffect(() => { api.products(shop.id).then(setItems).catch(() => {}) }, [shop.id, tick])
+  // Ko'p sotiladigan tovarlar birinchi turadi: kassir tez topadi
+  useEffect(() => { api.productStats(shop.id, 30).then((l) => setRank(Object.fromEntries(l.map((x) => [x.id, x.sold ? x.revenue : 0])))).catch(() => {}) }, [shop.id])
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'F2') { e.preventDefault(); search.current?.focus() } }
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h)
@@ -33,8 +36,9 @@ export function Sale() {
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return s ? items.filter((p) => p.name.toLowerCase().includes(s) || p.barcode === s) : items
-  }, [q, items])
+    const l = s ? items.filter((p) => p.name.toLowerCase().includes(s) || p.barcode === s) : items
+    return [...l].sort((a, b) => (rank[b.id] ?? 0) - (rank[a.id] ?? 0))
+  }, [q, items, rank])
 
   const [unknown, setUnknown] = useState<string | null>(null)
 

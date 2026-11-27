@@ -17,19 +17,21 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
   const [cust, setCust] = useState('')
   const [newCust, setNewCust] = useState('')
   const [busy, setBusy] = useState(false)
-  const [last, setLast] = useState<Sale | null>(null)
+  const [done, setDone] = useState<{ sale: Sale; change: number } | null>(null)
+  // Yangi tovar qo'shilishi bilan muvaffaqiyat oynasi yopiladi
+  useEffect(() => { if (lines.length) setDone(null) }, [lines.length])
   const total = useMemo(() => lines.reduce((a, l) => a + Math.round(l.qty * l.price), 0), [lines])
 
   useEffect(() => { if (method === 'debt') api.contacts(shop.id, 'customer').then(setCustomers).catch(() => {}) }, [method, shop.id])
   useEffect(() => { setGiven(null); setGivenTxt('') }, [total])
 
   const opts = useMemo(() => {
-    const s = [total, Math.ceil(total / 10000) * 10000, Math.ceil(total / 100000) * 100000, Math.ceil(total / 500000) * 500000]
-    const u = [...new Set(s)].filter((x) => x > 0)
-    while (u.length && u.length < 4) u.push(u[u.length - 1] + 100000)
-    return u
+    const s = [Math.ceil(total / 10000) * 10000, Math.ceil(total / 50000) * 50000, Math.ceil(total / 100000) * 100000, Math.ceil(total / 500000) * 500000, Math.ceil(total / 1000000) * 1000000]
+    return [...new Set(s)].filter((x) => x > total).slice(0, 4)
   }, [total])
-  const g = given ?? (givenTxt ? parseMoney(givenTxt) : opts[1] ?? total)
+  // Mijoz bergan pulni kassir kiritmasa, aniq summa to'langan hisoblanadi (taxmin qilinmaydi)
+  const g = given ?? (givenTxt ? parseMoney(givenTxt) : total)
+  const picked = given != null || !!givenTxt
 
   const setQty = (i: number, q: number) => {
     const next = [...lines]
@@ -47,15 +49,14 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
         else contactId = cust || null
         if (!contactId) throw new Error('Kim qarzga olayotganini tanlang')
       }
-      const giv = method === 'cash' ? Math.max(g, total) : null
+      const giv = method === 'cash' && picked ? Math.max(g, total) : null
       const r = await api.sell(shop.id, lines, method, contactId, giv)
       const sale: Sale = {
         id: '', number: r.number, pay_method: method, total: r.total, given: giv, created_at: new Date().toISOString(),
         contact_name: method === 'debt' ? (newCust.trim() || customers.find((c) => c.id === contactId)?.name || null) : null, seller_name: null,
         items: lines.map((l) => ({ name: l.product.name, unit: l.product.unit, qty: l.qty, price: l.price, total: Math.round(l.qty * l.price) })),
       }
-      setLast(sale)
-      toast(`Sotildi: chek #${r.number}, ${money(r.total)} so'm` + (giv && giv > total ? `. Qaytim ${money(giv - total)}` : ''))
+      setDone({ sale, change: giv && giv > total ? giv - total : 0 })
       setLines([]); setNewCust(''); setCust(''); setMethod('cash')
       if (localStorage.getItem('ombor-auto-print') === '1') printSale(sale, shop)
       onSold(); window.dispatchEvent(new Event('ombor-sold'))
@@ -63,15 +64,35 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
   }
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'F8') { e.preventDefault(); pay() } }
+    const h = (e: KeyboardEvent) => { if (e.key === 'F8') { e.preventDefault(); pay() } else if (e.key === 'Escape' && done) setDone(null) }
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h)
   })
 
+  const PAY: [PayMethod, string, string][] = [['cash', 'Naqd', 'cash'], ['card', 'Karta', 'card'], ['debt', 'Qarzga', 'book']]
+
+  if (done && !lines.length) return (
+    <aside className="card pad col-side sticky checkout done" id="savat" aria-live="polite">
+      <div className="done-ic"><Icon name="check" size={40} stroke={3} /></div>
+      <div style={{ textAlign: 'center' }}><h2 style={{ fontSize: 24 }}>Sotildi</h2><div className="muted num">Chek #{done.sale.number} · {money(done.sale.total)} so'm · {done.sale.pay_method === 'cash' ? 'naqd' : done.sale.pay_method === 'card' ? 'karta' : 'qarzga'}</div></div>
+      {done.change > 0
+        ? <div className="done-change"><small>Mijozga qaytaring</small><b className="num">{money(done.change)} <span>so'm</span></b><small className="num">berdi {money(done.sale.given ?? 0)}</small></div>
+        : done.sale.pay_method !== 'debt' && <div className="done-change"><small>To'landi</small><b className="num">{money(done.sale.total)} <span>so'm</span></b></div>}
+      {done.sale.pay_method === 'debt' && <div className="banner err">{done.sale.contact_name} qarziga yozildi</div>}
+      <button className="btn sec big wide" onClick={() => printSale(done.sale, shop)}><Icon name="printer" />Chek chiqarish</button>
+      <button className="btn big wide" autoFocus onClick={() => setDone(null)}>Keyingi xaridor</button>
+      <div className="muted" style={{ textAlign: 'center', fontSize: 13 }}>Yoki shunchaki keyingi tovarni skanerlang</div>
+    </aside>
+  )
+
   return (
     <aside className="card pad col-side sticky checkout" id="savat">
-      <div className="head"><h2>Savat</h2>{lines.length > 0 && <button className="btn ghost sp" style={{ minHeight: 36, color: 'var(--red)' }} onClick={() => setLines([])}>Tozalash</button>}</div>
+      <div className="head"><h2>Savat{lines.length ? <span className="muted" style={{ fontWeight: 500 }}> · {lines.length}</span> : ''}</h2>{lines.length > 0 && <button className="btn ghost sp" style={{ minHeight: 36, color: 'var(--red)' }} onClick={() => confirm("Savat tozalansinmi?") && setLines([])}>Tozalash</button>}</div>
       <div className="cart-lines">
-      {!lines.length && <div className="empty"><Icon name="cart" size={32} />Tovarni bosing yoki shtrix-kodni skanerlang</div>}
+      {!lines.length && <ol className="steps">
+        <li><b>Tovarni tanlang</b><span>Chapdagi tovarni bosing yoki shtrix-kodni skanerlang</span></li>
+        <li><b>To'lov turini tanlang</b><span>Naqd, karta yoki qarzga</span></li>
+        <li><b>To'lash tugmasini bosing</b><span>Qaytim o'zi hisoblanadi</span></li>
+      </ol>}
       {lines.map((l, i) => (
         <div className={'line' + (i === lines.length - 1 ? ' just' : '')} key={l.product.id + i}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -94,26 +115,26 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
       ))}
       </div>
       <div className="total"><span style={{ fontWeight: 600 }}>Jami</span><b className="num">{money(total)} <small className="muted" style={{ fontSize: 16 }}>so'm</small></b></div>
-      <div className="seg" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-        {(['cash', 'card', 'debt'] as PayMethod[]).map((m) => (
-          <button key={m} className={method === m ? 'on' : ''} onClick={() => setMethod(m)}>{m === 'cash' ? 'Naqd' : m === 'card' ? 'Karta' : 'Qarz'}</button>
+      {lines.length > 0 && <div className="paym" role="radiogroup" aria-label="To'lov turi">
+        {PAY.map(([m, l, ic]) => (
+          <button key={m} role="radio" aria-checked={method === m} className={method === m ? 'on ' + m : ''} onClick={() => setMethod(m)}><Icon name={ic} size={22} />{l}</button>
         ))}
-      </div>
-      {method === 'cash' && total > 0 && (
-        <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink2)' }}>Mijoz qancha berdi?</div>
-          <div className="seg" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-            {opts.map((v, i) => (
-              <button key={v} className={'num ' + (g === v ? 'on' : '')} style={{ minHeight: 42, fontSize: 14 }} onClick={() => { setGiven(v); setGivenTxt('') }}>
-                {i === 0 ? 'Aniq' : v >= 1000000 ? String(v / 1000000).replace('.', ',') + ' mln' : money(v / 1000) + ' ming'}
+      </div>}
+      {method === 'cash' && total > 0 && lines.length > 0 && (
+        <div className="card cash-box" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink2)' }}>Qaytim kerakmi? Mijoz bergan pulni tanlang <span className="muted" style={{ fontWeight: 500 }}>(shart emas)</span></div>
+          <div className="seg" style={{ gridTemplateColumns: `repeat(${Math.max(1, opts.length)},1fr)` }}>
+            {opts.map((v) => (
+              <button key={v} className={'num ' + (given === v ? 'on' : '')} style={{ minHeight: 42, fontSize: 14 }} onClick={() => { setGiven(given === v ? null : v); setGivenTxt('') }}>
+                {v >= 1000000 ? String(v / 1000000).replace('.', ',') + ' mln' : money(v / 1000) + ' ming'}
               </button>
             ))}
           </div>
           <input className="fld num" placeholder="Boshqa summa" value={givenTxt} onChange={(e) => { setGivenTxt(e.target.value); setGiven(null) }} inputMode="numeric" />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px dashed var(--line2)', paddingTop: 8 }}>
+          {picked && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px dashed var(--line2)', paddingTop: 8 }}>
             <span style={{ fontWeight: 600 }}>Qaytim</span>
             <span className="num" style={{ fontSize: 24, fontWeight: 800, color: g < total ? 'var(--red)' : 'var(--teal-d)' }}>{g < total ? 'Yetmaydi' : money(g - total) + " so'm"}</span>
-          </div>
+          </div>}
         </div>
       )}
       {method === 'debt' && (
@@ -128,9 +149,9 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
         </div>
       )}
       <button className="btn ok big wide" disabled={!lines.length || busy || (method === 'cash' && g < total)} onClick={pay} style={{ justifyContent: 'space-between', padding: '0 20px' }}>
-        <span>{busy ? 'Saqlanmoqda…' : "To'lovni qabul qilish"}</span><kbd>F8</kbd>
+        <span>{busy ? 'Saqlanmoqda…' : lines.length ? `To'lash · ${money(total)} so'm` : "To'lash"}</span><kbd>F8</kbd>
       </button>
-      {last && <button className="btn sec wide" onClick={() => printSale(last, shop)}><Icon name="printer" />Chek #{last.number} ni chop etish</button>}
+
     </aside>
   )
 }
