@@ -151,10 +151,10 @@ kbd { font: 600 12px 'Onest Variable', sans-serif; border: 1px solid currentColo
 /* Receipt (printing) */
 .receipt { display: none }
 @media print {
-  @page { size: 80mm auto; margin: 4mm }
+  @page { size: 80mm auto; margin: 0 }
   body * { visibility: hidden }
   .receipt, .receipt * { visibility: visible }
-  .receipt { display: block; position: absolute; left: 0; top: 0 }
+  .receipt { display: block; position: absolute; left: 0; top: 0; padding: 4mm 4mm 6mm }
 }
 
 /* Phone */
@@ -761,3 +761,51 @@ html[data-intro="on"] .lg3 * { animation-play-state: paused !important }
 .szd .inc { font-size: 12px; font-weight: 800; color: #fff; background: var(--teal); border-radius: 999px; padding: 1px 8px; margin-top: 2px }
 .sw-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; background: var(--card2); border: 1px solid var(--line); cursor: pointer; margin: 6px 0 4px }
 .sw-row b { display: block; font-size: 15.5px } .sw-row small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.4 }
+
+/* ===== Uskunalar: yo'riqnoma ===== */
+.hw { display: flex; flex-direction: column; gap: 16px }
+.hw-card { border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 14px; background: var(--card) }
+.hw-h { display: flex; align-items: center; gap: 14px }
+.hw-h > div { flex: 1; min-width: 0 } .hw-h b { display: block; font-size: 17px } .hw-h small { color: var(--muted); font-size: 13.5px }
+.hw-ic { flex: 0 0 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; background: var(--blue-l); color: var(--blue) }
+.hw-steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 10px }
+.hw-steps li { counter-increment: s; position: relative; padding-left: 40px; font-size: 14.5px; line-height: 1.5; color: var(--ink2) }
+.hw-steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 27px; height: 27px; border-radius: 50%; background: var(--blue-ll); border: 1px solid var(--line2); color: var(--blue); font-weight: 800; font-size: 13.5px; display: grid; place-items: center }
+.hw-steps b { color: var(--ink) }
+.hw-test { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; border: 1.5px dashed var(--line2); background: var(--card2) }
+.hw-test > div { flex: 1; min-width: 0 } .hw-test b { display: block } .hw-test span { font-size: 13.5px; color: var(--muted); word-break: break-all }
+.hw-test.ok { border: 1.5px solid var(--teal); background: var(--teal-l); color: var(--teal-d) }
+.hw-test.ok span { color: var(--teal-d) }
+.hw-n { font-weight: 800; font-size: 15px !important; background: var(--teal); color: #fff !important; border-radius: 999px; padding: 2px 10px; animation: qpop .3s cubic-bezier(.3,1.6,.5,1) }
+.hw-pulse { width: 14px; height: 14px; border-radius: 50%; background: var(--mint); flex: 0 0 14px; animation: livep 1.6s infinite; box-shadow: 0 0 0 0 rgba(79,209,165,.6) }
+@media (max-width: 860px) { .hw-card { padding: 14px } .hw-steps li { font-size: 14px } }
+
+/* ===== Yangi do'kon ochish ===== */
+.onb-card { width: 100%; max-width: 980px; display: flex; flex-direction: column; gap: 20px; padding: 32px }
+.type.on { border-color: var(--blue); background: var(--blue-l); box-shadow: 0 0 0 1px var(--blue) }
+.type.on b { color: var(--blue) }
+@media (max-width: 600px) {
+  .center-page { padding: 20px 12px 0 }
+  .onb-card { padding: 20px 16px 0; border-radius: 20px 20px 0 0 }
+  .onb-card .grid2 { grid-template-columns: 1fr }
+  .types { grid-template-columns: 1fr 1fr; gap: 8px }
+  .type { padding: 11px 12px; border-radius: 12px } .type b { font-size: 14px; line-height: 1.25 } .type small { font-size: 12px }
+  .onb-act { position: sticky; bottom: 0; background: var(--card); margin: 0 -16px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); flex-direction: column-reverse; align-items: stretch; z-index: 5 }
+  .onb-act .btn { width: 100%; min-width: 0 !important }
+}
+
+/* ===== Sozlamalar menyusi ===== */
+.set-nav { flex: 1 1 200px; max-width: 240px; display: flex; flex-direction: column; gap: 4px }
+.set-nav button { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 14px; border-radius: 12px; border: 0; background: transparent; color: var(--ink2); font-weight: 600; font-size: 15px; cursor: pointer; text-align: left }
+.set-nav button svg { color: var(--muted) }
+.set-nav button:hover { background: var(--hover) }
+.set-nav button.on { background: var(--card); color: var(--blue); font-weight: 700; box-shadow: 0 0 0 1.5px var(--line2), var(--sh) }
+.set-nav button.on svg { color: var(--blue) }
+.span2 { grid-column: span 2 }
+@media (max-width: 860px) {
+  .set-nav { flex: 1 1 100%; max-width: none; flex-direction: row; overflow-x: auto; gap: 6px; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px 4px }
+  .set-nav::-webkit-scrollbar { display: none }
+  .set-nav button { flex: 0 0 auto; min-height: 42px; padding: 0 14px; border-radius: 999px; background: var(--card); box-shadow: 0 0 0 1px var(--line); white-space: nowrap; font-size: 14px }
+  .set-nav button.on { background: var(--blue); color: #fff; box-shadow: none } .set-nav button.on svg { color: var(--gold) }
+  .grid2 { grid-template-columns: 1fr } .span2 { grid-column: auto }
+}

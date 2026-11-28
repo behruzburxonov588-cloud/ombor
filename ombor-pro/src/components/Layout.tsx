@@ -20,6 +20,9 @@ export function Layout({ children }: { children: ReactNode }) {
     const f = () => api.todayStats(shop.id).then(setToday).catch(() => {})
     window.addEventListener('ombor-sold', f); return () => window.removeEventListener('ombor-sold', f)
   }, [shop.id])
+  // Bo'lim almashganda sahifa tepasidan ochiladi
+  const sec = loc.pathname
+  useEffect(() => { window.scrollTo(0, 0) }, [sec])
   const expired = shop.blocked || new Date(shop.paid_until) < new Date(new Date().toDateString())
   return (
     <div className="app">

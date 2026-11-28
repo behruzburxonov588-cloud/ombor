@@ -10,7 +10,7 @@ import { SaleHeader } from '../components/SaleTabs'
 import { useToast } from '../components/Toast'
 import { useNavigate } from 'react-router-dom'
 import { resolveScan } from '../lib/barcode'
-import { beep, useScanner } from '../lib/scanner'
+import { beep, isDesktop, useScanner } from '../lib/scanner'
 import { useCart } from '../lib/cart'
 import { WeighDialog } from '../components/WeighDialog'
 import { Empty } from '../components/Empty'
@@ -96,7 +96,7 @@ export function Sale() {
         <section className="col-main">
           <div style={{ position: 'relative' }}>
             <span style={{ position: 'absolute', left: 14, top: 14, color: 'var(--muted)' }}><Icon name="search" size={22} /></span>
-            <input ref={search} autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onEnter(); if (e.key === 'Escape') setQ('') }}
+            <input ref={search} autoFocus={isDesktop()} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onEnter(); if (e.key === 'Escape') setQ('') }}
               data-scan="1" placeholder="Shtrix-kodni skanerlang yoki nomini yozing" aria-label="Mahsulot qidirish" className="fld scan-input" style={{ paddingLeft: 46, minHeight: 54, fontSize: 17, borderColor: 'var(--blue)' }} />
             <span className="scan-ready" title="Skaner ulangan bo'lsa, istalgan payt skanerlang"><i />Skaner tayyor <kbd>F2</kbd></span>
           </div>

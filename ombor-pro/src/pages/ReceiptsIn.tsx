@@ -3,6 +3,7 @@ import { api, errText } from '../lib/api'
 import type { ReceiptDoc, ReceiptLine } from '../lib/types'
 import { money, parseMoney, parseNum, qty } from '../lib/format'
 import { useShop } from '../session'
+import { Empty } from '../components/Empty'
 import { Icon } from '../components/Icon'
 import { ProductsHeader } from '../components/ProductsTabs'
 import { useToast } from '../components/Toast'
@@ -31,7 +32,7 @@ export function ReceiptsIn() {
     <>
       <ProductsHeader sub="Kelgan yuklar. Xato kiritilgan bo'lsa, ochib tuzating." />
       <div className="card scroll-x">
-        {!list ? <div className="empty">Yuklanmoqda…</div> : !list.length ? <div className="empty"><Icon name="box" size={32} />Hali yuk kiritilmagan</div> : (
+        {!list ? <div className="empty">Yuklanmoqda…</div> : !list.length ? <Empty icon="box" title="Hali yuk kiritilmagan" text="Yetkazib beruvchidan tovar kelganda «Tovar qabul qilish» ni bosing. Har bir kirim shu yerda sanasi, summasi va kimdan kelgani bilan saqlanadi." to="/mahsulotlar/qabul" action="Tovar qabul qilish" /> : (
           <table className="tbl stack">
             <thead><tr><th>Sana</th><th>Yetkazib beruvchi</th><th>Tovarlar</th><th style={{ textAlign: 'right' }}>Summa</th><th style={{ textAlign: 'right' }}>To'langan</th><th /></tr></thead>
             <tbody>{list.map((r) => (

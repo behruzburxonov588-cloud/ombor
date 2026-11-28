@@ -10,7 +10,7 @@ import { Thumb } from '../components/Thumb'
 import { ProductsHeader } from '../components/ProductsTabs'
 import { PhotoPicker } from '../components/PhotoPicker'
 import { useToast } from '../components/Toast'
-import { useScanner, beep } from '../lib/scanner'
+import { useScanner, beep, isDesktop } from '../lib/scanner'
 import { useKind } from '../lib/kind'
 
 const empty = { name: '', var: '', q: '1', unit: 'dona', buy: '', sell: '', photo: null as string | null, pid: null as string | null, sz: {} as Record<string, string>, szSet: '', szx: [] as string[] }
@@ -79,7 +79,7 @@ export function Receive() {
       setRows([...add, ...rows])
     } else setRows([{ ...base, product_id: d.pid, qty: parseNum(d.q) || 1, size: undefined }, ...rows])
     setD({ ...blank, unit: d.unit, szSet: d.szSet, szx: d.szx })
-    nameRef.current?.focus()
+    if (isDesktop()) nameRef.current?.focus()
   }
 
   useScanner((c) => { beep(); setName(c); nameRef.current?.focus() })
@@ -126,7 +126,7 @@ export function Receive() {
           <div className="rg-pn">
           <PhotoPicker url={d.photo} name={d.name} onChange={(u) => setD({ ...d, photo: u })} size={48} compact />
           <label className="lb rg-name">Nomi yoki shtrix-kod
-            <input ref={nameRef} className="fld" list="prod-names" autoFocus value={d.name} onChange={(e) => setName(e.target.value)} placeholder={"Masalan: " + kind.example} />
+            <input ref={nameRef} className="fld" list="prod-names" autoFocus={isDesktop()} value={d.name} onChange={(e) => setName(e.target.value)} placeholder={"Masalan: " + kind.example} />
             <datalist id="prod-names">{products.map((p) => <option key={p.id} value={p.name} />)}</datalist>
           </label>
           </div>

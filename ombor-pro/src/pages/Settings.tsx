@@ -7,12 +7,14 @@ import { useKind, setScaleOn } from '../lib/kind'
 import { useShop } from '../session'
 import { useScale, serialSupported } from '../lib/scale'
 import { Icon } from '../components/Icon'
+import { beep, useScanner } from '../lib/scanner'
 import { RequestBox } from '../components/RequestBox'
 import { planOf, versionOf } from '../lib/plan'
 import { VersionCards } from '../components/VersionCards'
 import { useToast } from '../components/Toast'
 import { THEMES, getTheme, setTheme, type ThemeId } from '../lib/theme'
 
+const SEC_IC: Record<string, string> = { "Do'kon": 'box', Xodimlar: 'users', Uskunalar: 'printer', "Ko'rinish": 'image', 'Tarif va qurilmalar': 'device' }
 const SECS = ["Do'kon", 'Xodimlar', 'Uskunalar', "Ko'rinish", 'Tarif va qurilmalar'] as const
 
 export function Settings() {
@@ -23,9 +25,9 @@ export function Settings() {
     <>
       <div className="head"><h1>Sozlamalar</h1><span className="muted">{shop.name}</span></div>
       <div className="cols">
-        <nav style={{ flex: '1 1 200px', maxWidth: 240, display: 'flex', flexDirection: 'column', gap: 4 }} aria-label="Sozlamalar bo'limlari">
+        <nav className="set-nav" aria-label="Sozlamalar bo'limlari">
           {secs.map((s) => (
-            <button key={s} onClick={() => setSec(s)} className="btn" style={{ justifyContent: 'flex-start', background: sec === s ? 'var(--card)' : 'transparent', color: sec === s ? 'var(--blue)' : 'var(--ink2)', boxShadow: sec === s ? '0 0 0 1.5px var(--line2)' : 'none', fontWeight: sec === s ? 700 : 500 }}>{s}</button>
+            <button key={s} onClick={() => setSec(s)} className={sec === s ? 'on' : ''} aria-current={sec === s ? 'page' : undefined}><Icon name={SEC_IC[s]} size={18} />{s}</button>
           ))}
         </nav>
         <div style={{ flex: '999 1 520px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -53,7 +55,7 @@ function ShopSec() {
       <div className="grid2">
         <label className="lb">Do'kon nomi<input className="fld" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
         <label className="lb">Telefon<input className="fld num" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
-        <label className="lb" style={{ gridColumn: 'span 2' }}>Manzil<input className="fld" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
+        <label className="lb span2">Manzil<input className="fld" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
         <label className="lb">Do'kon turi<select className="fld" value={f.shop_type} onChange={(e) => setF({ ...f, shop_type: e.target.value })}>{SHOP_TYPES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
         <label className="lb">Chek pastidagi yozuv<input className="fld" value={f.receipt_footer} onChange={(e) => setF({ ...f, receipt_footer: e.target.value })} /></label>
       </div>
@@ -87,13 +89,13 @@ function StaffSec() {
         <div className="muted" style={{ fontSize: 13 }}>Sotuvchi avval saytda o'z telefon raqami bilan ro'yxatdan o'tadi, keyin siz uni shu yerda qo'shasiz. Sotuvchi kirim narxi va sozlamalarni ko'rmaydi.</div>
       </div>
       <div className="scroll-x">
-        <table className="tbl">
+        <table className="tbl stack">
           <thead><tr><th>Ism</th><th>Telefon</th><th>Rol</th><th>Holat</th><th /></tr></thead>
           <tbody>
             {list.map((m) => (
               <tr key={m.user_id}>
-                <td><b>{m.full_name ?? '—'}</b></td>
-                <td className="num">{formatPhone(m.phone)}</td>
+                <td className="c-main"><b>{m.full_name ?? '—'}</b></td>
+                <td className="num" data-l="tel">{formatPhone(m.phone)}</td>
                 <td><span className={'tag ' + (m.role === 'owner' ? 'info' : 'warn')}>{m.role === 'owner' ? 'Ega' : 'Sotuvchi'}</span></td>
                 <td><span className={'tag ' + (m.active ? 'ok' : 'bad')}>{m.active ? 'Faol' : 'Bloklangan'}</span></td>
                 <td style={{ textAlign: 'right' }}>{m.user_id !== user.id && <button className="btn ghost" style={{ minHeight: 36 }} onClick={() => toggle(m)}>{m.active ? 'Bloklash' : 'Faollashtirish'}</button>}</td>
@@ -108,44 +110,80 @@ function StaffSec() {
 
 function DevicesHw() {
   const scale = useScale()
-  const [startScale, setStartScale] = useState(localStorage.getItem('ombor-start-scale') === '1')
-  const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ombor-auto-print') !== '0')
   const kind = useKind()
   const { shop } = useShop()
+  const [startScale, setStartScale] = useState(localStorage.getItem('ombor-start-scale') === '1')
+  const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ombor-auto-print') !== '0')
   const [baud, setBaud] = useState(localStorage.getItem('ombor-scale-baud') || '9600')
+  const [scanned, setScanned] = useState<{ code: string; name: string | null; n: number } | null>(null)
   const flag = (k: string, v: boolean) => localStorage.setItem(k, v ? '1' : '0')
-  const Row = ({ t, s, st, ok, children }: { t: string; s: string; st: string; ok: boolean; children?: React.ReactNode }) => (
-    <div className="row" style={{ alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #EEF1F7', flexWrap: 'nowrap' }}>
-      <div style={{ flex: 1 }}><b style={{ fontSize: 16 }}>{t}</b><div className="muted" style={{ fontSize: 13 }}>{s}</div></div>
-      <span className={'tag ' + (ok ? 'ok' : 'info')}>{st}</span>{children}
-    </div>
-  )
+  // Skanerni shu yerning o'zida sinash: kod o'qilsa darhol ko'rsatamiz
+  useScanner(async (code) => {
+    beep()
+    let name: string | null = null
+    try { name = (await api.products(shop.id)).find((p) => p.barcode === code)?.name ?? null } catch { /* */ }
+    setScanned((x) => ({ code, name, n: (x?.n ?? 0) + 1 }))
+  })
+
   return (
-    <section className="card pad" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <h2>Uskunalar</h2>
-      <label className="sw-row">
-        <span className="sw"><input type="checkbox" checked={kind.scale} onChange={(e) => setScaleOn(shop.id, e.target.checked)} /><i /></span>
-        <span><b>Tarozi bilan ishlaymiz</b><small>Kilolik tovar sotadigan do'konlar uchun. O'chirsangiz, tarozi bilan bog'liq hamma joy yashiriladi.</small></span>
-      </label>
-      {kind.scale && <>
-      <Row t="Tarozi" s={serialSupported() ? 'USB yoki COM orqali (Chrome / Edge)' : "Bu brauzer tarozini qo'llamaydi. Kompyuterda Chrome yoki Edge'ni oching"} st={scale.connected ? `Ulangan: ${scale.weight.toFixed(3)} kg` : 'Ulanmagan'} ok={scale.connected}>
-        {serialSupported() && !scale.connected && <button className="btn" style={{ minHeight: 40 }} onClick={() => { localStorage.setItem('ombor-scale-baud', baud); scale.connect(Number(baud)) }}>Ulash</button>}
-      </Row>
-      <label className="lb" style={{ maxWidth: 240, marginTop: 8 }}>Tarozi tezligi (baud)<select className="fld" value={baud} onChange={(e) => setBaud(e.target.value)}>{['2400', '4800', '9600', '19200'].map((b) => <option key={b}>{b}</option>)}</select></label>
-      </>}
-      <Row t="Shtrix-kod skaneri" s="USB skaner klaviatura kabi ishlaydi, sozlash shart emas" st="Tayyor" ok />
-      <Row t="Chek printeri" s="58 yoki 80 mm, brauzerning chop etish oynasi orqali" st="Tayyor" ok>
-        <button className="btn sec" style={{ minHeight: 40 }} onClick={() => window.print()}>Sinash</button>
-      </Row>
-      {kind.scale && <label style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14, padding: '14px 16px', borderRadius: 12, background: 'var(--blue-l)', fontWeight: 600, color: 'var(--blue)', cursor: 'pointer' }}>
-        <input type="checkbox" checked={startScale} onChange={(e) => { setStartScale(e.target.checked); flag('ombor-start-scale', e.target.checked) }} style={{ width: 22, height: 22 }} />
-        Savdo Tarozi bo'limidan ochilsin (kilolik do'konlar uchun)
-      </label>}
-      <label style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, padding: '14px 16px', borderRadius: 12, background: 'var(--blue-l)', fontWeight: 600, color: 'var(--blue)', cursor: 'pointer' }}>
-        <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); flag('ombor-auto-print', e.target.checked) }} style={{ width: 22, height: 22 }} />
-        Har sotuvdan keyin chek avtomatik chiqsin
-      </label>
-      {kind.scale && scale.error && <div className="banner err" style={{ marginTop: 8 }}>Tarozi: {scale.error}</div>}
+    <section className="card pad hw">
+      <div><h2>Uskunalar</h2><p className="muted" style={{ margin: '4px 0 0' }}>Skaner, chek printeri va tarozini qanday ulash va ishlatish. Hammasi oddiy, dastur o'rnatish shart emas.</p></div>
+
+      <div className="hw-card">
+        <div className="hw-h"><span className="hw-ic"><Icon name="search" size={22} /></span><div><b>Shtrix-kod skaneri</b><small>USB yoki simsiz (Bluetooth) skaner</small></div><span className="tag ok">Tayyor</span></div>
+        <ol className="hw-steps">
+          <li><b>Kompyuterga ulang.</b> USB simini yoki simsiz skanerning kichik qabul qiluvchisini kompyuterga qo'ying. Hech narsa sozlash shart emas.</li>
+          <li><b>Kassada skanerlang.</b> Tovar kodini o'qiting, tovar o'zi savatga tushadi. Qidiruv maydonini bosish ham shart emas.</li>
+          <li><b>Yangi tovar bo'lsa.</b> Kod bazada bo'lmasa, dastur o'zi so'raydi: "Yangi mahsulot sifatida qo'shish" ni bosing va nomi, narxini yozing.</li>
+          <li><b>Tovar qabul qilishda.</b> Kelgan tovarni skanerlang: bor tovarning nomi va narxi o'zi to'ladi, faqat sonini yozasiz.</li>
+          <li><b>Kodi yo'q tovarlar.</b> Mahsulotlar bo'limida belgilang va "Etiketka" ni bosing. Dastur shtrix-kodli yorliq chiqarib beradi.</li>
+        </ol>
+        <div className={'hw-test' + (scanned ? ' ok' : '')} aria-live="polite">
+          {scanned
+            ? <><Icon name="check" size={22} /><div><b>Skaner ishlayapti</b><span className="num">O'qilgan kod: {scanned.code}{scanned.name ? ` · ${scanned.name}` : " · bazada yo'q"}</span></div><span className="num hw-n">{scanned.n}</span></>
+            : <><span className="hw-pulse" /><div><b>Sinab ko'ring</b><span>Istalgan tovarning shtrix-kodini hozir skanerlang. Shu yerda ko'rinadi.</span></div></>}
+        </div>
+      </div>
+
+      <div className="hw-card">
+        <div className="hw-h"><span className="hw-ic"><Icon name="printer" size={22} /></span><div><b>Chek printeri</b><small>58 yoki 80 mm termo printer</small></div><button className="btn sec" style={{ minHeight: 40 }} onClick={() => window.print()}>Sinash</button></div>
+        <ol className="hw-steps">
+          <li><b>Printerni ulang va yoqing.</b> Printer bilan kelgan drayverni kompyuterga o'rnating (diskda yoki ishlab chiqaruvchi saytida bo'ladi).</li>
+          <li><b>Chrome yoki Edge'da oching.</b> "Sinash" tugmasini bosing, ochilgan oynada printeringizni tanlang.</li>
+          <li><b>Bir marta sozlang.</b> Shu oynada qog'oz o'lchamini printeringizga moslang (58 yoki 80 mm). Brauzer buni eslab qoladi, keyingi safar so'ramaydi.</li>
+          <li><b>Sotish.</b> Har sotuvdan keyin chek o'zi chiqadi. Kerak bo'lmasa, pastdagi belgini o'chiring.</li>
+        </ol>
+        <label className="sw-row">
+          <span className="sw"><input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); flag('ombor-auto-print', e.target.checked) }} /><i /></span>
+          <span><b>Har sotuvdan keyin chek o'zi chiqsin</b><small>O'chirsangiz, "Sotildi" oynasida "Chek chiqarish" tugmasi paydo bo'ladi.</small></span>
+        </label>
+      </div>
+
+      <div className="hw-card">
+        <div className="hw-h"><span className="hw-ic"><Icon name="scale" size={22} /></span><div><b>Tarozi</b><small>Kilolik tovar sotish uchun</small></div>{kind.scale && <span className={'tag ' + (scale.connected ? 'ok' : 'info')}>{scale.connected ? `Ulangan: ${scale.weight.toFixed(3)} kg` : 'Ulanmagan'}</span>}</div>
+        <label className="sw-row">
+          <span className="sw"><input type="checkbox" checked={kind.scale} onChange={(e) => setScaleOn(shop.id, e.target.checked)} /><i /></span>
+          <span><b>Tarozi bilan ishlaymiz</b><small>Kilolik tovar sotmasangiz o'chiring. Shunda tarozi bilan bog'liq hamma joy yashiriladi.</small></span>
+        </label>
+        {kind.scale && <>
+          <ol className="hw-steps">
+            <li><b>Tarozini kompyuterga ulang.</b> USB yoki COM (RS-232) simi bilan. Tarozi sozlamasida "kompyuterga uzatish" yoqilgan bo'lsin.</li>
+            <li><b>Chrome yoki Edge'da "Ulash" ni bosing.</b> Ro'yxatdan tarozini tanlang. Og'irlik shu yerda ko'rinishi kerak.</li>
+            <li><b>Raqamlar chiqmasa,</b> pastdagi tezlikni (baud) o'zgartirib, yana ulang. Ko'pincha 9600 to'g'ri keladi.</li>
+            <li><b>Sotish.</b> Savdo → Tarozi bo'limida tovarni qo'ying va tanlang, narx o'zi hisoblanadi. Tarozi bo'lmasa, kiloni qo'lda yozsangiz ham bo'ladi.</li>
+          </ol>
+          <div className="row" style={{ alignItems: 'flex-end' }}>
+            <label className="lb" style={{ width: 200 }}>Tezlik (baud)<select className="fld" value={baud} onChange={(e) => setBaud(e.target.value)}>{['2400', '4800', '9600', '19200'].map((b) => <option key={b}>{b}</option>)}</select></label>
+            {serialSupported() ? !scale.connected && <button className="btn" style={{ minHeight: 48 }} onClick={() => { localStorage.setItem('ombor-scale-baud', baud); scale.connect(Number(baud)) }}><Icon name="scale" size={18} />Ulash</button>
+              : <div className="banner" style={{ flex: 1 }}>Bu brauzer tarozini qo'llamaydi. Kompyuterda Chrome yoki Edge'ni oching.</div>}
+          </div>
+          <label className="sw-row">
+            <span className="sw"><input type="checkbox" checked={startScale} onChange={(e) => { setStartScale(e.target.checked); flag('ombor-start-scale', e.target.checked) }} /><i /></span>
+            <span><b>Savdo Tarozi bo'limidan ochilsin</b><small>Asosan kilolik tovar sotsangiz qulay.</small></span>
+          </label>
+          {scale.error && <div className="banner err">Tarozi: {scale.error}</div>}
+        </>}
+      </div>
     </section>
   )
 }

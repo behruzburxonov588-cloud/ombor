@@ -35,3 +35,6 @@ export function beep(ok = true) {
     o.start(); o.stop(ctx.currentTime + (ok ? 0.08 : 0.25))
   } catch { /* ovoz bo'lmasa ham ishlayveradi */ }
 }
+
+// Telefonda kursorni o'zi qo'ymaymiz: klaviatura ochilib, sahifa sakrab ketadi
+export const isDesktop = () => typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches

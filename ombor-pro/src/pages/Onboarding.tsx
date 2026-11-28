@@ -27,7 +27,7 @@ export function Onboarding() {
   return (
     <form className="center-page" onSubmit={submit}>
       <div className="brand" style={{ color: 'var(--ink)' }}><Logo size={38} /><b style={{ fontSize: 20, display: 'block' }}>Ombor Pro</b></div>
-      <div className="card pad" style={{ width: '100%', maxWidth: 980, display: 'flex', flexDirection: 'column', gap: 20, padding: 32 }}>
+      <div className="card pad onb-card">
         <div>
           <h1>Yangi do'kon ochish</h1>
           <div className="muted" style={{ marginTop: 4 }}>Salom, {user?.name}. Ikki narsa kerak: do'kon nomi va turi.</div>
@@ -38,7 +38,7 @@ export function Onboarding() {
         </div>
         <div>
           <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Qanday do'koningiz bor?</div>
-          <div className="muted" style={{ fontSize: 14, marginBottom: 12 }}>Hamma tur hozirdan ishlaydi: sotish, qoldiq, qarz va chek. Kilolik tovarlar uchun tarozi bor.</div>
+          <div className="muted" style={{ fontSize: 14, marginBottom: 12 }}>Dastur tanlangan turga moslashadi: kiyimda o'lchamlar, oziq-ovqatda tarozi, matoda metr. Keyin Sozlamalarda o'zgartirsa ham bo'ladi.</div>
           <div className="types">
             {SHOP_TYPES.map((t) => (
               <button type="button" key={t.id} className={'type' + (type === t.id ? ' on' : '')} onClick={() => setType(t.id)} aria-pressed={type === t.id}>
@@ -48,7 +48,7 @@ export function Onboarding() {
           </div>
         </div>
         {err && <div className="banner err" role="alert">{err}</div>}
-        <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div className="row onb-act" style={{ justifyContent: 'space-between' }}>
           <button type="button" className="btn ghost" onClick={() => api.signOut()}>Boshqa akkaunt bilan kirish</button>
           <button className="btn big" disabled={busy} style={{ minWidth: 240 }}>{busy ? 'Ochilmoqda…' : "Do'konni ochish"}</button>
         </div>
