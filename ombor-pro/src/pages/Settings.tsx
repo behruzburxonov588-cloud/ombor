@@ -7,7 +7,8 @@ import { useShop } from '../session'
 import { useScale, serialSupported } from '../lib/scale'
 import { Icon } from '../components/Icon'
 import { RequestBox } from '../components/RequestBox'
-import { VERSIONS, planOf } from '../lib/plan'
+import { planOf, versionOf } from '../lib/plan'
+import { VersionCards } from '../components/VersionCards'
 import { useToast } from '../components/Toast'
 import { THEMES, getTheme, setTheme, type ThemeId } from '../lib/theme'
 
@@ -152,15 +153,24 @@ function PlanSec() {
     try { await api.removeDevice(d.id); toast("Qurilma o'chirildi"); load() } catch (e) { toast(errText(e), 'err') }
   }
   const active = !shop.blocked && new Date(shop.paid_until) >= new Date(new Date().toDateString())
+  const [pendingPlan, setPendingPlan] = useState<number | null>(null)
+  useEffect(() => { api.myRequests(shop.id).then((l) => setPendingPlan(l.find((r) => r.kind === 'plan' && r.status === 'pending')?.amount ?? null)).catch(() => {}) }, [shop.id])
+  async function askPlan(n: number) {
+    try { await api.requestMore(shop.id, 'plan', n, null); setPendingPlan(n); toast(`${n}-versiya uchun so'rov adminga yuborildi`) } catch (e) { toast(errText(e), 'err') }
+  }
   return (
     <>
       <section style={{ borderRadius: 16, background: 'var(--blue)', color: '#fff', padding: 22, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: '1 1 240px' }}>
           <div style={{ fontSize: 14, color: '#C9D5F2' }}>Tarif</div>
-          <div style={{ fontSize: 24, fontWeight: 800 }}>{VERSIONS.find((v) => v.n === planOf(shop))?.name} · {shop.device_limit} ta qurilma</div>
+          <div style={{ fontSize: 24, fontWeight: 800 }}>{versionOf(shop).name} · {shop.device_limit} ta qurilma</div>
           <div style={{ fontSize: 15, color: active ? '#C9D5F2' : '#FFD3CF', marginTop: 4 }}>{active ? `${dateOf(shop.paid_until)} gacha faol` : 'Muddati tugagan'}</div>
         </div>
         <div style={{ fontSize: 14, color: '#C9D5F2', maxWidth: 320 }}>3 ta qurilma tarifga kiradi. Har bir qo'shimcha qurilma 2$ / oy. So'rov yuboring, admin tasdiqlagach darhol qo'shiladi.</div>
+      </section>
+      <section className="card pad" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div><h2>Versiya</h2><div className="sub">Sizda {versionOf(shop).name}. Kattaroq versiya kerak bo'lsa, so'rov yuboring. Admin to'lovni kelishib yoqib beradi.</div></div>
+        <VersionCards current={planOf(shop)} onRequest={askPlan} pending={pendingPlan} />
       </section>
       <RequestBox shopId={shop.id} />
       <section className="card" style={{ overflow: 'hidden' }}>

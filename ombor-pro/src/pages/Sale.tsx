@@ -13,6 +13,8 @@ import { resolveScan } from '../lib/barcode'
 import { beep, useScanner } from '../lib/scanner'
 import { useCart } from '../lib/cart'
 import { WeighDialog } from '../components/WeighDialog'
+import { Empty } from '../components/Empty'
+import { Link } from 'react-router-dom'
 
 export function Sale() {
   const { shop } = useShop()
@@ -41,9 +43,13 @@ export function Sale() {
   }, [q, items, rank])
 
   const [unknown, setUnknown] = useState<string | null>(null)
+  // Savatdagi soni kartochkada ko'rinadi; bosilganda kartochka "javob beradi"
+  const inCart = useMemo(() => { const m: Record<string, number> = {}; for (const l of lines) m[l.product.id] = (m[l.product.id] ?? 0) + l.qty; return m }, [lines])
+  const [hit, setHit] = useState<{ id: string; n: number }>({ id: '', n: 0 })
 
   function add(p: Product, w: number | null = null) {
     if (p.is_weighed && w == null) { setWeigh(p); return }
+    setHit((h) => ({ id: p.id, n: h.n + 1 }))
     setLines((cur) => {
       const i = cur.findIndex((l) => l.product.id === p.id && !p.is_weighed)
       if (i >= 0) { const n = [...cur]; n[i] = { ...n[i], qty: n[i].qty + 1 }; return [...n.slice(0, i), ...n.slice(i + 1), n[i]] }
@@ -76,18 +82,29 @@ export function Sale() {
               data-scan="1" placeholder="Shtrix-kodni skanerlang yoki nomini yozing" aria-label="Mahsulot qidirish" className="fld scan-input" style={{ paddingLeft: 46, minHeight: 54, fontSize: 17, borderColor: 'var(--blue)' }} />
             <span className="scan-ready" title="Skaner ulangan bo'lsa, istalgan payt skanerlang"><i />Skaner tayyor <kbd>F2</kbd></span>
           </div>
-          {!items.length && <div className="card empty"><Icon name="box" size={32} />Hali mahsulot yo'q. Mahsulotlar › Tovar qabul qilish bo'limidan kiriting.</div>}
+          {!items.length && <div className="card"><Empty icon="logo" title="Do'koningiz tayyor! Endi tovar kiriting" text="Sotishdan oldin omboringizdagi tovarlarni bir marta kiritib chiqing. Keyin ular shu yerda chiqadi.">
+            <div className="welcome">
+              <div><span className="n">1</span><b>Tovar qabul qiling</b><small>Nomi, soni va narxi. Skaner bilan tezroq.</small></div>
+              <div><span className="n">2</span><b>Etiketka chop eting</b><small>Shtrix-kodi yo'q tovarlarga. Shart emas.</small></div>
+              <div><span className="n">3</span><b>Sotishni boshlang</b><small>Shu sahifada skanerlang yoki bosing.</small></div>
+            </div>
+            <Link to="/mahsulotlar/qabul" className="btn big" style={{ marginTop: 14 }}><Icon name="plus" />Tovar qabul qilish</Link>
+          </Empty></div>}
           <div className="tiles">
-            {shown.map((p) => (
-              <button key={p.id} className={'tile' + (p.stock <= p.min_stock ? ' low' : '')} onClick={() => add(p)}>
-                {p.photo_url ? <Thumb p={p} size={-1} h={80} /> : <Thumb p={p} size={34} />}
+            {shown.map((p) => {
+              const c = inCart[p.id]; const low = p.stock <= p.min_stock
+              return (
+              <button key={p.id} className={'tile' + (low ? ' low' : '') + (c ? ' in' : '')} onClick={() => add(p)}>
+                {hit.id === p.id && <span className="t-hit" key={hit.n} />}
+                {c ? <span className="t-q num" key={'q' + c}>{p.is_weighed ? qty(c, 'kg') : '× ' + qty(c)}</span> : null}
+                <Thumb p={p} size={-1} h={p.photo_url ? 84 : 62} />
                 <span className="nm">{p.name}{p.size || p.color ? <span className="muted" style={{ fontWeight: 500 }}> · {[p.size, p.color].filter(Boolean).join(', ')}</span> : null}</span>
-                <span style={{ display: 'flex', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap', marginTop: 'auto' }}>
-                  <span className="pr num">{money(p.sell_price)}{p.is_weighed ? ' / kg' : ''}</span>
-                  <span className="st num">{qty(p.stock, p.unit)}</span>
+                <span className="t-bot">
+                  <span className="pr num">{money(p.sell_price)}{p.is_weighed ? <small>/kg</small> : null}</span>
+                  <span className="st num">{low ? 'Kam: ' : ''}{qty(p.stock, p.unit)}</span>
                 </span>
               </button>
-            ))}
+            )})}
           </div>
         </section>
         <Checkout lines={lines} setLines={setLines} onSold={() => setTick((t) => t + 1)} />

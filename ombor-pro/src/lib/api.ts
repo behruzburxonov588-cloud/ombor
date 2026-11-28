@@ -50,7 +50,7 @@ export interface Api {
   saveContact(shopId: string, c: { id?: string; kind: ContactKind; name: string; phone: string | null }): Promise<Contact>
   payDebt(shopId: string, contactId: string, amount: number, method: 'cash' | 'card'): Promise<void>
   history(shopId: string, contact: Contact): Promise<HistoryRow[]>
-  requestMore(shopId: string, kind: 'device' | 'extend', amount: number, note: string | null): Promise<void>
+  requestMore(shopId: string, kind: 'device' | 'extend' | 'plan', amount: number, note: string | null): Promise<void>
   myRequests(shopId: string): Promise<ShopRequest[]>
   // admin
   adminRequests(): Promise<ShopRequest[]>

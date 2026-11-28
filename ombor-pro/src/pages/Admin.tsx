@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { api, errText } from '../lib/api'
 import type { AdminCode, AdminShop, Device, Member, ShopRequest } from '../lib/types'
 import { dateOf, formatPhone, money, shopTypeName } from '../lib/format'
-import { VERSIONS, planOf } from '../lib/plan'
+import { planOf, versionOf } from '../lib/plan'
+import { VersionCards } from '../components/VersionCards'
 import { Icon } from '../components/Icon'
 import { reqText } from '../components/RequestBox'
 import { useToast } from '../components/Toast'
@@ -53,7 +54,7 @@ export function Admin() {
 
   return (
     <div className="app">
-      <aside className="side" style={{ background: 'var(--ink)' }}>
+      <aside className="side admin-side">
         <div className="brand"><div className="brand-ic"><Icon name="shield" /></div><div><b>Ombor Pro</b><small style={{ color: 'var(--gold)' }}>Admin panel</small></div></div>
         <nav className="nav">
           <a className={tab === 'shops' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setTab('shops') }}><Icon name="box" /><span className="lbl">Do'konlar</span></a>
@@ -96,7 +97,7 @@ export function Admin() {
                 return (
                   <tr key={s.id}>
                     <td><b>{s.name}</b><div className="muted num" style={{ fontSize: 12 }}>{s.owner_name ? s.owner_name + ' · ' : ''}{formatPhone(s.owner_phone)}</div>{s.admin_note && <div style={{ fontSize: 12, color: 'var(--gold-d)' }}>📝 {s.admin_note}</div>}</td>
-                    <td><span className="tag info">v{planOf(s)}</span></td>
+                    <td><span className={'tag ' + (planOf(s) > 1 ? 'ok' : 'info')}>{versionOf(s).n} · {versionOf(s).short}</span></td>
                     <td className="num"><b>{s.device_count} / {s.device_limit}</b></td>
                     <td className="muted">{ago(s.last_seen)}</td>
                     <td className="num" style={{ textAlign: 'right' }}>{money(s.today_total ?? 0)}<div className="muted" style={{ fontSize: 12 }}>{s.today_count ?? 0} chek</div></td>
@@ -111,12 +112,12 @@ export function Admin() {
         </>}
 
         {tab === 'requests' && <>
-          <div className="head"><h1>So'rovlar</h1><span className="muted">Do'konlar qo'shimcha qurilma yoki muddat so'raydi. To'lovni olgach tasdiqlang.</span></div>
+          <div className="head"><h1>So'rovlar</h1><span className="muted">Do'konlar versiya, qo'shimcha qurilma yoki muddat so'raydi. To'lovni olgach tasdiqlang.</span></div>
           <div className="card" style={{ overflow: 'hidden' }}>
             {!reqs.length ? <div className="empty">So'rov yo'q</div> : reqs.map((r) => (
               <div key={r.id} className="line" style={{ padding: '12px 20px', borderTop: '1px solid var(--line)', flexWrap: 'wrap', gap: 10 }}>
                 <div style={{ flex: '1 1 240px' }}><b>{r.shop_name}</b> <span className="muted num">{formatPhone(r.owner_phone ?? null)}</span>
-                  <div>{reqText(r)}{r.kind === 'device' && <span className="muted num"> · {2 * r.amount}$ / oy</span>} <span className="muted num">· {dateOf(r.created_at)}</span></div></div>
+                  <div><b style={{ color: r.kind === 'plan' ? 'var(--blue)' : undefined }}>{reqText(r)}</b>{r.kind === 'device' && <span className="muted num"> · {2 * r.amount}$ / oy</span>} <span className="muted num">· {dateOf(r.created_at)}</span></div></div>
                 {r.status === 'pending' ? <>
                   <button className="btn ok" style={{ minHeight: 40 }} onClick={() => act(() => api.adminDecide(r.id, true), 'Tasdiqlandi')}><Icon name="check" size={18} />Tasdiqlash</button>
                   <button className="btn danger" style={{ minHeight: 40 }} onClick={() => act(() => api.adminDecide(r.id, false), 'Rad etildi')}>Rad etish</button>
@@ -186,12 +187,8 @@ function ShopDrawer({ s, onClose, onChanged }: { s: AdminShop; onClose: () => vo
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <b>Versiya</b>
-          {VERSIONS.map((v) => (
-            <label key={v.n} className="card pad" style={{ display: 'flex', gap: 12, alignItems: 'center', cursor: 'pointer', padding: '10px 14px', border: plan === v.n ? '2.5px solid var(--blue)' : undefined }}>
-              <input type="radio" name="plan" checked={plan === v.n} onChange={() => setPlan(v.n)} />
-              <span><b>{v.name}</b><div className="muted" style={{ fontSize: 13 }}>{v.desc}</div></span>
-            </label>
-          ))}
+          <VersionCards current={planOf(s)} picked={plan} onPick={setPlan} />
+          {plan !== planOf(s) && <div className="banner">Versiya {planOf(s)} → {plan}. O'zgarish "Saqlash" bosilganda kuchga kiradi.</div>}
         </section>
 
         <div className="grid2">
@@ -203,7 +200,7 @@ function ShopDrawer({ s, onClose, onChanged }: { s: AdminShop; onClose: () => vo
               <span className="muted num" style={{ fontSize: 13 }}>{limit > 3 ? `+${limit - 3} pullik (${2 * (limit - 3)}$/oy)` : 'tarifda'}</span>
             </span>
           </label>
-          <label className="lb">Qachongacha faol<input type="date" className="fld" value={until} onChange={(e) => setUntil(e.target.value)} /></label>
+          <label className="lb">Qachongacha faol <span className="muted num" style={{ fontWeight: 500 }}>({dateOf(until)})</span><input type="date" className="fld" value={until} onChange={(e) => e.target.value && setUntil(e.target.value)} /></label>
         </div>
         <div className="row">{[1, 3, 6, 12].map((n) => <button key={n} className="chip" onClick={() => addMonths(n)}>+{n} oy</button>)}</div>
         <label className="lb">Izoh (faqat siz ko'rasiz)<input className="fld" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Masalan: oyiga 150 000 to'laydi" /></label>

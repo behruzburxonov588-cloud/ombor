@@ -3,6 +3,7 @@ import { api, errText } from '../lib/api'
 import type { Expense, ProfitReport } from '../lib/types'
 import { money, parseMoney, qty } from '../lib/format'
 import { useShop } from '../session'
+import { Stat } from '../components/Stat'
 import { Icon } from '../components/Icon'
 import { useToast } from '../components/Toast'
 
@@ -74,19 +75,35 @@ export function Profit() {
       </div>
       {err && <div className="banner err">{err}</div>}
 
-      {rep && <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
-        <div className="card pad"><div className="muted">Savdo</div><b className="num" style={{ fontSize: 26 }}>{money(rep.revenue)}</b><div className="muted num" style={{ fontSize: 13 }}>{rep.count} ta chek</div></div>
-        <div className="card pad"><div className="muted">Xarajatlar</div><b className="num" style={{ fontSize: 26, color: rep.expenses ? 'var(--red)' : 'var(--ink)' }}>{rep.expenses ? '−' : ''}{money(rep.expenses)}</b></div>
-        <div className="card pad" style={{ border: '2.5px solid var(--blue)' }}><div className="muted">Savdodan qolgan pul</div><b className="num" style={{ fontSize: 26, color: 'var(--blue)' }}>{left < 0 ? '−' : ''}{money(Math.abs(left))}</b><div className="muted" style={{ fontSize: 13 }}>savdo − xarajat</div></div>
-      </div>}
-
-      <section className="card pad" style={{ display: 'flex', flexDirection: 'column', gap: 6, borderLeft: `6px solid ${net >= 0 ? 'var(--teal)' : 'var(--red)'}` }}>
-        <div className="muted">Sof foyda</div>
-        <div className="num" style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.1, color: net >= 0 ? 'var(--teal-d)' : 'var(--red)' }}>{net < 0 ? '−' : ''}{money(Math.abs(net))} <span style={{ fontSize: 20 }}>so'm</span></div>
-        {rep && <div className="num" style={{ fontSize: 15, color: 'var(--ink2)', marginTop: 6 }}>
-          Savdodan qolgan pul <b>{money(left)}</b> − sotilgan tovarning kelish narxi <b>{money(rep.cost)}</b> = sof foyda <b>{net < 0 ? '−' : ''}{money(Math.abs(net))}</b>
-        </div>}
+      <section className={'hero-card' + (net < 0 ? ' neg' : '')}>
+        <div className="hc-top">
+          <div>
+            <small>Sof foyda · {PERIODS.find((x) => x[0] === period)?.[1].toLowerCase()}</small>
+            <b className="num" key={net}>{net < 0 ? '−' : net > 0 ? '+' : ''}{money(Math.abs(net))} <em>so'm</em></b>
+          </div>
+          {rep && rep.revenue > 0 && <span className="hc-pct num">{Math.round((net / rep.revenue) * 100)}% <small>savdodan</small></span>}
+        </div>
+        {rep && rep.revenue > 0 && (() => {
+          const w = (v: number) => Math.max(0, (v / rep.revenue) * 100) + '%'
+          return <>
+            <div className="split" aria-label="Savdo pulining taqsimoti">
+              <i className="c" style={{ width: w(rep.cost) }} /><i className="e" style={{ width: w(rep.expenses) }} /><i className="p" style={{ width: w(Math.max(0, net)) }} />
+            </div>
+            <div className="split-l num">
+              <span><i className="c" />Tovar kelish narxi {money(rep.cost)}</span>
+              <span><i className="e" />Xarajatlar {money(rep.expenses)}</span>
+              <span><i className="p" />Sof foyda {money(Math.max(0, net))}</span>
+            </div>
+          </>
+        })()}
+        {rep && !rep.revenue && <div className="hc-empty">Bu davrda hali sotuv yo'q. Kassada sotganingiz sari foyda shu yerda o'sib boradi.</div>}
       </section>
+
+      {rep && <div className="stats">
+        <Stat icon="cart" label="Savdo" value={money(rep.revenue)} sub={`${rep.count} ta chek`} />
+        <Stat icon="cash" tone={rep.expenses ? 'red' : 'gold'} label="Xarajatlar" value={(rep.expenses ? '−' : '') + money(rep.expenses)} sub="ijara, ish haqi va boshqalar" />
+        <Stat icon="chart" tone="teal" label="Savdodan qolgan pul" value={(left < 0 ? '−' : '') + money(Math.abs(left))} sub="savdo − xarajat" />
+      </div>}
 
       <section className="card" style={{ overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)' }}><h2 style={{ margin: 0 }}>Qaysi tovardan qancha foyda</h2></div>

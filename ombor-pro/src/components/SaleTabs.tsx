@@ -12,10 +12,13 @@ export function SaleHeader({ refreshKey = 0 }: { refreshKey?: number }) {
   const t = (p: string, label: string) => <Link to={p} className={loc.pathname === p ? 'on' : ''}>{label}</Link>
   return (
     <div className="head">
-      <h1>Savdo</h1>
-      <span className="tag info num only-sm" style={{ fontSize: 14, padding: '8px 12px' }}>Bugun: {money(st.total)} so'm</span>
-      <span className="tag info num only-sm" style={{ fontSize: 14, padding: '8px 12px' }}>{st.count} ta chek</span>
+      <div><h1>Savdo</h1><div className="sub only-lg">{today()}</div></div>
+      <span className="tag info num only-sm" style={{ fontSize: 14, padding: '8px 12px' }}>Bugun {money(st.total)} · {st.count} chek</span>
       <nav className="tabs sp" aria-label="Savdo bo'limlari">{t('/savdo', 'Sotish')}{t('/savdo/tarozi', 'Tarozi')}{t('/savdo/cheklar', 'Cheklar')}</nav>
     </div>
   )
 }
+
+const DAYS = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba']
+const MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr']
+function today() { const d = new Date(); return `${DAYS[d.getDay()]}, ${d.getDate()}-${MONTHS[d.getMonth()]}` }

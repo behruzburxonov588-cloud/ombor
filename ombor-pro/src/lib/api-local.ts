@@ -242,7 +242,7 @@ export function createLocalApi(): Api {
       return out.sort((a, b) => b.at.localeCompare(a.at))
     },
 
-    async isAdmin() { return false },
+    async isAdmin() { return localStorage.getItem('ombor-demo-admin') === '1' }, // faqat namuna rejimida sinash uchun
     async adminShops() {
       return db.shops.map((s) => ({ ...s, device_count: db.devices.filter((d) => d.shop_id === s.id).length,
         owner_phone: db.members.find((m) => m.shop_id === s.id && m.role === 'owner')?.phone ?? null }))
@@ -256,7 +256,7 @@ export function createLocalApi(): Api {
     async adminDecide(rid, ok) {
       const r = (db.requests ?? []).find((x) => x.id === rid); if (!r || r.status !== 'pending') return
       const s = db.shops.find((x) => x.id === r.shop_id)
-      if (ok && s) { if (r.kind === 'device') s.device_limit += r.amount; else { const d = new Date(Math.max(Date.now(), new Date(s.paid_until).getTime())); d.setMonth(d.getMonth() + r.amount); s.paid_until = d.toISOString().slice(0, 10) } }
+      if (ok && s) { if (r.kind === 'device') s.device_limit += r.amount; else if (r.kind === 'plan') s.plan = Math.min(3, Math.max(s.plan ?? 1, r.amount)); else { const d = new Date(Math.max(Date.now(), new Date(s.paid_until).getTime())); d.setMonth(d.getMonth() + r.amount); s.paid_until = d.toISOString().slice(0, 10) } }
       r.status = ok ? 'approved' : 'rejected'; save()
     },
     async adminUpdateShop(shopId, p) {

@@ -11,6 +11,7 @@ import { PhotoPicker } from '../components/PhotoPicker'
 import { useToast } from '../components/Toast'
 import { ProductHistory } from '../components/ProductHistory'
 import { LabelsDialog } from '../components/Labels'
+import { Empty } from '../components/Empty'
 
 const blank: Product = { id: '', name: '', barcode: null, category: null, unit: 'dona', is_weighed: false, buy_price: 0, sell_price: 0, stock: 0, min_stock: 0, photo_url: null, size: null, color: null }
 
@@ -49,7 +50,7 @@ export function Products() {
         {owner && <button className="btn sec" style={{ minHeight: 48 }} onClick={() => setEdit(blank)}><Icon name="plus" size={18} />Yangi</button>}
       </div>
       <div className="card scroll-x">
-        {!shown.length ? <div className="empty"><Icon name="box" size={32} />{items.length ? 'Hech narsa topilmadi' : "Hali mahsulot yo'q. \"+ Tovar qabul qilish\" bo'limidan kiriting."}</div> : (
+        {!shown.length ? (items.length ? <Empty icon="search" title="Hech narsa topilmadi" text="Boshqa nom yoki shtrix-kod bilan qidirib ko'ring." /> : <Empty icon="box" title="Hali mahsulot yo'q" text="Omboringizdagi tovarlarni kiriting: nomi, soni va narxi. Kelgan har bir yuk shu yerga qo'shiladi." to="/mahsulotlar/qabul" action="Tovar qabul qilish" />) : (
           <table className="tbl stack">
             <thead><tr><th style={{ width: 40 }}><input type="checkbox" aria-label="Hammasini tanlash" checked={!!shown.length && shown.every((p) => sel.has(p.id))} onChange={(e) => setSel(e.target.checked ? new Set(shown.map((p) => p.id)) : new Set())} /></th><th>Mahsulot</th><th>Shtrix-kod</th><th>Qoldiq</th>{owner && <th style={{ textAlign: 'right' }}>Kirim narxi</th>}<th style={{ textAlign: 'right' }}>Sotuv narxi</th><th /></tr></thead>
             <tbody>

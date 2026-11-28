@@ -1,3 +1,4 @@
+import { Logo } from './Logo'
 import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Link, useLocation } from 'react-router-dom'
 import { Icon } from './Icon'
@@ -24,7 +25,7 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="app">
       <aside className="side">
         <div className="brand">
-          <div className="brand-ic"><Icon name="logo" size={20} stroke={2.4} /></div>
+          <Logo size={38} />
           <div><b>Ombor Pro</b><small>{shop.name}</small></div>
         </div>
         <nav className="nav" aria-label="Asosiy menyu">
@@ -33,7 +34,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/qarzlar"><Icon name="users" /><span className="lbl">Qarzlar</span></NavLink>
           {role === 'owner' && <NavLink to="/foyda"><Icon name="chart" /><span className="lbl">Foyda</span></NavLink>}
         </nav>
-        {today && <div className="today"><small>Bugungi savdo</small><b className="num">{money(today.total)}</b><span className="num">{today.count} ta chek</span></div>}
+        {today && <div className="today"><small>Bugungi savdo</small><b className="num" key={today.total}>{money(today.total)} <em>so'm</em></b><span className="num">{today.count} ta chek</span></div>}
         <div className="me">
           <div className="avatar">{initials(user.name || 'U')}</div>
           <div className="who"><b>{user.name}</b><small>{role === 'owner' ? 'Ega' : 'Sotuvchi'}</small></div>
@@ -47,7 +48,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="main">
         {api.mode === 'demo' && <div className="banner"><Icon name="alert" />Namuna rejimi: ma'lumotlar faqat shu brauzerda saqlanadi. Supabase ulanganda haqiqiy rejim yoqiladi.</div>}
         {expired && <div className="banner err"><Icon name="alert" />{shop.blocked ? "Do'kon bloklangan." : 'Tarif muddati tugagan.'} Sotuv to'xtatildi. Muddatni uzaytirish uchun admin bilan bog'laning.</div>}
-        {children}
+        <div className="page" key={loc.pathname.split('/')[1]}>{children}</div>
       </main>
     </div>
   )

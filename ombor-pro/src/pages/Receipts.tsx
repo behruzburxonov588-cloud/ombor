@@ -5,6 +5,7 @@ import { money, timeOf } from '../lib/format'
 import { useShop } from '../session'
 import { SaleHeader } from '../components/SaleTabs'
 import { printSale, receiptHtml } from '../components/Receipt'
+import { Stat } from '../components/Stat'
 import { Icon } from '../components/Icon'
 import { useToast } from '../components/Toast'
 
@@ -38,10 +39,10 @@ export function Receipts() {
         <input type="date" className="fld" style={{ width: 190, minHeight: 44 }} value={day} max={dayStr(0)} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Boshqa sana" />
       </div>
       <div className="stats">
-        <div className="stat"><small>Jami savdo · {ok.length} ta chek</small><b className="num">{money(sum)}</b></div>
-        <div className="stat teal"><small>Naqd</small><b className="num">{money(by('cash'))}</b></div>
-        <div className="stat"><small>Karta</small><b className="num">{money(by('card'))}</b></div>
-        <div className={'stat ' + (by('debt') ? 'red' : '')}><small>Qarzga</small><b className="num">{money(by('debt'))}</b></div>
+        <Stat icon="chart" label="Jami savdo" value={money(sum)} sub={`${ok.length} ta chek`} />
+        <Stat icon="cash" tone="teal" label="Naqd" value={money(by('cash'))} />
+        <Stat icon="card" label="Karta" value={money(by('card'))} />
+        <Stat icon="book" tone={by('debt') ? 'red' : 'gold'} label="Qarzga" value={money(by('debt'))} />
       </div>
       {err && <div className="banner err">{err}</div>}
       <div className="card scroll-x">

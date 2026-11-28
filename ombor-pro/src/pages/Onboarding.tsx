@@ -1,8 +1,8 @@
+import { Logo } from '../components/Logo'
 import { useState } from 'react'
 import { api, errText } from '../lib/api'
 import { SHOP_TYPES } from '../lib/format'
 import { useSession } from '../session'
-import { Icon } from '../components/Icon'
 
 export function Onboarding() {
   const { user, reload } = useSession()
@@ -26,7 +26,7 @@ export function Onboarding() {
 
   return (
     <form className="center-page" onSubmit={submit}>
-      <div className="brand" style={{ color: 'var(--ink)' }}><div className="brand-ic"><Icon name="logo" size={20} stroke={2.4} /></div><b style={{ fontSize: 20, display: 'block' }}>Ombor Pro</b></div>
+      <div className="brand" style={{ color: 'var(--ink)' }}><Logo size={38} /><b style={{ fontSize: 20, display: 'block' }}>Ombor Pro</b></div>
       <div className="card pad" style={{ width: '100%', maxWidth: 980, display: 'flex', flexDirection: 'column', gap: 20, padding: 32 }}>
         <div>
           <h1>Yangi do'kon ochish</h1>

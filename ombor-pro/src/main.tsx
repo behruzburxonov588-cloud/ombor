@@ -8,6 +8,7 @@ applyTheme()
 import { App } from './App'
 import { SessionProvider } from './session'
 import { ToastProvider } from './components/Toast'
+import { Intro } from './components/Intro'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')!).render(
       <ToastProvider>
         <SessionProvider>
           <App />
+          <Intro />
         </SessionProvider>
       </ToastProvider>
     </BrowserRouter>

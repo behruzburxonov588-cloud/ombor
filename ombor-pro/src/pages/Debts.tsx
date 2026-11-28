@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, errText } from '../lib/api'
 import type { Contact, ContactKind, HistoryRow } from '../lib/types'
-import { dateOf, formatPhone, initials, money, parseMoney } from '../lib/format'
+import { dateOf, formatPhone, initials, money, parseMoney, tint } from '../lib/format'
 import { useShop } from '../session'
 import { Icon } from '../components/Icon'
+import { Stat } from '../components/Stat'
+import { Empty } from '../components/Empty'
 import { useToast } from '../components/Toast'
 
 export function Debts() {
@@ -51,6 +53,7 @@ export function Debts() {
 
   const quick = sel && sel.balance > 0 ? [...new Set([sel.balance, Math.round(sel.balance / 2 / 1000) * 1000, 500000, 100000])].filter((v) => v > 0 && v <= sel.balance) : []
 
+  const top = list.filter((c) => c.balance > 0).sort((a, b) => b.balance - a.balance)[0]
   return (
     <>
       <div className="head">
@@ -62,9 +65,9 @@ export function Debts() {
         <button className="btn" onClick={() => setAdding({ name: '', phone: '' })}><Icon name="plus" size={18} />Qo'shish</button>
       </div>
       <div className="stats">
-        <div className={'stat ' + (cust ? 'red' : '')}><small>{cust ? 'Mijozlar bizga qarz' : 'Biz yetkazib beruvchilarga qarz'}</small><b className="num">{money(total)} so'm</b></div>
-        <div className="stat"><small>Qarzdorlar soni</small><b className="num">{list.filter((c) => c.balance > 0).length} ta</b></div>
-        <div className="stat"><small>Eng katta qarz</small><b className="num">{money(Math.max(0, ...list.map((c) => c.balance)))}</b></div>
+        <Stat icon="book" tone={total > 0 ? 'red' : 'teal'} label={cust ? 'Mijozlar bizga qarz' : 'Biz yetkazib beruvchilarga qarz'} value={<>{money(total)} <small>so'm</small></>} />
+        <Stat icon="users" label="Qarzdorlar soni" value={<>{list.filter((c) => c.balance > 0).length} <small>ta</small></>} sub={`jami ${list.length} ta ${cust ? 'mijoz' : 'yetkazib beruvchi'}`} />
+        <Stat icon="alert" tone="gold" label="Eng katta qarz" value={money(Math.max(0, ...list.map((c) => c.balance)))} sub={top?.name} />
       </div>
       <div className="cols">
         <section className="col-main">
@@ -80,15 +83,15 @@ export function Debts() {
             </form>
           )}
           <div className="card scroll-x">
-            {!shown.length ? <div className="empty"><Icon name="users" size={32} />{onlyDebt ? "Qarzdorlar yo'q" : "Ro'yxat bo'sh"}</div> : (
+            {!shown.length ? (cust ? <Empty icon="users" title={onlyDebt ? "Qarzdor mijoz yo'q" : "Mijozlar ro'yxati bo'sh"} text="Kassada «Qarzga» tugmasi bilan sotsangiz, mijoz va uning qarzi shu yerda paydo bo'ladi." /> : <Empty icon="users" title="Yetkazib beruvchilar yo'q" text="Tovar qabul qilishda «Kimdan keldi» ni yozsangiz, u shu yerda paydo bo'ladi. To'lanmagan pul qarz bo'lib turadi." />) : (
               <table className="tbl">
-                <thead><tr><th>{cust ? 'Mijoz' : 'Yetkazib beruvchi'}</th><th>Telefon</th><th style={{ textAlign: 'right' }}>{cust ? 'Bizga qarzi' : 'Bizning qarzimiz'}</th></tr></thead>
+                <thead><tr><th>{cust ? 'Mijoz' : 'Yetkazib beruvchi'}</th><th className="hide-sm">Telefon</th><th style={{ textAlign: 'right' }}>{cust ? 'Bizga qarzi' : 'Bizning qarzimiz'}</th></tr></thead>
                 <tbody>
                   {shown.map((c) => (
                     <tr key={c.id} className={sel?.id === c.id ? 'sel' : ''}>
-                      <td><button onClick={() => setSel(c)} style={{ border: 0, background: 'none', padding: 0, fontWeight: 700, fontSize: 15, cursor: 'pointer', textAlign: 'left' }}>{c.name}</button></td>
-                      <td className="num muted">{formatPhone(c.phone) || '—'}</td>
-                      <td className="num" style={{ textAlign: 'right', fontWeight: 700, color: c.balance > 0 ? 'var(--red)' : 'var(--teal-d)' }}>{money(c.balance)}</td>
+                      <td><button className="who-btn" onClick={() => setSel(c)}><span className="av" style={{ background: tint(c.name) }}>{initials(c.name)}</span><span>{c.name}{c.phone && <small className="only-sm num">{formatPhone(c.phone)}</small>}</span></button></td>
+                      <td className="num muted hide-sm">{formatPhone(c.phone) || '—'}</td>
+                      <td className="num" style={{ textAlign: 'right' }}><span className={'amt ' + (c.balance > 0 ? 'bad' : 'ok')}>{c.balance > 0 ? money(c.balance) : "Qarzi yo'q"}</span></td>
                     </tr>
                   ))}
                 </tbody>

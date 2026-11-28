@@ -75,7 +75,7 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
 
   if (done && !lines.length) return (
     <aside className="card pad col-side sticky checkout done" id="savat" aria-live="polite">
-      <div className="done-ic"><Icon name="check" size={40} stroke={3} /></div>
+      <div className="done-ic"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} /></svg></div>
       <div style={{ textAlign: 'center' }}><h2 style={{ fontSize: 24 }}>Sotildi</h2><div className="muted num">Chek #{done.sale.number} · {money(done.sale.total)} so'm · {done.sale.pay_method === 'cash' ? 'naqd' : done.sale.pay_method === 'card' ? 'karta' : 'qarzga'}</div></div>
       {done.change > 0
         ? <div className="done-change"><small>Mijozga qaytaring</small><b className="num">{money(done.change)} <span>so'm</span></b><small className="num">berdi {money(done.sale.given ?? 0)}</small></div>
@@ -117,7 +117,7 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
         </div>
       ))}
       </div>
-      <div className="total"><span style={{ fontWeight: 600 }}>Jami</span><b className="num">{money(total)} <small className="muted" style={{ fontSize: 16 }}>so'm</small></b></div>
+      <div className="total"><span style={{ fontWeight: 600 }}>Jami</span><b className="num" key={total}>{money(total)} <small className="muted" style={{ fontSize: 16 }}>so'm</small></b></div>
       {lines.length > 0 && <div className="paym" role="radiogroup" aria-label="To'lov turi">
         {PAY.map(([m, l, ic]) => (
           <button key={m} role="radio" aria-checked={method === m} className={method === m ? 'on ' + m : ''} onClick={() => setMethod(m)}><Icon name={ic} size={22} />{l}</button>

@@ -86,5 +86,5 @@ export interface ProfitItem { name: string; unit: string; qty: number; revenue: 
 export interface ProfitReport { revenue: number; cost: number; profit: number; expenses: number; net: number; count: number; items: ProfitItem[] }
 export interface StockLog { id: string; kind: 'kirim' | 'sotuv' | 'tuzatish' | 'yangi' | 'qaytdi'; delta: number; stock_after: number; price: number | null; note: string | null; created_at: string }
 export interface Expense { id: string; amount: number; category: string; note: string | null; created_at: string }
-export interface ShopRequest { id: string; shop_id: string; shop_name?: string; owner_phone?: string | null; kind: 'device' | 'extend'; amount: number; note: string | null; status: 'pending' | 'approved' | 'rejected'; created_at: string }
+export interface ShopRequest { id: string; shop_id: string; shop_name?: string; owner_phone?: string | null; kind: 'device' | 'extend' | 'plan'; amount: number; note: string | null; status: 'pending' | 'approved' | 'rejected'; created_at: string }
 export interface ProductStat { id: string; name: string; unit: string; stock: number; min_stock: number; sell_price: number; buy_price: number | null; photo_url: string | null; sold: number; revenue: number; profit: number | null; last_sold: string | null; last_sold_ever: string | null }

@@ -5,7 +5,7 @@ import { dateOf } from '../lib/format'
 import { Icon } from './Icon'
 
 const ST: Record<string, [string, string]> = { pending: ['Kutilmoqda', 'warn'], approved: ['Tasdiqlandi', 'ok'], rejected: ['Rad etildi', 'bad'] }
-export const reqText = (r: { kind: string; amount: number }) => r.kind === 'device' ? `+${r.amount} ta qurilma` : `${r.amount} oyga uzaytirish`
+export const reqText = (r: { kind: string; amount: number }) => r.kind === 'device' ? `+${r.amount} ta qurilma` : r.kind === 'plan' ? `${r.amount}-versiyaga o'tish` : `${r.amount} oyga uzaytirish`
 
 // Do'kon egasi admin'ga so'rov yuboradi: qo'shimcha qurilma yoki muddat uzaytirish
 export function RequestBox({ shopId, kinds = ['device', 'extend'], onSent }: { shopId: string; kinds?: ('device' | 'extend')[]; onSent?: () => void }) {
