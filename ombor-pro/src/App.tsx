@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useSession } from './session'
+import { useKind } from './lib/kind'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { Onboarding } from './pages/Onboarding'
@@ -24,12 +25,17 @@ export function App() {
   if (s.isAdmin && loc.pathname.startsWith('/admin')) return <Admin />
   if (!s.membership) return <Onboarding />
   if (s.deviceOk === false) return <DeviceLimit />
-  const start = localStorage.getItem('ombor-start-scale') === '1' ? '/savdo/tarozi' : '/savdo'
+  return <Shell />
+}
+
+function Shell() {
+  const kind = useKind()
+  const start = kind.scale && localStorage.getItem('ombor-start-scale') === '1' ? '/savdo/tarozi' : '/savdo'
   return (
     <Layout>
       <Routes>
         <Route path="/savdo" element={<Sale />} />
-        <Route path="/savdo/tarozi" element={<ScaleSale />} />
+        <Route path="/savdo/tarozi" element={kind.scale ? <ScaleSale /> : <Navigate to="/savdo" replace />} />
         <Route path="/savdo/cheklar" element={<Receipts />} />
         <Route path="/mahsulotlar" element={<Products />} />
         <Route path="/mahsulotlar/tahlil" element={<Analysis />} />

@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useShop } from '../session'
 import { money } from '../lib/format'
+import { useKind } from '../lib/kind'
 
 export function SaleHeader({ refreshKey = 0 }: { refreshKey?: number }) {
   const { shop } = useShop()
   const loc = useLocation()
+  const kind = useKind()
   const [st, setSt] = useState({ total: 0, count: 0 })
   useEffect(() => { api.todayStats(shop.id).then(setSt).catch(() => {}) }, [shop.id, refreshKey])
   const t = (p: string, label: string) => <Link to={p} className={loc.pathname === p ? 'on' : ''}>{label}</Link>
@@ -14,7 +16,7 @@ export function SaleHeader({ refreshKey = 0 }: { refreshKey?: number }) {
     <div className="head">
       <div><h1>Savdo</h1><div className="sub only-lg">{today()}</div></div>
       <span className="tag info num only-sm" style={{ fontSize: 14, padding: '8px 12px' }}>Bugun {money(st.total)} · {st.count} chek</span>
-      <nav className="tabs sp" aria-label="Savdo bo'limlari">{t('/savdo', 'Sotish')}{t('/savdo/tarozi', 'Tarozi')}{t('/savdo/cheklar', 'Cheklar')}</nav>
+      <nav className="tabs sp" aria-label="Savdo bo'limlari">{t('/savdo', 'Sotish')}{kind.scale && t('/savdo/tarozi', 'Tarozi')}{t('/savdo/cheklar', 'Cheklar')}</nav>
     </div>
   )
 }

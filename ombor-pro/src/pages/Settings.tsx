@@ -3,6 +3,7 @@ import { api, errText } from '../lib/api'
 import type { Device, Member } from '../lib/types'
 import { dateOf, formatPhone, SHOP_TYPES } from '../lib/format'
 import { deviceKey } from '../lib/device'
+import { useKind, setScaleOn } from '../lib/kind'
 import { useShop } from '../session'
 import { useScale, serialSupported } from '../lib/scale'
 import { Icon } from '../components/Icon'
@@ -109,6 +110,8 @@ function DevicesHw() {
   const scale = useScale()
   const [startScale, setStartScale] = useState(localStorage.getItem('ombor-start-scale') === '1')
   const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ombor-auto-print') !== '0')
+  const kind = useKind()
+  const { shop } = useShop()
   const [baud, setBaud] = useState(localStorage.getItem('ombor-scale-baud') || '9600')
   const flag = (k: string, v: boolean) => localStorage.setItem(k, v ? '1' : '0')
   const Row = ({ t, s, st, ok, children }: { t: string; s: string; st: string; ok: boolean; children?: React.ReactNode }) => (
@@ -120,23 +123,29 @@ function DevicesHw() {
   return (
     <section className="card pad" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <h2>Uskunalar</h2>
+      <label className="sw-row">
+        <span className="sw"><input type="checkbox" checked={kind.scale} onChange={(e) => setScaleOn(shop.id, e.target.checked)} /><i /></span>
+        <span><b>Tarozi bilan ishlaymiz</b><small>Kilolik tovar sotadigan do'konlar uchun. O'chirsangiz, tarozi bilan bog'liq hamma joy yashiriladi.</small></span>
+      </label>
+      {kind.scale && <>
       <Row t="Tarozi" s={serialSupported() ? 'USB yoki COM orqali (Chrome / Edge)' : "Bu brauzer tarozini qo'llamaydi. Kompyuterda Chrome yoki Edge'ni oching"} st={scale.connected ? `Ulangan: ${scale.weight.toFixed(3)} kg` : 'Ulanmagan'} ok={scale.connected}>
         {serialSupported() && !scale.connected && <button className="btn" style={{ minHeight: 40 }} onClick={() => { localStorage.setItem('ombor-scale-baud', baud); scale.connect(Number(baud)) }}>Ulash</button>}
       </Row>
       <label className="lb" style={{ maxWidth: 240, marginTop: 8 }}>Tarozi tezligi (baud)<select className="fld" value={baud} onChange={(e) => setBaud(e.target.value)}>{['2400', '4800', '9600', '19200'].map((b) => <option key={b}>{b}</option>)}</select></label>
+      </>}
       <Row t="Shtrix-kod skaneri" s="USB skaner klaviatura kabi ishlaydi, sozlash shart emas" st="Tayyor" ok />
       <Row t="Chek printeri" s="58 yoki 80 mm, brauzerning chop etish oynasi orqali" st="Tayyor" ok>
         <button className="btn sec" style={{ minHeight: 40 }} onClick={() => window.print()}>Sinash</button>
       </Row>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14, padding: '14px 16px', borderRadius: 12, background: 'var(--blue-l)', fontWeight: 600, color: 'var(--blue)', cursor: 'pointer' }}>
+      {kind.scale && <label style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14, padding: '14px 16px', borderRadius: 12, background: 'var(--blue-l)', fontWeight: 600, color: 'var(--blue)', cursor: 'pointer' }}>
         <input type="checkbox" checked={startScale} onChange={(e) => { setStartScale(e.target.checked); flag('ombor-start-scale', e.target.checked) }} style={{ width: 22, height: 22 }} />
         Savdo Tarozi bo'limidan ochilsin (kilolik do'konlar uchun)
-      </label>
+      </label>}
       <label style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, padding: '14px 16px', borderRadius: 12, background: 'var(--blue-l)', fontWeight: 600, color: 'var(--blue)', cursor: 'pointer' }}>
         <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); flag('ombor-auto-print', e.target.checked) }} style={{ width: 22, height: 22 }} />
         Har sotuvdan keyin chek avtomatik chiqsin
       </label>
-      {scale.error && <div className="banner err" style={{ marginTop: 8 }}>Tarozi: {scale.error}</div>}
+      {kind.scale && scale.error && <div className="banner err" style={{ marginTop: 8 }}>Tarozi: {scale.error}</div>}
     </section>
   )
 }

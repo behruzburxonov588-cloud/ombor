@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { Product } from '../lib/types'
 import { money, parseNum, qty } from '../lib/format'
 import { useScale, serialSupported } from '../lib/scale'
+import { useKind } from '../lib/kind'
 import { Icon } from './Icon'
 
 // Savdo sahifasida kilolik tovarni bosganda: tarozidan o'qiydi yoki kilo yoziladi
@@ -16,6 +17,7 @@ export function WeighDialog({ p, onClose, onAdd }: { p: Product; onClose: () => 
   const kg = fromScale && !txt ? scale.weight : mode === 'kg' ? typed : p.sell_price ? Math.round((typed / p.sell_price) * 1000) / 1000 : 0
   const ok = kg > 0
   const go = () => { if (ok) onAdd(Math.round(kg * 1000) / 1000) }
+  const scaleOn = useKind().scale
   return (
     <div className="modal-wrap" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={p.name}>
@@ -23,7 +25,7 @@ export function WeighDialog({ p, onClose, onAdd }: { p: Product; onClose: () => 
         <div className="muted num">{money(p.sell_price)} so'm / kg · omborda {qty(p.stock, 'kg')}</div>
         {scale.connected
           ? <div className="banner" style={{ background: 'var(--teal-l)', color: 'var(--teal-d)' }}><Icon name="scale" />Tarozi: <b className="num">{qty(scale.weight, 'kg')}</b>{scale.stable ? '' : ' (tebranmoqda…)'}</div>
-          : serialSupported() && <button className="btn sec" onClick={() => scale.connect()}><Icon name="scale" />Tarozini ulash</button>}
+          : scaleOn && serialSupported() && <button className="btn sec" onClick={() => scale.connect()}><Icon name="scale" />Tarozini ulash</button>}
         <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <button className={mode === 'kg' ? 'on' : ''} onClick={() => pick('kg')}>Necha kilo</button>
           <button className={mode === 'sum' ? 'on' : ''} onClick={() => pick('sum')}>Necha pullik</button>

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { api, errText } from '../lib/api'
 import type { Product } from '../lib/types'
 import { money, parseMoney, parseNum, qty, UNITS } from '../lib/format'
+import { useKind } from '../lib/kind'
 import { useShop } from '../session'
 import { Icon } from '../components/Icon'
 import { Thumb } from '../components/Thumb'
@@ -85,10 +86,11 @@ export function Products() {
 
 function EditDrawer({ p, owner, onClose, onSaved }: { p: Product; owner: boolean; onClose: () => void; onSaved: () => void }) {
   const { shop } = useShop()
+  const kind = useKind()
   const isNew = !p.id
   const [tab, setTab] = useState<'edit' | 'history'>(owner ? 'edit' : 'history')
   const toast = useToast()
-  const [f, setF] = useState({ ...p, buy: money(p.buy_price), sell: money(p.sell_price), stockTxt: qty(p.stock), minTxt: qty(p.min_stock) })
+  const [f, setF] = useState({ ...p, unit: p.id ? p.unit : kind.unit, buy: money(p.buy_price), sell: money(p.sell_price), stockTxt: qty(p.stock), minTxt: qty(p.min_stock) })
   const set = (k: string, v: string | null) => setF({ ...f, [k]: v })
   const profit = parseMoney(f.sell) - parseMoney(f.buy)
 
@@ -114,19 +116,19 @@ function EditDrawer({ p, owner, onClose, onSaved }: { p: Product; owner: boolean
         {tab === 'history' ? <ProductHistory shopId={shop.id} p={p} showBuy={owner} /> : <>
         <div className="row" style={{ alignItems: 'center', flexWrap: 'nowrap' }}>
           <PhotoPicker url={f.photo_url} name={f.name} onChange={(u) => set('photo_url', u)} />
-          <label className="lb" style={{ flex: 1 }}>Nomi<input className="fld" value={f.name} onChange={(e) => set('name', e.target.value)} /></label>
+          <label className="lb" style={{ flex: 1 }}>Nomi<input className="fld" value={f.name} onChange={(e) => set('name', e.target.value)} placeholder={'Masalan: ' + kind.example} /></label>
         </div>
         <div className="grid2">
-          <label className="lb">Birlik<select className="fld" value={f.unit} onChange={(e) => set('unit', e.target.value)}>{UNITS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}</select></label>
+          <label className="lb">Birlik<select className="fld" value={f.unit} onChange={(e) => set('unit', e.target.value)}>{UNITS.filter((u) => kind.units.includes(u.id) || u.id === f.unit).map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}</select></label>
           <label className="lb">Shtrix-kod<input className="fld num" value={f.barcode ?? ''} onChange={(e) => set('barcode', e.target.value)} /></label>
           <label className="lb">Kirim narxi<input className="fld num" inputMode="numeric" value={f.buy} onChange={(e) => set('buy', e.target.value)} /></label>
           <label className="lb">Sotuv narxi{f.unit === 'kg' ? ', 1 kg' : ''}<input className="fld num" inputMode="numeric" value={f.sell} onChange={(e) => set('sell', e.target.value)} /></label>
           <label className="lb">Qoldiq<input className="fld num" inputMode="decimal" value={f.stockTxt} onChange={(e) => set('stockTxt', e.target.value)} /></label>
           <label className="lb">Minimal qoldiq<input className="fld num" inputMode="decimal" value={f.minTxt} onChange={(e) => set('minTxt', e.target.value)} /></label>
-          <label className="lb">O'lcham<input className="fld" value={f.size ?? ''} onChange={(e) => set('size', e.target.value)} placeholder="ixtiyoriy" /></label>
-          <label className="lb">Rang<input className="fld" value={f.color ?? ''} onChange={(e) => set('color', e.target.value)} placeholder="ixtiyoriy" /></label>
+          {(kind.sizes.length > 0 || f.size) && <label className="lb">O'lcham<input className="fld" list="sz-list" value={f.size ?? ''} onChange={(e) => set('size', e.target.value.toUpperCase())} placeholder="masalan: M yoki 42" /><datalist id="sz-list">{kind.sizes.flatMap((x) => x.list).filter((v, i, a) => a.indexOf(v) === i).map((z) => <option key={z} value={z} />)}</datalist></label>}
+          {(kind.colors || f.color) && <label className="lb">Rang<input className="fld" value={f.color ?? ''} onChange={(e) => set('color', e.target.value)} placeholder="masalan: oq" /></label>}
         </div>
-        <div className={'banner' + (profit < 0 ? ' err' : '')} style={profit >= 0 ? { background: 'var(--teal-l)', color: 'var(--teal-d)' } : {}}>Bir {f.unit === 'kg' ? 'kilodan' : 'donadan'} foyda: {profit < 0 ? '−' : ''}{money(Math.abs(profit))} so'm</div>
+        <div className={'banner' + (profit < 0 ? ' err' : '')} style={profit >= 0 ? { background: 'var(--teal-l)', color: 'var(--teal-d)' } : {}}>Bir {({ kg: 'kilodan', metr: 'metrdan', litr: 'litrdan', juft: 'juftidan', quti: 'qutidan' } as Record<string, string>)[f.unit] ?? 'donadan'} foyda: {profit < 0 ? '−' : ''}{money(Math.abs(profit))} so'm</div>
         <div className="row" style={{ marginTop: 'auto' }}>
           {!isNew && <button className="btn danger" onClick={archive}><Icon name="trash" size={18} />O'chirish</button>}
           <button className="btn" style={{ flex: 1 }} onClick={save}>Saqlash</button>

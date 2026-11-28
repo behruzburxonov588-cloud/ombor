@@ -81,7 +81,7 @@ export function Checkout({ lines, setLines, onSold }: { lines: CartLine[]; setLi
         ? <div className="done-change"><small>Mijozga qaytaring</small><b className="num">{money(done.change)} <span>so'm</span></b><small className="num">berdi {money(done.sale.given ?? 0)}</small></div>
         : done.sale.pay_method !== 'debt' && <div className="done-change"><small>To'landi</small><b className="num">{money(done.sale.total)} <span>so'm</span></b></div>}
       {done.sale.pay_method === 'debt' && <div className="banner err">{done.sale.contact_name} qarziga yozildi</div>}
-      <button className="btn sec big wide" onClick={() => printSale(done.sale, shop)}><Icon name="printer" />{autoPrint ? 'Chekni qayta chiqarish' : 'Chek chiqarish'}</button>
+      {!autoPrint && <button className="btn sec big wide" onClick={() => printSale(done.sale, shop)}><Icon name="printer" />Chek chiqarish</button>}
       <button className="btn big wide" autoFocus onClick={() => setDone(null)}>Keyingi xaridor</button>
       <div className="muted" style={{ textAlign: 'center', fontSize: 13 }}>Yoki shunchaki keyingi tovarni skanerlang</div>
     </aside>

@@ -15,6 +15,7 @@ import { useCart } from '../lib/cart'
 import { WeighDialog } from '../components/WeighDialog'
 import { Empty } from '../components/Empty'
 import { Link } from 'react-router-dom'
+import { useKind } from '../lib/kind'
 
 export function Sale() {
   const { shop } = useShop()
@@ -43,6 +44,23 @@ export function Sale() {
   }, [q, items, rank])
 
   const [unknown, setUnknown] = useState<string | null>(null)
+  // Kiyim do'koni: bir xil tovarning o'lchamlari bitta kartochkada
+  const kind = useKind()
+  const [szPick, setSzPick] = useState<Product[] | null>(null)
+  const tiles = useMemo(() => {
+    if (!kind.sizes.length) return shown.map((p) => ({ key: p.id, items: [p] }))
+    const out: { key: string; items: Product[] }[] = []; const at: Record<string, number> = {}
+    for (const p of shown) {
+      if (!p.size) { out.push({ key: p.id, items: [p] }); continue }
+      const k = p.name.toLowerCase() + '|' + (p.color ?? '').toLowerCase()
+      if (at[k] == null) { at[k] = out.length; out.push({ key: 'g' + k, items: [] }) }
+      out[at[k]].items.push(p)
+    }
+    const letters = kind.sizes[0]?.list ?? []
+    const rank = (z: string | null) => { const v = (z ?? '').toUpperCase(); if (/^\d+([.,]\d+)?$/.test(v)) return 1000 + parseFloat(v.replace(',', '.')); const i = letters.indexOf(v); return i < 0 ? 5000 : i }
+    for (const g of out) g.items.sort((a, b) => rank(a.size) - rank(b.size) || String(a.size).localeCompare(String(b.size), undefined, { numeric: true }))
+    return out
+  }, [shown, kind.sizes])
   // Savatdagi soni kartochkada ko'rinadi; bosilganda kartochka "javob beradi"
   const inCart = useMemo(() => { const m: Record<string, number> = {}; for (const l of lines) m[l.product.id] = (m[l.product.id] ?? 0) + l.qty; return m }, [lines])
   const [hit, setHit] = useState<{ id: string; n: number }>({ id: '', n: 0 })
@@ -91,17 +109,21 @@ export function Sale() {
             <Link to="/mahsulotlar/qabul" className="btn big" style={{ marginTop: 14 }}><Icon name="plus" />Tovar qabul qilish</Link>
           </Empty></div>}
           <div className="tiles">
-            {shown.map((p) => {
-              const c = inCart[p.id]; const low = p.stock <= p.min_stock
+            {tiles.map(({ key, items: g }) => {
+              const p = g[0]; const grp = g.length > 1
+              const c = g.reduce((a, x) => a + (inCart[x.id] ?? 0), 0)
+              const stock = g.reduce((a, x) => a + x.stock, 0); const low = g.every((x) => x.stock <= x.min_stock)
+              const prices = g.map((x) => x.sell_price); const minP = Math.min(...prices)
               return (
-              <button key={p.id} className={'tile' + (low ? ' low' : '') + (c ? ' in' : '')} onClick={() => add(p)}>
-                {hit.id === p.id && <span className="t-hit" key={hit.n} />}
+              <button key={key} className={'tile' + (low ? ' low' : '') + (c ? ' in' : '')} onClick={() => grp ? setSzPick(g) : add(p)}>
+                {g.some((x) => x.id === hit.id) && <span className="t-hit" key={hit.n} />}
                 {c ? <span className="t-q num" key={'q' + c}>{p.is_weighed ? qty(c, 'kg') : '× ' + qty(c)}</span> : null}
                 <Thumb p={p} size={-1} h={p.photo_url ? 84 : 62} />
-                <span className="nm">{p.name}{p.size || p.color ? <span className="muted" style={{ fontWeight: 500 }}> · {[p.size, p.color].filter(Boolean).join(', ')}</span> : null}</span>
+                <span className="nm">{p.name}{!grp && p.color ? <span className="muted" style={{ fontWeight: 500 }}> · {p.color}</span> : grp && p.color ? <span className="muted" style={{ fontWeight: 500 }}> · {p.color}</span> : null}</span>
+                {(grp || (p.size && kind.sizes.length > 0)) && <span className="t-sz">{g.map((x) => <i key={x.id} className={x.stock <= 0 ? 'out' : ''}>{x.size}</i>)}</span>}
                 <span className="t-bot">
-                  <span className="pr num">{money(p.sell_price)}{p.is_weighed ? <small>/kg</small> : null}</span>
-                  <span className="st num">{low ? 'Kam: ' : ''}{qty(p.stock, p.unit)}</span>
+                  <span className="pr num">{money(minP)}{p.is_weighed ? <small>/kg</small> : null}{grp && new Set(prices).size > 1 ? <small> dan</small> : null}</span>
+                  <span className="st num">{low ? 'Kam: ' : ''}{qty(stock, p.unit)}</span>
                 </span>
               </button>
             )})}
@@ -115,6 +137,26 @@ export function Sale() {
           <b className="num">{money(lines.reduce((a, l) => a + Math.round(l.qty * l.price), 0))} so'm</b>
           <span>Sotish ›</span>
         </button>
+      )}
+      {szPick && (
+        <div className="modal-wrap" onClick={() => setSzPick(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="O'lchamni tanlang" style={{ width: 'min(560px, 100%)' }}>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+              <div style={{ minWidth: 0 }}><h2>{szPick[0].name}{szPick[0].color ? <span className="muted" style={{ fontWeight: 500 }}> · {szPick[0].color}</span> : null}</h2><div className="muted" style={{ marginTop: 4 }}>Qaysi o'lcham? Bosing, savatga tushadi.</div></div>
+              <button className="qb" aria-label="Yopish" onClick={() => setSzPick(null)}><Icon name="x" size={18} /></button>
+            </div>
+            <div className="szd-grid">
+              {szPick.map((x) => (
+                <button key={x.id} className={'szd' + (x.stock > 0 && x.stock <= x.min_stock ? ' low' : '')} onClick={() => { add(x); setSzPick(null) }}>
+                  <b>{x.size}</b>
+                  <small className="num">{x.stock > 0 ? qty(x.stock, x.unit) : 'tugagan'}</small>
+                  {new Set(szPick.map((y) => y.sell_price)).size > 1 && <small className="num" style={{ color: 'var(--ink)', fontWeight: 700 }}>{money(x.sell_price)}</small>}
+                  {inCart[x.id] ? <span className="inc num">savatda {qty(inCart[x.id])}</span> : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
       {weigh && <WeighDialog p={weigh} onClose={() => setWeigh(null)} onAdd={(kg) => { add(weigh, kg); setWeigh(null) }} />}
       {unknown && (
